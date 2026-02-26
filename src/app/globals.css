@@ -1,0 +1,25 @@
+@import "tailwindcss";
+
+:root {
+  --hc-black: #1a1a1a;
+  --hc-gold: #c5a059;
+  --hc-offwhite: #fafafa;
+  --background: var(--hc-offwhite);
+  --foreground: var(--hc-black);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-hcBlack: var(--hc-black);
+  --color-hcGold: var(--hc-gold);
+  --color-hcOffWhite: var(--hc-offwhite);
+  --font-sans: var(--font-sans);
+  --font-serif: var(--font-serif);
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans), sans-serif;
+}

@@ -19,7 +19,9 @@
       }
     ],
     "paths": {
-      "@/*": ["./*"]
+      "@/*": ["./src/*"],
+      "/lib/*": ["./src/lib/*"],
+      "/services/*": ["./src/services/*"]
     }
   },
   "include": [
@@ -32,3 +34,4 @@
   ],
   "exclude": ["node_modules"]
 }
+

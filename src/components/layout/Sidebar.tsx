@@ -1,4 +1,9 @@
-﻿import {
+﻿"use client";
+
+import React from "react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import {
   LayoutDashboard,
   Calendar,
   Users,
@@ -8,16 +13,20 @@
   Settings,
 } from "lucide-react";
 
-type NavItemProps = {
+type NavItem = {
   icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
   label: string;
+  href: string;
+};
+
+type NavItemProps = NavItem & {
   active?: boolean;
 };
 
-function NavItem({ icon: Icon, label, active = false }: NavItemProps) {
+function NavItem({ icon: Icon, label, href, active = false }: NavItemProps) {
   return (
-    <button
-      type="button"
+    <Link
+      href={href}
       className={`flex w-full items-center gap-3 text-left uppercase tracking-[0.1em] transition-colors ${
         active ? "text-[#C5A059]" : "text-[#FAFAFA]/70 hover:text-[#FAFAFA]"
       }`}
@@ -25,18 +34,27 @@ function NavItem({ icon: Icon, label, active = false }: NavItemProps) {
       <span className={`h-7 w-[3px] ${active ? "bg-[#C5A059]" : "bg-transparent"}`} />
       <Icon size={17} strokeWidth={1.8} />
       <span className="text-[13px] font-semibold leading-none">{label}</span>
-    </button>
+    </Link>
   );
 }
 
+function isActive(pathname: string, href: string) {
+  // Dashboard só fica ativo na home
+  if (href === "/") return pathname === "/";
+  return pathname.startsWith(href);
+}
+
 export default function Sidebar() {
-  const items = [
-    { label: "Dashboard", icon: LayoutDashboard },
-    { label: "Agenda", icon: Calendar },
-    { label: "CRM Pacientes", icon: Users },
-    { label: "Financeiro", icon: DollarSign },
-    { label: "WhatsApp", icon: MessageSquare },
-    { label: "IA Marketing", icon: Sparkles, active: true },
+  const pathname = usePathname();
+
+  // ✅ coloque aqui as rotas reais do seu app
+  const items: NavItem[] = [
+    { label: "Dashboard", icon: LayoutDashboard, href: "/" },
+    { label: "Agenda", icon: Calendar, href: "/appointments" },
+    { label: "CRM Pacientes", icon: Users, href: "/patients" },
+    { label: "Financeiro", icon: DollarSign, href: "/finance" },
+    { label: "WhatsApp", icon: MessageSquare, href: "/whatsapp" },
+    { label: "IA Marketing", icon: Sparkles, href: "/marketing" },
   ];
 
   return (
@@ -52,7 +70,13 @@ export default function Sidebar() {
 
         <nav className="space-y-9">
           {items.map((item) => (
-            <NavItem key={item.label} icon={item.icon} label={item.label} active={item.active} />
+            <NavItem
+              key={item.label}
+              icon={item.icon}
+              label={item.label}
+              href={item.href}
+              active={isActive(pathname, item.href)}
+            />
           ))}
         </nav>
       </div>
@@ -69,13 +93,15 @@ export default function Sidebar() {
           <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.17em] text-[#C5A059]">
             Diretora Clinica
           </p>
-          <button
+
+          {/* Botão de config navegando */}
+          <Link
             aria-label="Configuracoes"
             className="mt-5 text-[#FAFAFA]/60 transition-colors hover:text-[#C5A059]"
-            type="button"
+            href="/settings"
           >
             <Settings size={16} strokeWidth={1.8} />
-          </button>
+          </Link>
         </div>
       </div>
     </aside>

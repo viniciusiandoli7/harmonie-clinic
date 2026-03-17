@@ -24,7 +24,7 @@ export async function GET(req: Request) {
     const dateTo = dateToStr ? new Date(dateToStr) : undefined;
 
     const data = await getAppointments({
-      patientId: patientId || undefined,
+      patientId,
       status,
       dateFrom: dateFrom && !isNaN(dateFrom.getTime()) ? dateFrom : undefined,
       dateTo: dateTo && !isNaN(dateTo.getTime()) ? dateTo : undefined,
@@ -46,18 +46,15 @@ export async function POST(req: Request) {
     const body = await req.json();
     const parsed = createAppointmentSchema.parse(body);
 
-    const date = new Date(parsed.date);
-
-    if (isNaN(date.getTime())) {
-      return NextResponse.json({ error: "date inválida" }, { status: 400 });
-    }
-
     const appointment = await createAppointment({
       patientId: parsed.patientId,
-      date,
+      date: parsed.date,
       status: parsed.status,
       durationMinutes: parsed.durationMinutes,
-      notes: parsed.notes,
+      notes: parsed.notes ?? null,
+      procedureName: parsed.procedureName ?? null,
+      price: parsed.price ?? null,
+      paymentStatus: parsed.paymentStatus,
     });
 
     return NextResponse.json(appointment, { status: 201 });

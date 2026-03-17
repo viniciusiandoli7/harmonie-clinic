@@ -39,17 +39,14 @@ function NavItem({ icon: Icon, label, href, active = false }: NavItemProps) {
 }
 
 function isActive(pathname: string, href: string) {
-  // Dashboard só fica ativo na home
-  if (href === "/") return pathname === "/";
   return pathname.startsWith(href);
 }
 
 export default function Sidebar() {
   const pathname = usePathname();
 
-  // ✅ coloque aqui as rotas reais do seu app
   const items: NavItem[] = [
-    { label: "Dashboard", icon: LayoutDashboard, href: "/" },
+    { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
     { label: "Agenda", icon: Calendar, href: "/appointments" },
     { label: "CRM Pacientes", icon: Users, href: "/patients" },
     { label: "Financeiro", icon: DollarSign, href: "/finance" },
@@ -94,7 +91,6 @@ export default function Sidebar() {
             Diretora Clinica
           </p>
 
-          {/* Botão de config navegando */}
           <Link
             aria-label="Configuracoes"
             className="mt-5 text-[#FAFAFA]/60 transition-colors hover:text-[#C5A059]"

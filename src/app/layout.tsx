@@ -1,26 +1,26 @@
-﻿import "./globals.css";
-import { Cormorant_Garamond, Inter } from "next/font/google";
+﻿import type { Metadata } from "next";
+import "./globals.css";
+import Sidebar from "@/components/layout/Sidebar";
 
-const serif = Cormorant_Garamond({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  variable: "--font-serif"
-});
-
-const sans = Inter({
-  subsets: ["latin"],
-  variable: "--font-sans"
-});
+export const metadata: Metadata = {
+  title: "Harmonie Clinic",
+  description: "Sistema de gestão da clínica",
+};
 
 export default function RootLayout({
   children,
-}: {
+}: Readonly<{
   children: React.ReactNode;
-}) {
+}>) {
   return (
-    <html lang="pt">
-      <body className={`${sans.variable} ${serif.variable} bg-[#FAF8F4] antialiased`}> 
-        {children}
+    <html lang="pt-BR">
+      <body>
+        <div className="flex min-h-screen bg-[#FAF8F4]">
+          <Sidebar />
+          <main className="flex-1 bg-[#FAF8F4] overflow-y-auto">
+            {children}
+          </main>
+        </div>
       </body>
     </html>
   );

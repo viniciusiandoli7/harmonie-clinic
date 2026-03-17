@@ -10,9 +10,13 @@ datasource db {
 model Patient {
   id           String        @id @default(uuid())
   name         String
-  email        String        @unique
+  email        String?       @unique
   phone        String?
+  birthDate    DateTime?
+  notes        String?
+  isActive     Boolean       @default(true)
   createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @default(now()) @updatedAt
 
   appointments Appointment[]
 }
@@ -23,16 +27,49 @@ enum AppointmentStatus {
   CANCELED
 }
 
+enum PaymentStatus {
+  PENDING
+  PAID
+  CANCELED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
 model Appointment {
   id              String            @id @default(uuid())
   date            DateTime
   status          AppointmentStatus @default(SCHEDULED)
-
   durationMinutes Int               @default(30)
-  notes           String?           
-
-  patient         Patient           @relation(fields: [patientId], references: [id])
+  notes           String?
+  procedureName   String?
+  price           Float?
+  paymentStatus   PaymentStatus     @default(PENDING)
   patientId       String
-
+  patient         Patient           @relation(fields: [patientId], references: [id])
   createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
+}
+
+model BlockedTime {
+  id        String   @id @default(uuid())
+  start     DateTime
+  end       DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+}
+
+model FinancialTransaction {
+  id          String          @id @default(uuid())
+  date        DateTime
+  description String
+  category    String
+  amount      Float
+  type        TransactionType
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @default(now()) @updatedAt
 }

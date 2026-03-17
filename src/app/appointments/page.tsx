@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 type Patient = { id: string; name: string; email: string };
 type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
+type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
 
 type Appointment = {
   id: string;
@@ -12,7 +13,17 @@ type Appointment = {
   patientId: string;
   patient?: Patient;
   durationMinutes?: 30 | 60;
-  notes?: string | null; // ✅ NOVO
+  notes?: string | null;
+  procedureName?: string | null;
+  price?: number | null;
+  paymentStatus?: PaymentStatus;
+};
+
+type BlockedTime = {
+  id: string;
+  start: string;
+  end: string;
+  reason?: string | null;
 };
 
 const START_HOUR = 8;
@@ -79,6 +90,10 @@ function addMinutes(date: Date, minutes: number) {
   return new Date(date.getTime() + minutes * 60 * 1000);
 }
 
+function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
+  return aStart < bEnd && bStart < aEnd;
+}
+
 function getWeekDays(baseDate: Date) {
   const start = new Date(baseDate);
   start.setHours(0, 0, 0, 0);
@@ -106,6 +121,36 @@ function statusBadgeClasses(status: AppointmentStatus) {
   return "bg-yellow-100 text-yellow-800 border-yellow-200";
 }
 
+function paymentBadgeClasses(status: PaymentStatus) {
+  if (status === "PAID") return "bg-green-100 text-green-800 border-green-200";
+  if (status === "CANCELED") return "bg-gray-100 text-gray-700 border-gray-200";
+  return "bg-orange-100 text-orange-800 border-orange-200";
+}
+
+function formatBlockedRange(start: string, end: string) {
+  const s = new Date(start);
+  const e = new Date(end);
+
+  return `${s.toLocaleDateString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+  })} ${s.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })} - ${e.toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  })}`;
+}
+
+function formatPrice(value?: number | null) {
+  if (value === null || value === undefined || Number.isNaN(value)) return "";
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
 export default function AppointmentsPage() {
   const [viewMode, setViewMode] = useState<"day" | "week">("day");
 
@@ -116,20 +161,30 @@ export default function AppointmentsPage() {
   const [statusFilter, setStatusFilter] = useState<"" | AppointmentStatus>("");
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
   const [loading, setLoading] = useState(false);
 
   const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
-  // MODAL
+  const [patientSearch, setPatientSearch] = useState("");
+  const [agendaPatientFilter, setAgendaPatientFilter] = useState("");
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [modalPatientId, setModalPatientId] = useState<string>("");
   const [modalDate, setModalDate] = useState<string>(toLocalInputValue(new Date()));
   const [modalStatus, setModalStatus] = useState<AppointmentStatus>("SCHEDULED");
   const [modalDurationMinutes, setModalDurationMinutes] = useState<30 | 60>(30);
-  const [modalNotes, setModalNotes] = useState<string>(""); // ✅ NOVO
+  const [modalNotes, setModalNotes] = useState<string>("");
+  const [modalProcedureName, setModalProcedureName] = useState<string>("");
+  const [modalPrice, setModalPrice] = useState<string>("");
+  const [modalPaymentStatus, setModalPaymentStatus] = useState<PaymentStatus>("PENDING");
 
-  // DRAG
+  const [isBlockModalOpen, setIsBlockModalOpen] = useState(false);
+  const [blockStart, setBlockStart] = useState("");
+  const [blockEnd, setBlockEnd] = useState("");
+  const [blockReason, setBlockReason] = useState("");
+
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [hoverWeekDayIso, setHoverWeekDayIso] = useState<string | null>(null);
   const [hoverSlotLabel, setHoverSlotLabel] = useState<string | null>(null);
@@ -144,8 +199,55 @@ export default function AppointmentsPage() {
     [patients, selectedPatientId]
   );
 
+  const filteredPatients = useMemo(() => {
+    const term = patientSearch.trim().toLowerCase();
+    if (!term) return patients;
+
+    return patients.filter((p) => {
+      return p.name.toLowerCase().includes(term) || p.email.toLowerCase().includes(term);
+    });
+  }, [patients, patientSearch]);
+
+  const visibleAppointments = useMemo(() => {
+    if (!agendaPatientFilter) return appointments;
+    return appointments.filter((a) => a.patientId === agendaPatientFilter);
+  }, [appointments, agendaPatientFilter]);
+
   const slots = useMemo(() => makeSlotsForDay(day), [day]);
   const weekDays = useMemo(() => getWeekDays(day), [day]);
+
+  function getRangeForCurrentView() {
+    if (viewMode === "week") {
+      const start = new Date(weekDays[0]);
+      start.setHours(0, 0, 0, 0);
+      const end = new Date(weekDays[6]);
+      end.setHours(23, 59, 59, 999);
+      return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
+    }
+    return { dateFrom: startOfDayISO(day), dateTo: endOfDayISO(day) };
+  }
+
+  const blockedInfoBySlot = useMemo(() => {
+    const map = new Map<string, { blocked: boolean; reason?: string | null }>();
+
+    for (const s of slots) {
+      const slotStart = s.start;
+      const slotEnd = addMinutes(slotStart, STEP_MIN);
+
+      const conflict = blockedTimes.find((b) => {
+        const bStart = new Date(b.start);
+        const bEnd = new Date(b.end);
+        return rangesOverlap(slotStart, slotEnd, bStart, bEnd);
+      });
+
+      map.set(s.label, {
+        blocked: !!conflict,
+        reason: conflict?.reason ?? null,
+      });
+    }
+
+    return map;
+  }, [blockedTimes, slots]);
 
   const dayLayout = useMemo(() => {
     type Block = {
@@ -155,10 +257,10 @@ export default function AppointmentsPage() {
     };
 
     const blockedByActive = Array(slots.length).fill(false) as boolean[];
-    const hasBlockStarting = Array(slots.length).fill(false) as boolean[];
+    const hasBlockStarting = Array(slots.length).fill(false) as boolean[][];
     const blocks: Block[] = [];
 
-    for (const a of appointments) {
+    for (const a of visibleAppointments) {
       const start = new Date(a.date);
       const dur = (a.durationMinutes ?? 30) as 30 | 60;
       const span = Math.max(1, Math.round(dur / STEP_MIN));
@@ -167,7 +269,7 @@ export default function AppointmentsPage() {
       if (startIdx < 0) continue;
 
       blocks.push({ appt: a, startIdx, span });
-      hasBlockStarting[startIdx] = true;
+      (hasBlockStarting as unknown as boolean[])[startIdx] = true;
 
       if (a.status !== "CANCELED") {
         for (let k = 0; k < span; k++) {
@@ -179,10 +281,11 @@ export default function AppointmentsPage() {
 
     blocks.sort((x, y) => new Date(x.appt.date).getTime() - new Date(y.appt.date).getTime());
 
-    const isContinuation = blockedByActive.map((blocked, idx) => blocked && !hasBlockStarting[idx]);
+    const flatHasBlockStarting = hasBlockStarting as unknown as boolean[];
+    const isContinuation = blockedByActive.map((blocked, idx) => blocked && !flatHasBlockStarting[idx]);
 
-    return { blocks, blockedByActive, isContinuation, hasBlockStarting };
-  }, [appointments, slots]);
+    return { blocks, blockedByActive, isContinuation, hasBlockStarting: flatHasBlockStarting };
+  }, [visibleAppointments, slots]);
 
   async function loadPatients() {
     try {
@@ -199,29 +302,30 @@ export default function AppointmentsPage() {
     }
   }
 
-  function getRangeForCurrentView() {
-    if (viewMode === "week") {
-      const start = new Date(weekDays[0]);
-      start.setHours(0, 0, 0, 0);
-      const end = new Date(weekDays[6]);
-      end.setHours(23, 59, 59, 999);
-      return { dateFrom: start.toISOString(), dateTo: end.toISOString() };
-    }
-    return { dateFrom: startOfDayISO(day), dateTo: endOfDayISO(day) };
-  }
-
   async function loadAppointmentsByRange() {
     setLoading(true);
     try {
       const { dateFrom, dateTo } = getRangeForCurrentView();
-      const qs = new URLSearchParams();
-      qs.set("dateFrom", dateFrom);
-      qs.set("dateTo", dateTo);
-      if (statusFilter) qs.set("status", statusFilter);
 
-      const res = await fetch(`/api/appointments?${qs.toString()}`, { cache: "no-store" });
-      const data = await res.json();
-      setAppointments(Array.isArray(data) ? data : []);
+      const apptQs = new URLSearchParams();
+      apptQs.set("dateFrom", dateFrom);
+      apptQs.set("dateTo", dateTo);
+      if (statusFilter) apptQs.set("status", statusFilter);
+
+      const blockedQs = new URLSearchParams();
+      blockedQs.set("dateFrom", dateFrom);
+      blockedQs.set("dateTo", dateTo);
+
+      const [apptRes, blockedRes] = await Promise.all([
+        fetch(`/api/appointments?${apptQs.toString()}`, { cache: "no-store" }),
+        fetch(`/api/blocked-times?${blockedQs.toString()}`, { cache: "no-store" }),
+      ]);
+
+      const apptData = await apptRes.json();
+      const blockedData = await blockedRes.json();
+
+      setAppointments(Array.isArray(apptData) ? apptData : []);
+      setBlockedTimes(Array.isArray(blockedData) ? blockedData : []);
     } catch {
       showMsg("error", "Erro ao carregar agenda.");
     } finally {
@@ -239,13 +343,21 @@ export default function AppointmentsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [day, statusFilter, viewMode]);
 
+  function resetFinancialModalFields() {
+    setModalProcedureName("");
+    setModalPrice("");
+    setModalPaymentStatus("PENDING");
+  }
+
   function openCreateModalWith(date: Date) {
     setEditingId(null);
     setModalDate(toLocalInputValue(date));
     setModalStatus("SCHEDULED");
     setModalDurationMinutes(30);
-    setModalNotes(""); // ✅ NOVO
+    setModalNotes("");
+    setPatientSearch("");
     setModalPatientId(selectedPatientId || (patients[0]?.id ?? ""));
+    resetFinancialModalFields();
     setIsModalOpen(true);
   }
 
@@ -255,7 +367,15 @@ export default function AppointmentsPage() {
     setModalDate(toLocalInputValue(new Date(appt.date)));
     setModalStatus(appt.status);
     setModalDurationMinutes((appt.durationMinutes ?? 30) as 30 | 60);
-    setModalNotes(appt.notes ?? ""); // ✅ NOVO
+    setModalNotes(appt.notes ?? "");
+    setModalProcedureName(appt.procedureName ?? "");
+    setModalPrice(
+      appt.price === null || appt.price === undefined || Number.isNaN(appt.price)
+        ? ""
+        : String(appt.price)
+    );
+    setModalPaymentStatus(appt.paymentStatus ?? "PENDING");
+    setPatientSearch("");
     setIsModalOpen(true);
   }
 
@@ -263,6 +383,80 @@ export default function AppointmentsPage() {
     setIsModalOpen(false);
     setEditingId(null);
     setModalNotes("");
+    setPatientSearch("");
+    resetFinancialModalFields();
+  }
+
+  function openBlockModal() {
+    const now = new Date();
+    const start = new Date(now);
+    const end = new Date(now);
+
+    end.setMinutes(end.getMinutes() + 60);
+
+    setBlockStart(toLocalInputValue(start));
+    setBlockEnd(toLocalInputValue(end));
+    setBlockReason("");
+    setIsBlockModalOpen(true);
+  }
+
+  async function createBlockedTime() {
+    if (!blockStart || !blockEnd) {
+      showMsg("error", "Defina início e fim do bloqueio.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch("/api/blocked-times", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          start: new Date(blockStart).toISOString(),
+          end: new Date(blockEnd).toISOString(),
+          reason: blockReason.trim() || undefined,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showMsg("error", data?.error ?? "Erro ao criar bloqueio.");
+        return;
+      }
+
+      showMsg("success", "Bloqueio criado!");
+      setIsBlockModalOpen(false);
+      await loadAppointmentsByRange();
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function deleteBlockedTime(id: string) {
+    const ok = confirm("Deletar este bloqueio?");
+    if (!ok) return;
+
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/blocked-times/${id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        showMsg("error", data?.error ?? "Erro ao deletar bloqueio.");
+        return;
+      }
+
+      showMsg("success", "Bloqueio deletado!");
+      await loadAppointmentsByRange();
+    } finally {
+      setLoading(false);
+    }
   }
 
   function goToday() {
@@ -282,6 +476,14 @@ export default function AppointmentsPage() {
   }
 
   function handleClickSlot(slotStart: Date) {
+    const label = `${pad(slotStart.getHours())}:${pad(slotStart.getMinutes())}`;
+    const slotInfo = blockedInfoBySlot.get(label);
+
+    if (slotInfo?.blocked) {
+      showMsg("error", slotInfo.reason ? `Horário bloqueado: ${slotInfo.reason}` : "Horário bloqueado.");
+      return;
+    }
+
     openCreateModalWith(slotStart);
   }
 
@@ -293,6 +495,18 @@ export default function AppointmentsPage() {
   function handleQuickCreateFromWeek(d: Date) {
     const x = new Date(d);
     x.setHours(START_HOUR, 0, 0, 0);
+
+    const hasBlocked = blockedTimes.some((b) => {
+      const bStart = new Date(b.start);
+      const bEnd = new Date(b.end);
+      return rangesOverlap(x, addMinutes(x, STEP_MIN), bStart, bEnd);
+    });
+
+    if (hasBlocked) {
+      showMsg("error", "Este horário inicial está bloqueado.");
+      return;
+    }
+
     openCreateModalWith(x);
   }
 
@@ -305,6 +519,16 @@ export default function AppointmentsPage() {
     }
     if (!modalDate) {
       showMsg("error", "Escolha data/hora.");
+      return;
+    }
+
+    const parsedPrice =
+      modalPrice.trim() === ""
+        ? undefined
+        : Number(modalPrice.replace(",", "."));
+
+    if (parsedPrice !== undefined && (Number.isNaN(parsedPrice) || parsedPrice < 0)) {
+      showMsg("error", "Informe um valor válido.");
       return;
     }
 
@@ -321,7 +545,10 @@ export default function AppointmentsPage() {
             date: iso,
             status: modalStatus,
             durationMinutes: modalDurationMinutes,
-            notes: modalNotes.trim() || undefined, // ✅ NOVO
+            notes: modalNotes.trim() || undefined,
+            procedureName: modalProcedureName.trim() || undefined,
+            price: parsedPrice,
+            paymentStatus: modalPaymentStatus,
           }),
         });
 
@@ -345,7 +572,10 @@ export default function AppointmentsPage() {
           date: iso,
           status: modalStatus,
           durationMinutes: modalDurationMinutes,
-          notes: modalNotes.trim() || undefined, // ✅ NOVO
+          notes: modalNotes.trim() || undefined,
+          procedureName: modalProcedureName.trim() || undefined,
+          price: parsedPrice,
+          paymentStatus: modalPaymentStatus,
         }),
       });
 
@@ -447,7 +677,7 @@ export default function AppointmentsPage() {
   }
 
   function findAppointmentById(id: string) {
-    return appointments.find((x) => x.id === id);
+    return visibleAppointments.find((x) => x.id === id);
   }
 
   async function onDropToWeekDay(targetDay: Date, e: React.DragEvent) {
@@ -468,8 +698,7 @@ export default function AppointmentsPage() {
     const id = e.dataTransfer.getData("text/plain");
     if (!findAppointmentById(id)) return;
 
-    const moved = new Date(slotStart);
-    await updateAppointmentDate(id, moved);
+    await updateAppointmentDate(id, new Date(slotStart));
   }
 
   function onWeekColumnClick(dayDate: Date, e: React.MouseEvent) {
@@ -488,6 +717,18 @@ export default function AppointmentsPage() {
     const b = weekDays[6].toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
     return `${a} – ${b}`;
   }, [viewMode, weekDays]);
+
+  function hasBlockedInDay(date: Date) {
+    return blockedTimes.some((b) => {
+      const bStart = new Date(b.start);
+      const bEnd = new Date(b.end);
+      const dayStart = new Date(date);
+      dayStart.setHours(0, 0, 0, 0);
+      const dayEnd = new Date(date);
+      dayEnd.setHours(23, 59, 59, 999);
+      return rangesOverlap(dayStart, dayEnd, bStart, bEnd);
+    });
+  }
 
   return (
     <div className="p-8">
@@ -556,15 +797,32 @@ export default function AppointmentsPage() {
             <option value="CANCELED">CANCELED</option>
           </select>
 
+          <div className="mt-3">
+            <label className="text-xs text-gray-600">Paciente</label>
+            <select
+              className="mt-1 border rounded-md p-2 w-full"
+              value={agendaPatientFilter}
+              onChange={(e) => setAgendaPatientFilter(e.target.value)}
+            >
+              <option value="">Todos os pacientes</option>
+              {patients.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <p className="text-xs text-gray-500 mt-3">
             {viewMode === "day"
-              ? "Arraste uma consulta e solte em outro horário. Clique no horário vazio para criar."
+              ? "Arraste uma consulta e solte em outro horário. Slots bloqueados aparecem em cinza."
               : "Arraste e solte para mover. Clique no vazio da coluna para criar."}
           </p>
         </div>
 
         <div className="p-4 border rounded-xl bg-white lg:col-span-2">
           <h2 className="font-medium mb-3">Ações rápidas</h2>
+
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
@@ -573,11 +831,49 @@ export default function AppointmentsPage() {
             >
               + Nova consulta (agora)
             </button>
+
+            <button
+              type="button"
+              className="px-3 py-2 rounded-md border hover:bg-gray-50"
+              onClick={openBlockModal}
+            >
+              🔒 Bloquear horário
+            </button>
           </div>
+
           {selectedPatient && (
             <p className="text-xs text-gray-500 mt-3">
               Paciente padrão: <span className="font-medium text-gray-700">{selectedPatient.name}</span>
             </p>
+          )}
+
+          {blockedTimes.length > 0 && (
+            <div className="mt-4 border rounded-xl p-3 bg-gray-50">
+              <h3 className="text-sm font-medium mb-2">Bloqueios do período</h3>
+
+              <div className="space-y-2 max-h-40 overflow-auto">
+                {blockedTimes.map((b) => (
+                  <div
+                    key={b.id}
+                    className="flex items-start justify-between gap-3 rounded-lg border bg-white p-2"
+                  >
+                    <div>
+                      <div className="text-sm font-medium">🔒 {b.reason || "Bloqueio"}</div>
+                      <div className="text-xs text-gray-500">{formatBlockedRange(b.start, b.end)}</div>
+                    </div>
+
+                    <button
+                      type="button"
+                      className="px-2 py-1 rounded-md border text-xs hover:bg-red-50"
+                      onClick={() => deleteBlockedTime(b.id)}
+                      disabled={loading}
+                    >
+                      Excluir
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       </div>
@@ -588,7 +884,7 @@ export default function AppointmentsPage() {
             <h2 className="font-medium">
               Horários ({pad(START_HOUR)}:00 – {pad(END_HOUR)}:00)
             </h2>
-            <span className="text-sm text-gray-600">{appointments.length} consulta(s)</span>
+            <span className="text-sm text-gray-600">{visibleAppointments.length} consulta(s)</span>
           </div>
 
           <div className="relative">
@@ -601,8 +897,9 @@ export default function AppointmentsPage() {
             >
               {slots.map((s, idx) => {
                 const isCont = dayLayout.isContinuation[idx];
-                const blocked = dayLayout.blockedByActive[idx];
+                const blockedByAppointment = dayLayout.blockedByActive[idx];
                 const hasStart = dayLayout.hasBlockStarting[idx];
+                const blockedSlot = blockedInfoBySlot.get(s.label);
 
                 return (
                   <div key={s.label} className="contents">
@@ -614,7 +911,7 @@ export default function AppointmentsPage() {
                       className={[
                         "relative border-b border-gray-100 p-3",
                         hoverSlotLabel === s.label ? "bg-blue-50" : "bg-white",
-                        isCont ? "bg-gray-50" : "",
+                        isCont || blockedSlot?.blocked ? "bg-gray-50" : "",
                       ].join(" ")}
                       onDragOver={(e) => {
                         allowDrop(e);
@@ -623,7 +920,7 @@ export default function AppointmentsPage() {
                       onDragLeave={() => setHoverSlotLabel(null)}
                       onDrop={(e) => onDropToSlot(s.start, e)}
                     >
-                      {!hasStart && !isCont && !blocked && (
+                      {!hasStart && !isCont && !blockedByAppointment && !blockedSlot?.blocked && (
                         <button
                           type="button"
                           onClick={() => handleClickSlot(s.start)}
@@ -633,7 +930,13 @@ export default function AppointmentsPage() {
                         </button>
                       )}
 
-                      {isCont && (
+                      {blockedSlot?.blocked && !hasStart && (
+                        <div className="text-xs text-gray-500 select-none">
+                          🔒 Bloqueado{blockedSlot.reason ? ` • ${blockedSlot.reason}` : ""}
+                        </div>
+                      )}
+
+                      {isCont && !blockedSlot?.blocked && (
                         <div className="text-xs text-gray-500 select-none">
                           ⤷ Continuação (ocupado)
                         </div>
@@ -681,7 +984,7 @@ export default function AppointmentsPage() {
                       title="Clique para editar • Arraste para mover"
                     >
                       <div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
                           <span
                             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClasses(
                               appt.status
@@ -691,12 +994,32 @@ export default function AppointmentsPage() {
                           </span>
 
                           <span className="text-xs text-gray-500">• {dur}min</span>
+
+                          <span
+                            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${paymentBadgeClasses(
+                              appt.paymentStatus ?? "PENDING"
+                            )}`}
+                          >
+                            {appt.paymentStatus ?? "PENDING"}
+                          </span>
                         </div>
 
                         <div className="mt-2 font-semibold leading-tight">
                           {appt.patient?.name ?? "Paciente"}
                         </div>
                         <div className="text-xs text-gray-600 truncate">{appt.patient?.email ?? ""}</div>
+
+                        {appt.procedureName && (
+                          <div className="mt-2 text-xs text-gray-700 font-medium">
+                            {appt.procedureName}
+                          </div>
+                        )}
+
+                        {appt.price !== null && appt.price !== undefined && (
+                          <div className="text-xs text-gray-600">
+                            {formatPrice(appt.price)}
+                          </div>
+                        )}
 
                         {appt.notes && (
                           <div className="mt-2 text-xs text-gray-500 line-clamp-2">
@@ -738,24 +1061,25 @@ export default function AppointmentsPage() {
           </div>
 
           <div className="p-3 text-xs text-gray-500 border-t bg-white">
-            Dica: consultas de 60min ocupam 2 slots. Arraste para mover. Clique no bloco para editar.
+            Dica: consultas de 60min ocupam 2 slots. Bloqueios aparecem em cinza. Clique no bloco para editar.
           </div>
         </div>
       ) : (
         <div className="mt-6 border rounded-xl bg-white overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b bg-gray-50">
             <h2 className="font-medium">Semana</h2>
-            <span className="text-sm text-gray-600">{appointments.length} consulta(s)</span>
+            <span className="text-sm text-gray-600">{visibleAppointments.length} consulta(s)</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-7 gap-0">
             {weekDays.map((d) => {
-              const dayAppointments = appointments
+              const dayAppointments = visibleAppointments
                 .filter((a) => isSameDay(new Date(a.date), d))
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
               const isToday = isSameDay(d, new Date());
               const iso = d.toISOString();
+              const blockedInDay = hasBlockedInDay(d);
 
               return (
                 <div
@@ -791,6 +1115,12 @@ export default function AppointmentsPage() {
                     >
                       + Nova
                     </button>
+
+                    {blockedInDay && (
+                      <div className="mt-2 text-[10px] font-medium text-gray-500">
+                        🔒 Há bloqueios
+                      </div>
+                    )}
                   </div>
 
                   <div className="p-3 space-y-2 min-h-[220px]">
@@ -817,7 +1147,7 @@ export default function AppointmentsPage() {
                             ].join(" ")}
                             title="Clique para editar • Arraste para mover"
                           >
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <div className="text-xs text-gray-600">
                                 {time} • {(a.durationMinutes ?? 30)}min
                               </div>
@@ -828,9 +1158,29 @@ export default function AppointmentsPage() {
                               >
                                 {a.status}
                               </span>
+                              <span
+                                className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${paymentBadgeClasses(
+                                  a.paymentStatus ?? "PENDING"
+                                )}`}
+                              >
+                                {a.paymentStatus ?? "PENDING"}
+                              </span>
                             </div>
+
                             <div className="font-medium text-sm">{a.patient?.name ?? "Paciente"}</div>
                             <div className="text-xs text-gray-600 truncate">{a.patient?.email ?? ""}</div>
+
+                            {a.procedureName && (
+                              <div className="mt-1 text-xs text-gray-700 font-medium">
+                                {a.procedureName}
+                              </div>
+                            )}
+
+                            {a.price !== null && a.price !== undefined && (
+                              <div className="text-xs text-gray-600">
+                                {formatPrice(a.price)}
+                              </div>
+                            )}
 
                             {a.notes && (
                               <div className="mt-1 text-xs text-gray-500 line-clamp-2">
@@ -886,7 +1236,7 @@ export default function AppointmentsPage() {
             if (e.target === e.currentTarget) closeModal();
           }}
         >
-          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl max-h-[90vh] overflow-auto">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">{editingId ? "Editar consulta" : "Nova consulta"}</h3>
               <button className="px-2 py-1 rounded-md border hover:bg-gray-50" onClick={closeModal} type="button">
@@ -896,16 +1246,27 @@ export default function AppointmentsPage() {
 
             <form className="mt-4 space-y-3" onSubmit={handleSubmitModal}>
               <div>
+                <label className="text-xs text-gray-600">Buscar paciente</label>
+                <input
+                  type="text"
+                  className="mt-1 border rounded-md p-2 w-full"
+                  placeholder="Digite nome ou e-mail"
+                  value={patientSearch}
+                  onChange={(e) => setPatientSearch(e.target.value)}
+                />
+              </div>
+
+              <div>
                 <label className="text-xs text-gray-600">Paciente</label>
                 <select
                   className="mt-1 border rounded-md p-2 w-full"
                   value={modalPatientId}
                   onChange={(e) => setModalPatientId(e.target.value)}
                 >
-                  {patients.length === 0 ? (
-                    <option value="">Nenhum paciente</option>
+                  {filteredPatients.length === 0 ? (
+                    <option value="">Nenhum paciente encontrado</option>
                   ) : (
-                    patients.map((p) => (
+                    filteredPatients.map((p) => (
                       <option key={p.id} value={p.id}>
                         {p.name}
                       </option>
@@ -933,6 +1294,43 @@ export default function AppointmentsPage() {
                 >
                   <option value={30}>30 minutos</option>
                   <option value={60}>60 minutos</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-600">Procedimento</label>
+                <input
+                  type="text"
+                  className="mt-1 border rounded-md p-2 w-full"
+                  value={modalProcedureName}
+                  onChange={(e) => setModalProcedureName(e.target.value)}
+                  placeholder="Ex.: Botox, limpeza de pele, consulta..."
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-600">Valor</label>
+                <input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  className="mt-1 border rounded-md p-2 w-full"
+                  value={modalPrice}
+                  onChange={(e) => setModalPrice(e.target.value)}
+                  placeholder="Ex.: 250.00"
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-600">Pagamento</label>
+                <select
+                  className="mt-1 border rounded-md p-2 w-full"
+                  value={modalPaymentStatus}
+                  onChange={(e) => setModalPaymentStatus(e.target.value as PaymentStatus)}
+                >
+                  <option value="PENDING">PENDING</option>
+                  <option value="PAID">PAID</option>
+                  <option value="CANCELED">CANCELED</option>
                 </select>
               </div>
 
@@ -1003,6 +1401,84 @@ export default function AppointmentsPage() {
                 Obs: consulta cancelada aparece na agenda, mas não bloqueia horário.
               </p>
             </form>
+          </div>
+        </div>
+      )}
+
+      {isBlockModalOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onMouseDown={(e) => {
+            if (e.target === e.currentTarget) setIsBlockModalOpen(false);
+          }}
+        >
+          <div className="w-full max-w-lg rounded-2xl bg-white p-5 shadow-xl">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Bloquear horário</h3>
+              <button
+                className="px-2 py-1 rounded-md border hover:bg-gray-50"
+                onClick={() => setIsBlockModalOpen(false)}
+                type="button"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs text-gray-600">Início</label>
+                <input
+                  type="datetime-local"
+                  className="mt-1 border rounded-md p-2 w-full"
+                  value={blockStart}
+                  onChange={(e) => setBlockStart(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-600">Fim</label>
+                <input
+                  type="datetime-local"
+                  className="mt-1 border rounded-md p-2 w-full"
+                  value={blockEnd}
+                  onChange={(e) => setBlockEnd(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-xs text-gray-600">Motivo</label>
+                <input
+                  className="mt-1 border rounded-md p-2 w-full"
+                  placeholder="Ex.: almoço, reunião, férias..."
+                  value={blockReason}
+                  onChange={(e) => setBlockReason(e.target.value)}
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-md border hover:bg-gray-50"
+                  onClick={() => setIsBlockModalOpen(false)}
+                  disabled={loading}
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  className="px-4 py-2 rounded-md bg-black text-white disabled:opacity-50"
+                  onClick={createBlockedTime}
+                  disabled={loading || !blockStart || !blockEnd}
+                >
+                  {loading ? "Salvando..." : "Criar bloqueio"}
+                </button>
+              </div>
+
+              <p className="text-xs text-gray-500">
+                Exemplo: almoço das 12:00 às 13:00 ou reunião interna.
+              </p>
+            </div>
           </div>
         </div>
       )}

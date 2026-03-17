@@ -1,13 +1,16 @@
 import { NextResponse } from "next/server";
-import { getPatients, createPatient } from "@/services/patientService";
+import { Prisma } from "@prisma/client";
 import { createPatientSchema } from "@/validators/patientValidator";
+import { createPatient, getAllPatients } from "@/services/patientService";
 
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const patients = await getPatients();
+    const { searchParams } = new URL(req.url);
+    const includeInactive = searchParams.get("includeInactive") === "true";
+
+    const patients = await getAllPatients(includeInactive);
     return NextResponse.json(patients);
-  } catch (error) {
-    console.error(error);
+  } catch {
     return NextResponse.json(
       { error: "Erro ao buscar pacientes" },
       { status: 500 }
@@ -15,29 +18,27 @@ export async function GET() {
   }
 }
 
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
-    const body = await request.json();
+    const body = await req.json();
+    const data = createPatientSchema.parse(body);
 
-    // 🔥 validação aqui
-    const validatedData = createPatientSchema.parse(body);
-
-    const patient = await createPatient(validatedData);
+    const patient = await createPatient(data);
 
     return NextResponse.json(patient, { status: 201 });
-
-  } catch (error: any) {
-    if (error.name === "ZodError") {
-      return NextResponse.json(
-        { error: error.errors },
-        { status: 400 }
-      );
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError) {
+      if (error.code === "P2002") {
+        return NextResponse.json(
+          { error: "Já existe um paciente com este e-mail" },
+          { status: 409 }
+        );
+      }
     }
 
-    console.error(error);
     return NextResponse.json(
-      { error: "Erro interno do servidor" },
-      { status: 500 }
+      { error: "Erro ao criar paciente" },
+      { status: 400 }
     );
   }
 }

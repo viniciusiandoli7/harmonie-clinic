@@ -1,14 +1,19 @@
 import { prisma } from "@/lib/prisma";
+import { assertNotBlocked } from "@/services/blockedTimeService";
 
 type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
-type DurationMinutes = 30 | 60;
+type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
+type DurationMinutes = 30 | 60 | 90 | 120;
 
 type CreateAppointmentInput = {
   patientId: string;
-  date: Date;
+  date: Date | string;
   status?: AppointmentStatus;
   durationMinutes?: DurationMinutes;
-  notes?: string; // ✅ NOVO
+  notes?: string | null;
+  procedureName?: string | null;
+  price?: number | null;
+  paymentStatus?: PaymentStatus;
 };
 
 type GetAppointmentsFilters = {
@@ -20,10 +25,13 @@ type GetAppointmentsFilters = {
 
 type UpdateAppointmentInput = {
   patientId?: string;
-  date?: Date;
+  date?: Date | string;
   status?: AppointmentStatus;
   durationMinutes?: DurationMinutes;
-  notes?: string; // ✅ NOVO
+  notes?: string | null;
+  procedureName?: string | null;
+  price?: number | null;
+  paymentStatus?: PaymentStatus;
 };
 
 export class AppointmentConflictError extends Error {
@@ -31,6 +39,10 @@ export class AppointmentConflictError extends Error {
     super(message);
     this.name = "AppointmentConflictError";
   }
+}
+
+function toDate(value: Date | string) {
+  return value instanceof Date ? value : new Date(value);
 }
 
 function addMinutes(date: Date, minutes: number) {
@@ -42,7 +54,10 @@ function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
 }
 
 function normalizeDuration(d?: number): DurationMinutes {
-  return d === 60 ? 60 : 30;
+  if (d === 60) return 60;
+  if (d === 90) return 90;
+  if (d === 120) return 120;
+  return 30;
 }
 
 async function assertNoConflictRange(
@@ -51,8 +66,7 @@ async function assertNoConflictRange(
   excludeId?: string
 ) {
   const end = addMinutes(start, durationMinutes);
-
-  const windowStart = addMinutes(start, -60);
+  const windowStart = addMinutes(start, -120);
 
   const candidates = await prisma.appointment.findMany({
     where: {
@@ -88,17 +102,24 @@ async function assertNoConflictRange(
 }
 
 export async function createAppointment(data: CreateAppointmentInput) {
+  const date = toDate(data.date);
   const durationMinutes = normalizeDuration(data.durationMinutes);
 
-  await assertNoConflictRange(data.date, durationMinutes);
+  const end = addMinutes(date, durationMinutes);
+
+  await assertNotBlocked(date, end);
+  await assertNoConflictRange(date, durationMinutes);
 
   return prisma.appointment.create({
     data: {
       patientId: data.patientId,
-      date: data.date,
+      date,
       status: data.status ?? "SCHEDULED",
       durationMinutes,
-      notes: data.notes ?? null, // ✅ NOVO
+      notes: data.notes ?? null,
+      procedureName: data.procedureName ?? null,
+      price: data.price ?? null,
+      paymentStatus: data.paymentStatus ?? "PENDING",
     },
     include: { patient: true },
   });
@@ -109,16 +130,24 @@ export async function getAppointments(filters: GetAppointmentsFilters = {}) {
 
   return prisma.appointment.findMany({
     where: {
-      patientId,
-      status,
-      date:
-        dateFrom || dateTo
-          ? {
-              gte: dateFrom,
-              lte: dateTo,
-            }
-          : undefined,
+      ...(patientId ? { patientId } : {}),
+      ...(status ? { status } : {}),
+      ...(dateFrom || dateTo
+        ? {
+            date: {
+              ...(dateFrom ? { gte: dateFrom } : {}),
+              ...(dateTo ? { lte: dateTo } : {}),
+            },
+          }
+        : {}),
     },
+    orderBy: { date: "asc" },
+    include: { patient: true },
+  });
+}
+
+export async function listAppointments() {
+  return prisma.appointment.findMany({
     orderBy: { date: "asc" },
     include: { patient: true },
   });
@@ -134,11 +163,8 @@ export async function getAppointmentById(id: string) {
 export async function updateAppointment(id: string, data: UpdateAppointmentInput) {
   const current = await prisma.appointment.findUnique({
     where: { id },
-    select: {
-      id: true,
-      date: true,
-      status: true,
-      durationMinutes: true,
+    include: {
+      patient: true,
     },
   });
 
@@ -150,11 +176,14 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
     (data.status ?? current.status) as AppointmentStatus;
 
   if (nextStatus !== "CANCELED") {
-    const nextDate = data.date ?? current.date;
+    const nextDate = data.date ? toDate(data.date) : current.date;
     const nextDuration = normalizeDuration(
       data.durationMinutes ?? current.durationMinutes
     );
 
+    const nextEnd = addMinutes(nextDate, nextDuration);
+
+    await assertNotBlocked(nextDate, nextEnd);
     await assertNoConflictRange(nextDate, nextDuration, id);
   }
 
@@ -163,17 +192,59 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
       ? normalizeDuration(data.durationMinutes)
       : undefined;
 
-  return prisma.appointment.update({
+  const updated = await prisma.appointment.update({
     where: { id },
     data: {
-      ...(data.patientId !== undefined && { patientId: data.patientId }),
-      ...(data.date !== undefined && { date: data.date }),
-      ...(data.status !== undefined && { status: data.status }),
-      ...(durationMinutes !== undefined && { durationMinutes }),
-      ...(data.notes !== undefined && { notes: data.notes }), // ✅ NOVO
+      ...(data.patientId !== undefined ? { patientId: data.patientId } : {}),
+      ...(data.date !== undefined ? { date: toDate(data.date) } : {}),
+      ...(data.status !== undefined ? { status: data.status } : {}),
+      ...(durationMinutes !== undefined ? { durationMinutes } : {}),
+      ...(data.notes !== undefined ? { notes: data.notes } : {}),
+      ...(data.procedureName !== undefined
+        ? { procedureName: data.procedureName }
+        : {}),
+      ...(data.price !== undefined ? { price: data.price } : {}),
+      ...(data.paymentStatus !== undefined
+        ? { paymentStatus: data.paymentStatus }
+        : {}),
     },
     include: { patient: true },
   });
+
+  const becamePaid =
+    current.paymentStatus !== "PAID" &&
+    updated.paymentStatus === "PAID" &&
+    (updated.price ?? 0) > 0;
+
+  if (becamePaid) {
+    const patientName = updated.patient?.name ?? "Paciente";
+    const procedure = updated.procedureName?.trim() || "Consulta";
+
+    const existingAutoTransaction = await prisma.financialTransaction.findFirst({
+      where: {
+        type: "INCOME",
+        category: "ATENDIMENTO",
+        description: `${procedure} - ${patientName}`,
+        amount: updated.price ?? 0,
+        notes: `Lançamento automático gerado pela consulta ${updated.id}`,
+      },
+    });
+
+    if (!existingAutoTransaction) {
+      await prisma.financialTransaction.create({
+        data: {
+          date: updated.date,
+          description: `${procedure} - ${patientName}`,
+          category: "ATENDIMENTO",
+          amount: updated.price ?? 0,
+          type: "INCOME",
+          notes: `Lançamento automático gerado pela consulta ${updated.id}`,
+        },
+      });
+    }
+  }
+
+  return updated;
 }
 
 export async function deleteAppointment(id: string) {

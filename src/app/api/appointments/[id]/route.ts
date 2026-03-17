@@ -7,22 +7,11 @@ import {
   deleteAppointment,
   AppointmentConflictError,
 } from "@/services/appointmentService";
+import { updateAppointmentSchema } from "@/validators/appointmentValidator";
 
 const paramsSchema = z.object({
   id: z.string().uuid("ID inválido (esperado UUID)"),
 });
-
-const durationSchema = z.union([z.literal(30), z.literal(60)]);
-
-const updateAppointmentSchema = z
-  .object({
-    patientId: z.string().uuid("patientId inválido").optional(),
-    date: z.string().datetime("date inválida (esperado ISO)").optional(),
-    status: z.enum(["SCHEDULED", "COMPLETED", "CANCELED"]).optional(),
-    durationMinutes: durationSchema.optional(),
-    notes: z.string().max(500).optional(), // ✅ NOVO
-  })
-  .refine((data) => Object.keys(data).length > 0, "Envie ao menos um campo para atualizar");
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -76,12 +65,19 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
     const updated = await updateAppointment(id, {
       ...(parsed.patientId !== undefined ? { patientId: parsed.patientId } : {}),
-      ...(parsed.date !== undefined ? { date: new Date(parsed.date) } : {}),
+      ...(parsed.date !== undefined ? { date: parsed.date } : {}),
       ...(parsed.status !== undefined ? { status: parsed.status } : {}),
       ...(parsed.durationMinutes !== undefined
         ? { durationMinutes: parsed.durationMinutes }
         : {}),
-      ...(parsed.notes !== undefined ? { notes: parsed.notes } : {}), // ✅ NOVO
+      ...(parsed.notes !== undefined ? { notes: parsed.notes ?? null } : {}),
+      ...(parsed.procedureName !== undefined
+        ? { procedureName: parsed.procedureName ?? null }
+        : {}),
+      ...(parsed.price !== undefined ? { price: parsed.price ?? null } : {}),
+      ...(parsed.paymentStatus !== undefined
+        ? { paymentStatus: parsed.paymentStatus }
+        : {}),
     });
 
     return NextResponse.json(updated);

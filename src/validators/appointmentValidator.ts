@@ -19,6 +19,8 @@ export const durationMinutesSchema = z.union([
   z.literal(120),
 ]);
 
+export const roomSchema = z.enum(["A", "B"]);
+
 export const createAppointmentSchema = z.object({
   patientId: z.string().uuid("Paciente inválido"),
   date: z.string().datetime("Data inválida"),
@@ -28,6 +30,7 @@ export const createAppointmentSchema = z.object({
   procedureName: z.string().max(200, "Máximo de 200 caracteres").nullable().optional(),
   price: z.number().min(0, "Preço inválido").nullable().optional(),
   paymentStatus: paymentStatusSchema.optional(),
+  room: roomSchema.optional(),
 });
 
 export const updateAppointmentSchema = z
@@ -40,6 +43,7 @@ export const updateAppointmentSchema = z
     procedureName: z.string().max(200, "Máximo de 200 caracteres").nullable().optional(),
     price: z.number().min(0, "Preço inválido").nullable().optional(),
     paymentStatus: paymentStatusSchema.optional(),
+    room: roomSchema.optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {
     message: "Envie ao menos um campo para atualizar",

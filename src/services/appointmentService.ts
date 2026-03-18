@@ -4,6 +4,7 @@ import { assertNotBlocked } from "@/services/blockedTimeService";
 type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
 type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
 type DurationMinutes = 30 | 60 | 90 | 120;
+type Room = "A" | "B";
 
 type CreateAppointmentInput = {
   patientId: string;
@@ -14,6 +15,7 @@ type CreateAppointmentInput = {
   procedureName?: string | null;
   price?: number | null;
   paymentStatus?: PaymentStatus;
+  room?: Room;
 };
 
 type GetAppointmentsFilters = {
@@ -32,6 +34,7 @@ type UpdateAppointmentInput = {
   procedureName?: string | null;
   price?: number | null;
   paymentStatus?: PaymentStatus;
+  room?: Room;
 };
 
 export class AppointmentConflictError extends Error {
@@ -120,6 +123,7 @@ export async function createAppointment(data: CreateAppointmentInput) {
       procedureName: data.procedureName ?? null,
       price: data.price ?? null,
       paymentStatus: data.paymentStatus ?? "PENDING",
+      room: data.room ?? "A",
     },
     include: { patient: true },
   });
@@ -207,6 +211,7 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
       ...(data.paymentStatus !== undefined
         ? { paymentStatus: data.paymentStatus }
         : {}),
+      ...(data.room !== undefined ? { room: data.room } : {}),
     },
     include: { patient: true },
   });

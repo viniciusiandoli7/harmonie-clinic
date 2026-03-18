@@ -91,9 +91,15 @@ export default function DashboardFinancialCharts() {
   if (loading) {
     return (
       <div className="mt-8 grid grid-cols-1 gap-8 xl:grid-cols-12">
-        <div className="xl:col-span-8"><div className="h-[320px] border border-[#ECE7DD] bg-white p-8 shadow-sm" /></div>
-        <div className="xl:col-span-4"><div className="h-[320px] border border-[#ECE7DD] bg-white p-8 shadow-sm" /></div>
-        <div className="xl:col-span-12"><div className="h-[320px] border border-[#ECE7DD] bg-white p-8 shadow-sm" /></div>
+        <div className="xl:col-span-8">
+          <div className="h-[320px] border border-[#ECE7DD] bg-white p-8 shadow-sm" />
+        </div>
+        <div className="xl:col-span-4">
+          <div className="h-[320px] border border-[#ECE7DD] bg-white p-8 shadow-sm" />
+        </div>
+        <div className="xl:col-span-12">
+          <div className="h-[320px] border border-[#ECE7DD] bg-white p-8 shadow-sm" />
+        </div>
       </div>
     );
   }

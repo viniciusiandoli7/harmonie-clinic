@@ -44,7 +44,13 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const parsed = createAppointmentSchema.parse(body);
+
+    // 👇 adiciona suporte a "room" sem quebrar validator base
+    const parsed = createAppointmentSchema
+      .extend({
+        room: z.enum(["A", "B"]).optional(),
+      })
+      .parse(body);
 
     const appointment = await createAppointment({
       patientId: parsed.patientId,
@@ -55,6 +61,9 @@ export async function POST(req: Request) {
       procedureName: parsed.procedureName ?? null,
       price: parsed.price ?? null,
       paymentStatus: parsed.paymentStatus,
+
+      // 👇 NOVO (com fallback seguro)
+      room: parsed.room ?? "A",
     });
 
     return NextResponse.json(appointment, { status: 201 });

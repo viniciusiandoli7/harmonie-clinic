@@ -1,109 +1,44 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 
-type PatientFormProps = {
-  mode: "create" | "edit";
-  patient?: {
-    id: string;
-    name: string;
-    email: string | null;
-    phone: string | null;
-    birthDate: string | Date | null;
-    notes: string | null;
-    isActive?: boolean;
-  };
+type PatientFormData = {
+  id?: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  birthDate?: string;
+  notes?: string;
+  isActive?: boolean;
 };
 
-function formatDateToInput(value: string | Date | null | undefined) {
-  if (!value) return "";
-  const date = new Date(value);
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
+type Props = {
+  mode: "create" | "edit";
+  patient?: PatientFormData;
+};
 
-function formatPhone(value: string) {
-  const digits = value.replace(/\D/g, "").slice(0, 11);
-
-  if (digits.length <= 2) return digits;
-  if (digits.length <= 7) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-  if (digits.length <= 11) {
-    if (digits.length === 10) {
-      return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-    }
-
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7)}`;
-  }
-
-  return value;
-}
-
-function calculateAge(birthDate: string) {
-  if (!birthDate) return null;
-
-  const today = new Date();
-  const birth = new Date(`${birthDate}T00:00:00`);
-
-  let age = today.getFullYear() - birth.getFullYear();
-  const monthDiff = today.getMonth() - birth.getMonth();
-
-  if (
-    monthDiff < 0 ||
-    (monthDiff === 0 && today.getDate() < birth.getDate())
-  ) {
-    age--;
-  }
-
-  return age >= 0 ? age : null;
-}
-
-export default function PatientForm({ mode, patient }: PatientFormProps) {
+export default function PatientForm({ mode, patient }: Props) {
   const router = useRouter();
 
-  const initialState = useMemo(
-    () => ({
-      name: patient?.name ?? "",
-      email: patient?.email ?? "",
-      phone: patient?.phone ?? "",
-      birthDate: formatDateToInput(patient?.birthDate),
-      notes: patient?.notes ?? "",
-    }),
-    [patient]
+  const [name, setName] = useState(patient?.name ?? "");
+  const [email, setEmail] = useState(patient?.email ?? "");
+  const [phone, setPhone] = useState(patient?.phone ?? "");
+  const [birthDate, setBirthDate] = useState(
+    patient?.birthDate ? patient.birthDate.slice(0, 10) : ""
   );
-
-  const [form, setForm] = useState(initialState);
-  const [loading, setLoading] = useState(false);
+  const [notes, setNotes] = useState(patient?.notes ?? "");
+  const [isActive, setIsActive] = useState(patient?.isActive ?? true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
 
-  const age = calculateAge(form.birthDate);
-
-  function handleChange(
-    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>
-  ) {
-    const { name, value } = e.target;
-
-    if (name === "phone") {
-      setForm((prev) => ({ ...prev, phone: formatPhone(value) }));
-      return;
-    }
-
-    setForm((prev) => ({ ...prev, [name]: value }));
-  }
-
-  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setLoading(true);
+    setSaving(true);
     setError("");
-    setSuccess("");
 
     try {
-      const url =
-        mode === "create" ? "/api/patients" : `/api/patients/${patient?.id}`;
-
+      const url = mode === "create" ? "/api/patients" : `/api/patients/${patient?.id}`;
       const method = mode === "create" ? "POST" : "PATCH";
 
       const response = await fetch(url, {
@@ -111,7 +46,14 @@ export default function PatientForm({ mode, patient }: PatientFormProps) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          name,
+          email: email || null,
+          phone: phone || null,
+          birthDate: birthDate || null,
+          notes: notes || null,
+          isActive,
+        }),
       });
 
       const data = await response.json();
@@ -120,137 +62,100 @@ export default function PatientForm({ mode, patient }: PatientFormProps) {
         throw new Error(data?.error || "Erro ao salvar paciente");
       }
 
-      setSuccess(
-        mode === "create"
-          ? "Paciente cadastrado com sucesso."
-          : "Paciente atualizado com sucesso."
-      );
-
-      setTimeout(() => {
-        router.push(mode === "create" ? "/patients" : `/patients/${patient?.id}`);
-        router.refresh();
-      }, 700);
+      router.push(mode === "create" ? `/patients/${data.id}` : `/patients/${patient?.id}`);
+      router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   }
 
   return (
-    <form
-      onSubmit={handleSubmit}
-      className="rounded-2xl border bg-white p-6 shadow-sm"
-    >
-      <div className="grid gap-5 md:grid-cols-2">
-        <div className="md:col-span-2">
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Nome do paciente *
-          </label>
-          <input
-            name="name"
-            value={form.name}
-            onChange={handleChange}
-            placeholder="Digite o nome completo"
-            required
-            className="w-full rounded-xl border px-4 py-3 outline-none transition focus:border-gray-400"
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            E-mail
-          </label>
-          <input
-            name="email"
-            type="email"
-            value={form.email}
-            onChange={handleChange}
-            placeholder="email@exemplo.com"
-            className="w-full rounded-xl border px-4 py-3 outline-none transition focus:border-gray-400"
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Telefone
-          </label>
-          <input
-            name="phone"
-            value={form.phone}
-            onChange={handleChange}
-            placeholder="(11) 99999-9999"
-            className="w-full rounded-xl border px-4 py-3 outline-none transition focus:border-gray-400"
-          />
-        </div>
-
-        <div>
-          <label className="mb-2 block text-sm font-medium text-gray-700">
-            Data de nascimento
-          </label>
-          <input
-            name="birthDate"
-            type="date"
-            value={form.birthDate}
-            onChange={handleChange}
-            className="w-full rounded-xl border px-4 py-3 outline-none transition focus:border-gray-400"
-          />
-          {age !== null && (
-            <p className="mt-2 text-xs text-gray-500">{age} ano(s)</p>
-          )}
-        </div>
-      </div>
-
-      <div className="mt-5">
-        <label className="mb-2 block text-sm font-medium text-gray-700">
-          Observações
-        </label>
-        <textarea
-          name="notes"
-          value={form.notes}
-          onChange={handleChange}
-          rows={5}
-          placeholder="Informações importantes sobre o paciente..."
-          className="w-full rounded-xl border px-4 py-3 outline-none transition focus:border-gray-400"
-        />
-        <p className="mt-2 text-xs text-gray-500">
-          {form.notes.length}/2000 caracteres
-        </p>
-      </div>
-
+    <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border bg-white p-6 shadow-sm">
       {error && (
-        <div className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {error}
         </div>
       )}
 
-      {success && (
-        <div className="mt-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
-          {success}
+      <div>
+        <label className="mb-2 block text-sm font-medium">Nome</label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full rounded-md border p-3 outline-none"
+          required
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-sm font-medium">E-mail</label>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            className="w-full rounded-md border p-3 outline-none"
+          />
         </div>
+
+        <div>
+          <label className="mb-2 block text-sm font-medium">Telefone</label>
+          <input
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="11999998888"
+            className="w-full rounded-md border p-3 outline-none"
+          />
+        </div>
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-medium">Data de nascimento</label>
+        <input
+          type="date"
+          value={birthDate}
+          onChange={(e) => setBirthDate(e.target.value)}
+          className="w-full rounded-md border p-3 outline-none"
+        />
+      </div>
+
+      <div>
+        <label className="mb-2 block text-sm font-medium">Observações</label>
+        <textarea
+          value={notes}
+          onChange={(e) => setNotes(e.target.value)}
+          className="min-h-[120px] w-full rounded-md border p-3 outline-none"
+        />
+      </div>
+
+      {mode === "edit" && (
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={isActive}
+            onChange={(e) => setIsActive(e.target.checked)}
+          />
+          Paciente ativo
+        </label>
       )}
 
-      <div className="mt-6 flex items-center gap-3">
+      <div className="flex justify-end gap-3">
         <button
-          type="submit"
-          disabled={loading}
-          className="rounded-xl bg-black px-5 py-3 text-white transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          type="button"
+          onClick={() => router.back()}
+          className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50"
         >
-          {loading
-            ? "Salvando..."
-            : mode === "create"
-            ? "Cadastrar paciente"
-            : "Salvar alterações"}
+          Cancelar
         </button>
 
         <button
-          type="button"
-          onClick={() =>
-            router.push(mode === "create" ? "/patients" : `/patients/${patient?.id}`)
-          }
-          className="rounded-xl border px-5 py-3 transition hover:bg-gray-50"
+          type="submit"
+          disabled={saving}
+          className="rounded-md bg-black px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60"
         >
-          Cancelar
+          {saving ? "Salvando..." : mode === "create" ? "Criar paciente" : "Salvar alterações"}
         </button>
       </div>
     </form>

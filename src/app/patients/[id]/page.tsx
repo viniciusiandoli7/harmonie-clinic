@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { buildWhatsappMessage, getWhatsappLink } from "@/lib/whatsapp";
 
 type Patient = {
   id: string;
@@ -12,6 +13,8 @@ type Patient = {
   birthDate?: string | null;
   notes?: string | null;
   isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
@@ -22,30 +25,33 @@ type Appointment = {
   date: string;
   status: AppointmentStatus;
   patientId: string;
-  patient?: Patient;
-  durationMinutes?: 30 | 60;
+  durationMinutes?: 30 | 60 | 90 | 120;
   notes?: string | null;
   procedureName?: string | null;
   price?: number | null;
   paymentStatus?: PaymentStatus;
+  room?: "A" | "B";
 };
 
-function formatPrice(value: number) {
+type PageProps = {
+  params: Promise<{ id: string }>;
+};
+
+function formatCurrency(value: number) {
   return value.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
   });
 }
 
-function formatBirthDate(value?: string | null) {
-  if (!value) return "Não informada";
-  return new Date(value).toLocaleDateString("pt-BR");
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString("pt-BR");
 }
 
-function statusBadgeClasses(status: AppointmentStatus) {
-  if (status === "COMPLETED") return "bg-green-100 text-green-800 border-green-200";
-  if (status === "CANCELED") return "bg-gray-100 text-gray-700 border-gray-200";
-  return "bg-yellow-100 text-yellow-800 border-yellow-200";
+function formatDate(value?: string | null) {
+  if (!value) return "Não informada";
+  return new Date(value).toLocaleDateString("pt-BR");
 }
 
 function paymentBadgeClasses(status: PaymentStatus) {
@@ -54,9 +60,11 @@ function paymentBadgeClasses(status: PaymentStatus) {
   return "bg-orange-100 text-orange-800 border-orange-200";
 }
 
-type PageProps = {
-  params: Promise<{ id: string }>;
-};
+function statusBadgeClasses(status: AppointmentStatus) {
+  if (status === "COMPLETED") return "bg-green-100 text-green-800 border-green-200";
+  if (status === "CANCELED") return "bg-gray-100 text-gray-700 border-gray-200";
+  return "bg-yellow-100 text-yellow-800 border-yellow-200";
+}
 
 export default function PatientDetailsPage({ params }: PageProps) {
   const router = useRouter();
@@ -65,24 +73,22 @@ export default function PatientDetailsPage({ params }: PageProps) {
   const [patient, setPatient] = useState<Patient | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [changingStatus, setChangingStatus] = useState(false);
-  const [message, setMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
-
-  function showMsg(type: "success" | "error", text: string) {
-    setMessage({ type, text });
-    setTimeout(() => setMessage(null), 3000);
-  }
 
   useEffect(() => {
     async function resolveParams() {
       const p = await params;
       setPatientId(p.id);
     }
+
     resolveParams();
   }, [params]);
 
   async function loadData(id: string) {
     setLoading(true);
+    setError("");
+
     try {
       const [patientRes, appointmentsRes] = await Promise.all([
         fetch(`/api/patients/${id}`, { cache: "no-store" }),
@@ -93,26 +99,25 @@ export default function PatientDetailsPage({ params }: PageProps) {
       const appointmentsData = await appointmentsRes.json();
 
       if (!patientRes.ok) {
-        showMsg("error", patientData?.error ?? "Erro ao carregar paciente.");
-        return;
+        throw new Error(patientData?.error || "Erro ao carregar paciente");
       }
 
       if (!appointmentsRes.ok) {
-        showMsg("error", appointmentsData?.error ?? "Erro ao carregar consultas.");
-        return;
+        throw new Error(appointmentsData?.error || "Erro ao carregar consultas");
       }
 
-      setPatient(patientData ?? null);
+      setPatient(patientData);
       setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
-    } catch {
-      showMsg("error", "Erro ao carregar CRM do paciente.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    if (patientId) loadData(patientId);
+    if (!patientId) return;
+    loadData(patientId);
   }, [patientId]);
 
   async function handleToggleActive() {
@@ -129,13 +134,12 @@ export default function PatientDetailsPage({ params }: PageProps) {
     if (!confirmed) return;
 
     setChangingStatus(true);
+    setError("");
 
     try {
       const response = await fetch(
         `/api/patients/${patient.id}/${isCurrentlyActive ? "deactivate" : "activate"}`,
-        {
-          method: "PATCH",
-        }
+        { method: "PATCH" }
       );
 
       const data = await response.json();
@@ -145,30 +149,24 @@ export default function PatientDetailsPage({ params }: PageProps) {
       }
 
       setPatient(data);
-      showMsg(
-        "success",
-        isCurrentlyActive
-          ? "Paciente inativado com sucesso."
-          : "Paciente reativado com sucesso."
-      );
-
       router.refresh();
     } catch (err) {
-      showMsg("error", err instanceof Error ? err.message : "Erro inesperado");
+      setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
       setChangingStatus(false);
     }
   }
 
-  const summary = useMemo(() => {
+  const sortedAppointments = useMemo(
+    () =>
+      appointments
+        .slice()
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [appointments]
+  );
+
+  const stats = useMemo(() => {
     const totalAppointments = appointments.length;
-    const scheduled = appointments.filter((a) => a.status === "SCHEDULED").length;
-    const completed = appointments.filter((a) => a.status === "COMPLETED").length;
-    const canceled = appointments.filter((a) => a.status === "CANCELED").length;
-
-    const paidCount = appointments.filter((a) => a.paymentStatus === "PAID").length;
-    const pendingCount = appointments.filter((a) => a.paymentStatus === "PENDING").length;
-
     const totalPaid = appointments
       .filter((a) => a.paymentStatus === "PAID")
       .reduce((acc, a) => acc + (a.price ?? 0), 0);
@@ -177,241 +175,212 @@ export default function PatientDetailsPage({ params }: PageProps) {
       .filter((a) => a.paymentStatus === "PENDING")
       .reduce((acc, a) => acc + (a.price ?? 0), 0);
 
-    const procedures = Object.entries(
-      appointments.reduce<Record<string, number>>((acc, a) => {
-        const key = a.procedureName?.trim();
-        if (!key) return acc;
-        acc[key] = (acc[key] ?? 0) + 1;
-        return acc;
-      }, {})
-    ).sort((a, b) => b[1] - a[1]);
+    const lastAppointment = sortedAppointments[0] ?? null;
 
     return {
       totalAppointments,
-      scheduled,
-      completed,
-      canceled,
-      paidCount,
-      pendingCount,
       totalPaid,
       totalPending,
-      procedures,
+      lastAppointment,
     };
-  }, [appointments]);
+  }, [appointments, sortedAppointments]);
+
+  const whatsappLink = useMemo(() => {
+    if (!patient?.phone) return null;
+
+    return getWhatsappLink(
+      patient.phone,
+      buildWhatsappMessage({
+        patientName: patient.name,
+        procedureName: stats.lastAppointment?.procedureName ?? "Atendimento",
+        date: stats.lastAppointment?.date ?? null,
+        room: stats.lastAppointment?.room ?? null,
+      })
+    );
+  }, [patient, stats.lastAppointment]);
 
   return (
-    <div className="mx-auto max-w-7xl p-6">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="mx-auto max-w-6xl space-y-6 p-6">
+      <div className="flex items-center gap-3">
         <Link
           href="/patients"
           className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
         >
           ← Voltar
         </Link>
-
-        <button
-          type="button"
-          onClick={() => patientId && loadData(patientId)}
-          className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
-          disabled={loading}
-        >
-          {loading ? "Atualizando..." : "Recarregar"}
-        </button>
-
-        {patientId && (
-          <Link
-            href={`/patients/${patientId}/edit`}
-            className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50"
-          >
-            Editar paciente
-          </Link>
-        )}
-
-        {patient && (
-          <button
-            type="button"
-            onClick={handleToggleActive}
-            disabled={changingStatus}
-            className="rounded-md border px-3 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {changingStatus
-              ? "Salvando..."
-              : patient.isActive === false
-              ? "Reativar paciente"
-              : "Inativar paciente"}
-          </button>
-        )}
       </div>
 
-      {message && (
-        <div
-          className={[
-            "mt-4 rounded-md border p-3",
-            message.type === "success" ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50",
-          ].join(" ")}
-        >
-          <p className="text-sm">{message.text}</p>
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Detalhes do paciente</h1>
+          <p className="text-gray-500">Resumo completo do relacionamento com o paciente.</p>
         </div>
-      )}
+
+        <div className="flex flex-wrap gap-2">
+          {patientId && (
+            <Link
+              href={`/patients/${patientId}/edit`}
+              className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50"
+            >
+              Editar paciente
+            </Link>
+          )}
+
+          {whatsappLink && (
+            <a
+              href={whatsappLink}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700"
+            >
+              WhatsApp
+            </a>
+          )}
+
+          {patient && (
+            <button
+              type="button"
+              onClick={handleToggleActive}
+              disabled={changingStatus}
+              className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50 disabled:opacity-60"
+            >
+              {changingStatus
+                ? "Salvando..."
+                : patient.isActive === false
+                  ? "Reativar paciente"
+                  : "Inativar paciente"}
+            </button>
+          )}
+        </div>
+      </div>
 
       {loading ? (
-        <div className="mt-6 text-sm text-gray-500">Carregando...</div>
+        <div className="text-sm text-gray-500">Carregando paciente...</div>
+      ) : error ? (
+        <div className="rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+          {error}
+        </div>
       ) : !patient ? (
-        <div className="mt-6 text-sm text-gray-500">Paciente não encontrado.</div>
+        <div className="text-sm text-gray-500">Paciente não encontrado.</div>
       ) : (
         <>
-          <div className="mt-6 rounded-2xl border bg-white p-6 shadow-sm">
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h1 className="text-2xl font-semibold">{patient.name}</h1>
-
-                  <span
-                    className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${
-                      patient.isActive === false
-                        ? "border-gray-200 bg-gray-100 text-gray-700"
-                        : "border-green-200 bg-green-100 text-green-800"
-                    }`}
-                  >
-                    {patient.isActive === false ? "Inativo" : "Ativo"}
-                  </span>
-                </div>
-
-                <p className="mt-1 text-gray-600">{patient.email || "Sem e-mail"}</p>
-                <p className="text-gray-500">{patient.phone || "Sem telefone"}</p>
-                <p className="mt-1 text-sm text-gray-500">
-                  Nascimento: {formatBirthDate(patient.birthDate)}
-                </p>
-              </div>
-
-              <Link
-                href={`/patients/${patient.id}/edit`}
-                className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50"
-              >
-                Editar cadastro
-              </Link>
-            </div>
-
-            <div className="mt-5">
-              <h2 className="mb-2 text-sm font-medium text-gray-500">Observações</h2>
-              <div className="rounded-xl bg-gray-50 p-4 text-sm text-gray-700">
-                {patient.notes || "Nenhuma observação cadastrada."}
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div className="rounded-2xl border bg-white p-5 shadow-sm">
               <p className="text-sm text-gray-500">Consultas</p>
-              <h2 className="mt-2 text-3xl font-bold">{summary.totalAppointments}</h2>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-5 shadow-sm">
-              <p className="text-sm text-gray-500">Concluídas</p>
-              <h2 className="mt-2 text-3xl font-bold">{summary.completed}</h2>
+              <h2 className="mt-2 text-3xl font-bold">{stats.totalAppointments}</h2>
             </div>
 
             <div className="rounded-2xl border bg-white p-5 shadow-sm">
               <p className="text-sm text-gray-500">Total pago</p>
-              <h2 className="mt-2 text-3xl font-bold">{formatPrice(summary.totalPaid)}</h2>
+              <h2 className="mt-2 text-2xl font-bold">{formatCurrency(stats.totalPaid)}</h2>
             </div>
 
             <div className="rounded-2xl border bg-white p-5 shadow-sm">
               <p className="text-sm text-gray-500">Total pendente</p>
-              <h2 className="mt-2 text-3xl font-bold">{formatPrice(summary.totalPending)}</h2>
+              <h2 className="mt-2 text-2xl font-bold">{formatCurrency(stats.totalPending)}</h2>
+            </div>
+
+            <div className="rounded-2xl border bg-white p-5 shadow-sm">
+              <p className="text-sm text-gray-500">Status</p>
+              <h2 className="mt-2 text-xl font-bold">
+                {patient.isActive === false ? "Inativo" : "Ativo"}
+              </h2>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3">
-            <div className="rounded-2xl border bg-white p-5 shadow-sm">
-              <p className="text-sm text-gray-500">Agendadas</p>
-              <h2 className="mt-2 text-2xl font-bold">{summary.scheduled}</h2>
-            </div>
+          <div className="rounded-2xl border bg-white p-6 shadow-sm">
+            <h2 className="text-lg font-semibold">Informações do paciente</h2>
 
-            <div className="rounded-2xl border bg-white p-5 shadow-sm">
-              <p className="text-sm text-gray-500">Pagas</p>
-              <h2 className="mt-2 text-2xl font-bold">{summary.paidCount}</h2>
-            </div>
-
-            <div className="rounded-2xl border bg-white p-5 shadow-sm">
-              <p className="text-sm text-gray-500">Pendentes</p>
-              <h2 className="mt-2 text-2xl font-bold">{summary.pendingCount}</h2>
-            </div>
-          </div>
-
-          <div className="mt-6 grid grid-cols-1 gap-6 xl:grid-cols-3">
-            <div className="xl:col-span-2 overflow-hidden rounded-2xl border bg-white shadow-sm">
-              <div className="border-b bg-gray-50 p-4">
-                <h2 className="font-medium">Histórico de consultas</h2>
+            <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-gray-400">Nome</div>
+                <div className="mt-1 text-sm font-medium">{patient.name}</div>
               </div>
 
-              {appointments.length === 0 ? (
-                <div className="p-4 text-sm text-gray-500">Sem histórico ainda.</div>
-              ) : (
-                <div className="divide-y">
-                  {appointments
-                    .slice()
-                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-                    .map((a) => (
-                      <div key={a.id} className="p-4">
-                        <div className="flex flex-wrap items-center gap-2">
+              <div>
+                <div className="text-xs uppercase tracking-wide text-gray-400">E-mail</div>
+                <div className="mt-1 text-sm">{patient.email || "Sem e-mail"}</div>
+              </div>
+
+              <div>
+                <div className="text-xs uppercase tracking-wide text-gray-400">Telefone</div>
+                <div className="mt-1 text-sm">{patient.phone || "Sem telefone"}</div>
+              </div>
+
+              <div>
+                <div className="text-xs uppercase tracking-wide text-gray-400">Nascimento</div>
+                <div className="mt-1 text-sm">{formatDate(patient.birthDate)}</div>
+              </div>
+            </div>
+
+            {patient.notes && (
+              <div className="mt-5 rounded-lg bg-gray-50 p-4">
+                <div className="text-xs uppercase tracking-wide text-gray-400">Observações</div>
+                <div className="mt-2 text-sm text-gray-700">{patient.notes}</div>
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border bg-white shadow-sm">
+            <div className="border-b bg-gray-50 p-4">
+              <h2 className="font-medium">Histórico de consultas</h2>
+            </div>
+
+            {sortedAppointments.length === 0 ? (
+              <div className="p-4 text-sm text-gray-500">Nenhuma consulta encontrada.</div>
+            ) : (
+              <div className="divide-y">
+                {sortedAppointments.map((appointment) => (
+                  <div key={appointment.id} className="p-4">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div>
+                        <div className="text-sm font-medium">
+                          {formatDateTime(appointment.date)}
+                        </div>
+
+                        <div className="mt-1 text-sm text-gray-600">
+                          {appointment.procedureName || "Procedimento não informado"}
+                        </div>
+
+                        {appointment.notes && (
+                          <div className="mt-1 text-xs text-gray-500">{appointment.notes}</div>
+                        )}
+
+                        <div className="mt-2 flex flex-wrap gap-2">
                           <span
                             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClasses(
-                              a.status
+                              appointment.status
                             )}`}
                           >
-                            {a.status}
+                            {appointment.status}
                           </span>
 
                           <span
                             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${paymentBadgeClasses(
-                              a.paymentStatus ?? "PENDING"
+                              appointment.paymentStatus ?? "PENDING"
                             )}`}
                           >
-                            {a.paymentStatus ?? "PENDING"}
+                            {appointment.paymentStatus ?? "PENDING"}
                           </span>
 
-                          <span className="text-sm text-gray-600">
-                            {new Date(a.date).toLocaleString("pt-BR")}
+                          {appointment.room && (
+                            <span className="text-xs text-gray-600">Sala {appointment.room}</span>
+                          )}
+
+                          <span className="text-xs text-gray-600">
+                            {appointment.durationMinutes ?? 30} min
                           </span>
                         </div>
-
-                        <div className="mt-2 font-medium">
-                          {a.procedureName || "Procedimento não informado"}
-                        </div>
-
-                        <div className="text-sm text-gray-600">
-                          {a.durationMinutes ?? 30}min
-                          {a.price !== null && a.price !== undefined ? ` • ${formatPrice(a.price)}` : ""}
-                        </div>
-
-                        {a.notes && (
-                          <div className="mt-2 text-sm text-gray-500">{a.notes}</div>
-                        )}
                       </div>
-                    ))}
-                </div>
-              )}
-            </div>
 
-            <div className="overflow-hidden rounded-2xl border bg-white shadow-sm">
-              <div className="border-b bg-gray-50 p-4">
-                <h2 className="font-medium">Procedimentos realizados</h2>
-              </div>
-
-              {summary.procedures.length === 0 ? (
-                <div className="p-4 text-sm text-gray-500">Nenhum procedimento registrado.</div>
-              ) : (
-                <div className="divide-y">
-                  {summary.procedures.map(([name, count]) => (
-                    <div key={name} className="flex items-center justify-between p-4">
-                      <div className="font-medium">{name}</div>
-                      <div className="text-sm text-gray-500">{count} vez(es)</div>
+                      <div className="text-right text-sm font-medium text-gray-700">
+                        {formatCurrency(appointment.price ?? 0)}
+                      </div>
                     </div>
-                  ))}
-                </div>
-              )}
-            </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         </>
       )}

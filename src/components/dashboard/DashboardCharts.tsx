@@ -22,7 +22,8 @@ type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
 type Patient = {
   id: string;
   name: string;
-  email: string;
+  email?: string;
+  phone?: string;
 };
 
 type Appointment = {
@@ -31,11 +32,12 @@ type Appointment = {
   status: AppointmentStatus;
   patientId: string;
   patient?: Patient;
-  durationMinutes?: 30 | 60;
+  durationMinutes?: 30 | 60 | 90 | 120;
   notes?: string | null;
   procedureName?: string | null;
   price?: number | null;
   paymentStatus?: PaymentStatus;
+  room?: "A" | "B";
 };
 
 type Props = {
@@ -161,13 +163,32 @@ export default function DashboardCharts({ appointments }: Props) {
               </defs>
 
               <CartesianGrid stroke="#F3EFE7" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#94A3B8", fontSize: 12 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fill: "#94A3B8", fontSize: 12 }} tickLine={false} axisLine={false} />
+              <XAxis
+                dataKey="month"
+                tick={{ fill: "#94A3B8", fontSize: 12 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                tick={{ fill: "#94A3B8", fontSize: 12 }}
+                tickLine={false}
+                axisLine={false}
+              />
               <Tooltip
                 formatter={(value: number) => [formatCurrency(value), "Receitas"]}
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #ECE7DD", borderRadius: "0px" }}
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #ECE7DD",
+                  borderRadius: "0px",
+                }}
               />
-              <Area type="monotone" dataKey="value" stroke="#C8A35F" strokeWidth={3} fill="url(#revenueFill)" />
+              <Area
+                type="monotone"
+                dataKey="value"
+                stroke="#C8A35F"
+                strokeWidth={3}
+                fill="url(#revenueFill)"
+              />
             </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
@@ -184,14 +205,25 @@ export default function DashboardCharts({ appointments }: Props) {
               <div className="h-[220px] min-w-0 w-full">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={topProcedures} dataKey="value" nameKey="name" innerRadius={52} outerRadius={82} paddingAngle={3}>
+                    <Pie
+                      data={topProcedures}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={52}
+                      outerRadius={82}
+                      paddingAngle={3}
+                    >
                       {topProcedures.map((_, index) => (
                         <Cell key={index} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                       ))}
                     </Pie>
                     <Tooltip
                       formatter={(value: number) => [`${value}`, "Qtd."]}
-                      contentStyle={{ backgroundColor: "#fff", border: "1px solid #ECE7DD", borderRadius: "0px" }}
+                      contentStyle={{
+                        backgroundColor: "#fff",
+                        border: "1px solid #ECE7DD",
+                        borderRadius: "0px",
+                      }}
                     />
                   </PieChart>
                 </ResponsiveContainer>
@@ -199,9 +231,15 @@ export default function DashboardCharts({ appointments }: Props) {
 
               <div className="space-y-4">
                 {topProcedures.map((item, index) => (
-                  <div key={item.name} className="flex items-center justify-between border-b border-[#F3EFE7] pb-3">
+                  <div
+                    key={item.name}
+                    className="flex items-center justify-between border-b border-[#F3EFE7] pb-3"
+                  >
                     <div className="flex items-center gap-3">
-                      <span className="h-3 w-3" style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }} />
+                      <span
+                        className="h-3 w-3"
+                        style={{ backgroundColor: PIE_COLORS[index % PIE_COLORS.length] }}
+                      />
                       <span className="text-sm font-medium text-[#334155]">{item.name}</span>
                     </div>
                     <span className="text-sm font-semibold text-[#111827]">{item.value}</span>
@@ -216,13 +254,29 @@ export default function DashboardCharts({ appointments }: Props) {
       <div className="min-w-0 xl:col-span-12">
         <ChartCard title="Consultas por mês">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={monthlyConsultations} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+            <BarChart
+              data={monthlyConsultations}
+              margin={{ top: 10, right: 10, left: 0, bottom: 0 }}
+            >
               <CartesianGrid stroke="#F3EFE7" vertical={false} />
-              <XAxis dataKey="month" tick={{ fill: "#94A3B8", fontSize: 12 }} tickLine={false} axisLine={false} />
-              <YAxis tick={{ fill: "#94A3B8", fontSize: 12 }} tickLine={false} axisLine={false} />
+              <XAxis
+                dataKey="month"
+                tick={{ fill: "#94A3B8", fontSize: 12 }}
+                tickLine={false}
+                axisLine={false}
+              />
+              <YAxis
+                tick={{ fill: "#94A3B8", fontSize: 12 }}
+                tickLine={false}
+                axisLine={false}
+              />
               <Tooltip
                 formatter={(value: number) => [`${value}`, "Consultas"]}
-                contentStyle={{ backgroundColor: "#fff", border: "1px solid #ECE7DD", borderRadius: "0px" }}
+                contentStyle={{
+                  backgroundColor: "#fff",
+                  border: "1px solid #ECE7DD",
+                  borderRadius: "0px",
+                }}
               />
               <Bar dataKey="value" fill="#C8A35F" barSize={42} />
             </BarChart>

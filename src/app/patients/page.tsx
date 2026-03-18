@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { buildWhatsappMessage, getWhatsappLink } from "@/lib/whatsapp";
 
 type Patient = {
   id: string;
@@ -22,12 +23,13 @@ type Appointment = {
   date: string;
   status: AppointmentStatus;
   patientId: string;
-  durationMinutes?: 30 | 60;
+  durationMinutes?: 30 | 60 | 90 | 120;
   notes?: string | null;
   procedureName?: string | null;
   price?: number | null;
   paymentStatus?: PaymentStatus;
   patient?: Patient;
+  room?: "A" | "B";
 };
 
 type StatusFilter = "all" | "active" | "inactive";
@@ -531,19 +533,42 @@ export default function PatientsPage() {
             <div className="p-4 text-sm text-gray-500">Nenhum aniversariante neste mês.</div>
           ) : (
             <div className="divide-y">
-              {birthdayPatients.map((patient) => (
-                <div key={patient.id} className="flex items-center justify-between p-4">
-                  <div>
-                    <div className="font-medium">{patient.name}</div>
-                    <div className="text-sm text-gray-500">
-                      Aniversário em {formatBirthDate(patient.birthDate)}
+              {birthdayPatients.map((patient) => {
+                const birthdayWhatsappLink = patient.phone
+                  ? getWhatsappLink(
+                      patient.phone,
+                      `Feliz aniversário, ${patient.name}! 🎉 A equipe da clínica deseja um dia maravilhoso para você.`
+                    )
+                  : null;
+
+                return (
+                  <div key={patient.id} className="flex items-center justify-between p-4 gap-3">
+                    <div>
+                      <div className="font-medium">{patient.name}</div>
+                      <div className="text-sm text-gray-500">
+                        Aniversário em {formatBirthDate(patient.birthDate)}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      {birthdayWhatsappLink && (
+                        <a
+                          href={birthdayWhatsappLink}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-md bg-green-600 px-3 py-1.5 text-sm text-white hover:bg-green-700"
+                        >
+                          WhatsApp
+                        </a>
+                      )}
+
+                      <Link href={`/patients/${patient.id}`} className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50">
+                        Ver
+                      </Link>
                     </div>
                   </div>
-                  <Link href={`/patients/${patient.id}`} className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50">
-                    Ver
-                  </Link>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>
@@ -729,6 +754,18 @@ export default function PatientsPage() {
             const isProcessing = actionLoadingId === item.patient.id;
             const isActive = item.patient.isActive !== false;
 
+            const whatsappLink = item.patient.phone
+              ? getWhatsappLink(
+                  item.patient.phone,
+                  buildWhatsappMessage({
+                    patientName: item.patient.name,
+                    procedureName: item.lastAppointment?.procedureName ?? "Atendimento",
+                    date: item.lastAppointment?.date ?? null,
+                    room: item.lastAppointment?.room ?? null,
+                  })
+                )
+              : null;
+
             return (
               <div
                 key={item.patient.id}
@@ -871,6 +908,12 @@ export default function PatientsPage() {
                               {formatPrice(item.lastAppointment.price)}
                             </span>
                           )}
+
+                        {item.lastAppointment.room && (
+                          <span className="text-xs text-gray-600">
+                            Sala {item.lastAppointment.room}
+                          </span>
+                        )}
                       </div>
                     </>
                   ) : (
@@ -892,6 +935,17 @@ export default function PatientsPage() {
                   >
                     Editar paciente
                   </Link>
+
+                  {whatsappLink && (
+                    <a
+                      href={whatsappLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="rounded-md bg-green-600 px-3 py-2 text-sm text-white hover:bg-green-700"
+                    >
+                      WhatsApp
+                    </a>
+                  )}
 
                   <button
                     type="button"

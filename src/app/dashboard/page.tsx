@@ -11,11 +11,13 @@ import KpiCards from "@/components/dashboard/KpiCards";
 import DashboardFinancialCards from "@/components/dashboard/DashboardFinancialCards";
 import DashboardFinancialCharts from "@/components/dashboard/DashboardFinancialCharts";
 import AdvancedWeeklyCalendar from "@/components/calendar/AdvancedWeeklyCalendar";
+import { buildWhatsappMessage, getWhatsappLink } from "@/lib/whatsapp";
 
 type Patient = {
   id: string;
   name: string;
-  email: string;
+  email?: string;
+  phone?: string;
 };
 
 type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
@@ -27,11 +29,12 @@ type Appointment = {
   status: AppointmentStatus;
   patientId: string;
   patient?: Patient;
-  durationMinutes?: 30 | 60;
+  durationMinutes?: 30 | 60 | 90 | 120;
   notes?: string | null;
   procedureName?: string | null;
   price?: number | null;
   paymentStatus?: PaymentStatus;
+  room?: "A" | "B";
 };
 
 type BlockedTime = {
@@ -333,52 +336,85 @@ export default function DashboardPage() {
             <div className="p-4 text-sm text-gray-500">Nenhuma próxima consulta.</div>
           ) : (
             <div className="divide-y divide-[#F3EFE7]">
-              {dashboard.nextAppointments.map((a) => (
-                <div
-                  key={a.id}
-                  className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between"
-                >
-                  <div>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClasses(
-                          a.status
-                        )}`}
-                      >
-                        {a.status}
-                      </span>
+              {dashboard.nextAppointments.map((a) => {
+                const whatsappLink = a.patient?.phone
+                  ? getWhatsappLink(
+                      a.patient.phone,
+                      buildWhatsappMessage({
+                        patientName: a.patient?.name,
+                        procedureName: a.procedureName,
+                        date: a.date,
+                        room: a.room ?? "A",
+                      })
+                    )
+                  : null;
 
-                      <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${paymentBadgeClasses(
-                          a.paymentStatus ?? "PENDING"
-                        )}`}
-                      >
-                        {a.paymentStatus ?? "PENDING"}
-                      </span>
+                return (
+                  <div
+                    key={a.id}
+                    className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between"
+                  >
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClasses(
+                            a.status
+                          )}`}
+                        >
+                          {a.status}
+                        </span>
 
-                      <span className="text-sm text-gray-600">
-                        {fmtDateTime(a.date)} • {a.durationMinutes ?? 30}min
-                      </span>
+                        <span
+                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${paymentBadgeClasses(
+                            a.paymentStatus ?? "PENDING"
+                          )}`}
+                        >
+                          {a.paymentStatus ?? "PENDING"}
+                        </span>
+
+                        <span className="text-sm text-gray-600">
+                          {fmtDateTime(a.date)} • {a.durationMinutes ?? 30}min
+                        </span>
+
+                        <span className="text-sm text-gray-600">
+                          • Sala {a.room ?? "A"}
+                        </span>
+                      </div>
+
+                      <div className="mt-1 font-medium text-[#111827]">
+                        {a.patient?.name ?? "Paciente"}
+                      </div>
+
+                      <div className="text-sm text-gray-600">{a.patient?.email ?? ""}</div>
+
+                      {a.procedureName && (
+                        <div className="mt-1 text-xs text-gray-700">{a.procedureName}</div>
+                      )}
+
+                      {a.notes && (
+                        <div className="mt-1 text-xs text-gray-500">{a.notes}</div>
+                      )}
+
+                      <div className="mt-3 flex gap-2">
+                        {whatsappLink && (
+                          <a
+                            href={whatsappLink}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
+                          >
+                            WhatsApp
+                          </a>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="mt-1 font-medium text-[#111827]">
-                      {a.patient?.name ?? "Paciente"}
+                    <div className="text-right text-sm text-gray-500">
+                      {fmtCurrency(a.price ?? 0)}
                     </div>
-
-                    <div className="text-sm text-gray-600">{a.patient?.email ?? ""}</div>
-
-                    {a.procedureName && (
-                      <div className="mt-1 text-xs text-gray-700">{a.procedureName}</div>
-                    )}
-
-                    {a.notes && <div className="mt-1 text-xs text-gray-500">{a.notes}</div>}
                   </div>
-
-                  <div className="text-right text-sm text-gray-500">
-                    {fmtCurrency(a.price ?? 0)}
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </div>

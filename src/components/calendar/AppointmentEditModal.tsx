@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Patient = {
   id: string;
@@ -8,10 +8,26 @@ type Patient = {
 };
 
 type Room = "A" | "B";
+type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
+type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
 
-type CalendarQuickCreateModalProps = {
+type Appointment = {
+  id: string;
+  date: string;
+  patientId: string;
+  patient?: Patient;
+  durationMinutes?: number;
+  procedureName?: string | null;
+  price?: number | null;
+  status?: AppointmentStatus;
+  paymentStatus?: PaymentStatus;
+  notes?: string | null;
+  room?: Room;
+};
+
+type Props = {
   open: boolean;
-  initialDate: string | null;
+  appointment: Appointment | null;
   onClose: () => void;
   onSaved: () => void | Promise<void>;
 };
@@ -26,21 +42,24 @@ function toLocalInputValue(date: Date) {
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
 }
 
-export default function CalendarQuickCreateModal({
+export default function AppointmentEditModal({
   open,
-  initialDate,
+  appointment,
   onClose,
   onSaved,
-}: CalendarQuickCreateModalProps) {
+}: Props) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [patientId, setPatientId] = useState("");
-  const [date, setDate] = useState(toLocalInputValue(new Date()));
+  const [date, setDate] = useState("");
   const [durationMinutes, setDurationMinutes] = useState("30");
   const [procedureName, setProcedureName] = useState("");
   const [price, setPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [room, setRoom] = useState<Room>("A");
+  const [status, setStatus] = useState<AppointmentStatus>("SCHEDULED");
+  const [paymentStatus, setPaymentStatus] = useState<PaymentStatus>("PENDING");
   const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -60,33 +79,45 @@ export default function CalendarQuickCreateModal({
   }, [open]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !appointment) return;
 
-    setPatientId("");
-    setProcedureName("");
-    setPrice("");
-    setNotes("");
-    setDurationMinutes("30");
-    setRoom("A");
+    setPatientId(appointment.patientId);
+    setDate(toLocalInputValue(new Date(appointment.date)));
+    setDurationMinutes(String(appointment.durationMinutes ?? 30));
+    setProcedureName(appointment.procedureName ?? "");
+    setPrice(
+      appointment.price !== null && appointment.price !== undefined
+        ? String(appointment.price)
+        : ""
+    );
+    setNotes(appointment.notes ?? "");
+    setRoom(appointment.room ?? "A");
+    setStatus(appointment.status ?? "SCHEDULED");
+    setPaymentStatus(appointment.paymentStatus ?? "PENDING");
     setError("");
+  }, [open, appointment]);
 
-    if (initialDate) {
-      setDate(toLocalInputValue(new Date(initialDate)));
-    } else {
-      setDate(toLocalInputValue(new Date()));
-    }
-  }, [open, initialDate]);
+  const canRender = open && appointment;
 
-  if (!open) return null;
+  const title = useMemo(() => {
+    if (!appointment) return "Editar consulta";
+    return appointment.patient?.name
+      ? `Editar consulta • ${appointment.patient.name}`
+      : "Editar consulta";
+  }, [appointment]);
+
+  if (!canRender) return null;
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!appointment) return;
+
     setSaving(true);
     setError("");
 
     try {
-      const res = await fetch("/api/appointments", {
-        method: "POST",
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "PATCH",
         headers: {
           "Content-Type": "application/json",
         },
@@ -96,34 +127,64 @@ export default function CalendarQuickCreateModal({
           durationMinutes: Number(durationMinutes),
           procedureName: procedureName || null,
           price: price ? Number(price) : null,
-          paymentStatus: "PENDING",
-          status: "SCHEDULED",
           notes: notes || null,
           room,
+          status,
+          paymentStatus,
         }),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
-        setError(data?.error?.formErrors?.[0] ?? data?.error ?? "Erro ao criar consulta.");
+        setError(data?.error ?? "Erro ao atualizar consulta.");
         return;
       }
 
       await onSaved();
       onClose();
     } catch {
-      setError("Erro ao criar consulta.");
+      setError("Erro ao atualizar consulta.");
     } finally {
       setSaving(false);
     }
   }
 
+  async function handleDelete() {
+    if (!appointment) return;
+
+    const confirmed = window.confirm("Tem certeza que deseja excluir esta consulta?");
+    if (!confirmed) return;
+
+    setDeleting(true);
+    setError("");
+
+    try {
+      const res = await fetch(`/api/appointments/${appointment.id}`, {
+        method: "DELETE",
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data?.error ?? "Erro ao excluir consulta.");
+        return;
+      }
+
+      await onSaved();
+      onClose();
+    } catch {
+      setError("Erro ao excluir consulta.");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4">
       <div className="w-full max-w-2xl border border-[#ECE7DD] bg-white shadow-2xl">
         <div className="border-b border-[#ECE7DD] bg-[#FCFAF6] px-6 py-4">
-          <h2 className="text-xl font-medium text-[#111827]">Novo agendamento</h2>
+          <h2 className="text-xl font-medium text-[#111827]">{title}</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
@@ -181,7 +242,7 @@ export default function CalendarQuickCreateModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
               <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
                 Duração
@@ -211,6 +272,36 @@ export default function CalendarQuickCreateModal({
                 className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
               />
             </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
+                Status
+              </label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as AppointmentStatus)}
+                className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+              >
+                <option value="SCHEDULED">Agendada</option>
+                <option value="COMPLETED">Concluída</option>
+                <option value="CANCELED">Cancelada</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
+                Pagamento
+              </label>
+              <select
+                value={paymentStatus}
+                onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
+                className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+              >
+                <option value="PENDING">Pendente</option>
+                <option value="PAID">Pago</option>
+                <option value="CANCELED">Cancelado</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -235,22 +326,33 @@ export default function CalendarQuickCreateModal({
             />
           </div>
 
-          <div className="flex justify-end gap-3">
+          <div className="flex flex-wrap justify-between gap-3">
             <button
               type="button"
-              onClick={onClose}
-              className="h-11 border border-[#ECE7DD] px-5 text-sm font-semibold uppercase tracking-[0.14em] text-[#111827]"
+              onClick={handleDelete}
+              disabled={deleting || saving}
+              className="h-11 border border-red-200 px-5 text-sm font-semibold uppercase tracking-[0.14em] text-red-700 disabled:opacity-60"
             >
-              Cancelar
+              {deleting ? "Excluindo..." : "Excluir"}
             </button>
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="h-11 bg-[#111111] px-5 text-sm font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
-            >
-              {saving ? "Salvando..." : "Salvar agendamento"}
-            </button>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-11 border border-[#ECE7DD] px-5 text-sm font-semibold uppercase tracking-[0.14em] text-[#111827]"
+              >
+                Cancelar
+              </button>
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="h-11 bg-[#111111] px-5 text-sm font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
+              >
+                {saving ? "Salvando..." : "Salvar alterações"}
+              </button>
+            </div>
           </div>
         </form>
       </div>

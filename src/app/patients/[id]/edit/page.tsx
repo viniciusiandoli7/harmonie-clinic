@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import PatientForm from "../../../../components/patients/PatientForm";
+import { getWhatsappLink } from "@/lib/whatsapp";
 
 type Patient = {
   id: string;
@@ -105,6 +106,14 @@ export default function EditPatientPage({ params }: PageProps) {
     }
   }
 
+  const whatsappLink = useMemo(() => {
+    if (!patient?.phone) return null;
+
+    const message = `Olá${patient.name ? `, ${patient.name}` : ""}! Tudo bem? 😊\n\nAqui é da clínica.\nEstou entrando em contato sobre seu cadastro/atendimento.\n\nQualquer dúvida, estou à disposição.`;
+
+    return getWhatsappLink(patient.phone, message);
+  }, [patient]);
+
   return (
     <div className="space-y-6 p-6">
       <div className="flex items-center gap-3">
@@ -116,7 +125,7 @@ export default function EditPatientPage({ params }: PageProps) {
         </Link>
       </div>
 
-      <div className="flex items-start justify-between gap-4">
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Editar paciente</h1>
           <p className="text-gray-500">
@@ -124,21 +133,55 @@ export default function EditPatientPage({ params }: PageProps) {
           </p>
         </div>
 
-        {patient && (
-          <button
-            type="button"
-            onClick={handleToggleActive}
-            disabled={changingStatus}
-            className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
-          >
-            {changingStatus
-              ? "Salvando..."
-              : patient.isActive === false
-              ? "Reativar paciente"
-              : "Inativar paciente"}
-          </button>
-        )}
+        <div className="flex flex-wrap gap-2">
+          {whatsappLink && (
+            <a
+              href={whatsappLink}
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-md bg-green-600 px-4 py-2 text-sm text-white hover:bg-green-700"
+            >
+              WhatsApp
+            </a>
+          )}
+
+          {patient && (
+            <button
+              type="button"
+              onClick={handleToggleActive}
+              disabled={changingStatus}
+              className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {changingStatus
+                ? "Salvando..."
+                : patient.isActive === false
+                  ? "Reativar paciente"
+                  : "Inativar paciente"}
+            </button>
+          )}
+        </div>
       </div>
+
+      {patient && (
+        <div className="rounded-xl border bg-white p-4">
+          <div className="grid gap-3 text-sm text-gray-600 md:grid-cols-3">
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">Nome</div>
+              <div className="mt-1 font-medium text-gray-900">{patient.name}</div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">E-mail</div>
+              <div className="mt-1">{patient.email || "Sem e-mail"}</div>
+            </div>
+
+            <div>
+              <div className="text-xs uppercase tracking-wide text-gray-400">Telefone</div>
+              <div className="mt-1">{patient.phone || "Sem telefone"}</div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading ? (
         <div className="text-sm text-gray-500">Carregando paciente...</div>

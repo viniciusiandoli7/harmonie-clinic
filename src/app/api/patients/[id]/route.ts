@@ -44,7 +44,16 @@ export async function PATCH(req: Request, context: Ctx) {
     const body = await req.json();
     const data = updatePatientSchema.parse(body);
 
-    const patient = await updatePatient(id, data);
+    const patient = await updatePatient(id, {
+      ...(data.name !== undefined ? { name: data.name } : {}),
+      ...(data.email !== undefined ? { email: data.email ?? null } : {}),
+      ...(data.phone !== undefined ? { phone: data.phone ?? null } : {}),
+      ...(data.birthDate !== undefined
+        ? { birthDate: data.birthDate ?? null }
+        : {}),
+      ...(data.notes !== undefined ? { notes: data.notes ?? null } : {}),
+      ...(data.isActive !== undefined ? { isActive: data.isActive } : {}),
+    });
 
     return NextResponse.json(patient);
   } catch (error) {

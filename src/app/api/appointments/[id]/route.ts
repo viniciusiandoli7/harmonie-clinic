@@ -78,6 +78,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       ...(parsed.paymentStatus !== undefined
         ? { paymentStatus: parsed.paymentStatus }
         : {}),
+      ...(parsed.room !== undefined ? { room: parsed.room } : {}),
     });
 
     return NextResponse.json(updated);

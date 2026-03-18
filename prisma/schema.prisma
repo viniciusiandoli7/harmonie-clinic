@@ -11,7 +11,7 @@ model Patient {
   id           String        @id @default(uuid())
   name         String
   email        String?       @unique
-  phone        String?
+  phone        String?       // já pronto para WhatsApp
   birthDate    DateTime?
   notes        String?
   isActive     Boolean       @default(true)
@@ -38,6 +38,12 @@ enum TransactionType {
   EXPENSE
 }
 
+// 👇 NOVO ENUM (melhor que string)
+enum Room {
+  A
+  B
+}
+
 model Appointment {
   id              String            @id @default(uuid())
   date            DateTime
@@ -47,10 +53,18 @@ model Appointment {
   procedureName   String?
   price           Float?
   paymentStatus   PaymentStatus     @default(PENDING)
+
+  
+  room            Room              @default(A)
+
   patientId       String
   patient         Patient           @relation(fields: [patientId], references: [id])
+
   createdAt       DateTime          @default(now())
   updatedAt       DateTime          @default(now()) @updatedAt
+
+  @@index([date])
+  @@index([patientId])
 }
 
 model BlockedTime {
@@ -60,6 +74,8 @@ model BlockedTime {
   reason    String?
   createdAt DateTime @default(now())
   updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([start, end])
 }
 
 model FinancialTransaction {
@@ -72,4 +88,6 @@ model FinancialTransaction {
   notes       String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @default(now()) @updatedAt
+
+  @@index([date])
 }

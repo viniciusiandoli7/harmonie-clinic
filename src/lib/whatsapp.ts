@@ -1,23 +1,34 @@
-export function normalizeBrazilPhone(phone: string) {
-  const digits = phone.replace(/\D/g, "");
+const HARMONIE_WHATSAPP_BUSINESS = "5511967239595";
 
-  if (!digits) return "";
-
-  if (digits.startsWith("55")) return digits;
-
-  return `55${digits}`;
+export function normalizeWhatsappPhone(phone?: string | null) {
+  if (!phone) return "";
+  return phone.replace(/\D/g, "");
 }
 
-export function buildWhatsappMessage(params: {
-  patientName?: string;
-  procedureName?: string | null;
-  date?: string | Date | null;
-  room?: "A" | "B" | null;
-}) {
-  const { patientName, procedureName, date, room } = params;
+export function getWhatsappLink(phone?: string | null, message?: string) {
+  const normalized = normalizeWhatsappPhone(phone);
+  if (!normalized) return "";
+  return `https://wa.me/${normalized}?text=${encodeURIComponent(message ?? "")}`;
+}
 
-  const formattedDate = date
-    ? new Date(date).toLocaleString("pt-BR", {
+export function getClinicWhatsappLink(message?: string) {
+  return `https://wa.me/${HARMONIE_WHATSAPP_BUSINESS}?text=${encodeURIComponent(
+    message ?? ""
+  )}`;
+}
+
+export function buildWhatsappAppointmentMessage(params: {
+  patientName?: string | null;
+  procedureName?: string | null;
+  date?: string | null;
+  room?: string | null;
+}) {
+  const patientName = params.patientName || "paciente";
+  const procedureName = params.procedureName || "atendimento";
+  const room = params.room || "A";
+
+  const formattedDate = params.date
+    ? new Date(params.date).toLocaleString("pt-BR", {
         day: "2-digit",
         month: "2-digit",
         year: "numeric",
@@ -26,21 +37,56 @@ export function buildWhatsappMessage(params: {
       })
     : "";
 
-  return [
-    `Olá${patientName ? `, ${patientName}` : ""}! Tudo bem? 😊`,
-    "",
-    "Aqui é da clínica.",
-    procedureName ? `Seu atendimento: ${procedureName}` : "Seu atendimento foi agendado.",
-    formattedDate ? `Data e horário: ${formattedDate}` : "",
-    room ? `Sala: ${room}` : "",
-    "",
-    "Qualquer dúvida, estou à disposição.",
-  ]
-    .filter(Boolean)
-    .join("\n");
+  return `Olá ${patientName}, tudo bem? 👋
+
+Seu agendamento está confirmado.
+
+Procedimento: ${procedureName}
+Data: ${formattedDate}
+Sala: ${room}
+
+Qualquer dúvida, estamos à disposição.
+Harmonie Clinic`;
 }
 
-export function getWhatsappLink(phone: string, message: string) {
-  const normalizedPhone = normalizeBrazilPhone(phone);
-  return `https://wa.me/${normalizedPhone}?text=${encodeURIComponent(message)}`;
+export function buildWhatsappConsentMessage(params: {
+  patientName?: string | null;
+  treatmentName: string;
+  documentLink: string;
+}) {
+  const patientName = params.patientName || "paciente";
+
+  return `Olá ${patientName}, tudo bem? 👋
+
+Segue seu termo de consentimento referente ao tratamento de ${params.treatmentName} para leitura e assinatura:
+
+${params.documentLink}
+
+Assim que finalizar, me avise por aqui.
+Harmonie Clinic`;
+}
+
+export function buildWhatsappContractMessage(params: {
+  patientName?: string | null;
+  contractLink: string;
+}) {
+  const patientName = params.patientName || "paciente";
+
+  return `Olá ${patientName}, tudo bem? 👋
+
+Segue seu contrato para leitura e assinatura:
+
+${params.contractLink}
+
+Assim que finalizar, me avise por aqui.
+Harmonie Clinic`;
+}
+
+export function buildWhatsappMessage(params: {
+  patientName?: string | null;
+  procedureName?: string | null;
+  date?: string | null;
+  room?: string | null;
+}) {
+  return buildWhatsappAppointmentMessage(params);
 }

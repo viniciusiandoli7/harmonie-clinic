@@ -1,173 +1,178 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import MonthlyKpis from "@/components/dashboard/MonthlyKpis";
-import DashboardCharts from "@/components/dashboard/DashboardCharts";
-import DashboardHeader from "@/components/dashboard/DashboardHeader";
-import DashboardPeriodFilter, {
-  type DashboardPeriod,
-} from "@/components/dashboard/DashboardPeriodFilter";
-import KpiCards from "@/components/dashboard/KpiCards";
-import DashboardFinancialCards from "@/components/dashboard/DashboardFinancialCards";
-import DashboardFinancialCharts from "@/components/dashboard/DashboardFinancialCharts";
-import AdvancedWeeklyCalendar from "@/components/calendar/AdvancedWeeklyCalendar";
-import { buildWhatsappMessage, getWhatsappLink } from "@/lib/whatsapp";
+import {
+  Bell,
+  CalendarDays,
+  DollarSign,
+  Search,
+  UserRound,
+  Wallet,
+} from "lucide-react";
+
+type TransactionType = "INCOME" | "EXPENSE";
+type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
+
+type FinancialTransaction = {
+  id: string;
+  date: string;
+  description: string;
+  category: string;
+  amount: number;
+  type: TransactionType;
+};
 
 type Patient = {
   id: string;
   name: string;
-  email?: string;
-  phone?: string;
+  email?: string | null;
+  phone?: string | null;
+  isActive?: boolean;
+  createdAt?: string | null;
 };
-
-type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
-type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
 
 type Appointment = {
   id: string;
   date: string;
   status: AppointmentStatus;
-  patientId: string;
-  patient?: Patient;
-  durationMinutes?: 30 | 60 | 90 | 120;
-  notes?: string | null;
   procedureName?: string | null;
-  price?: number | null;
-  paymentStatus?: PaymentStatus;
+  durationMinutes?: number;
   room?: "A" | "B";
+  patientId?: string;
+  patient?: {
+    id: string;
+    name: string;
+  };
 };
-
-type BlockedTime = {
-  id: string;
-  start: string;
-  end: string;
-  reason?: string | null;
-};
-
-function startOfDay(date: Date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  return d;
-}
-
-function endOfDay(date: Date) {
-  const d = new Date(date);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-function startOfWeek(date: Date) {
-  const d = new Date(date);
-  d.setHours(0, 0, 0, 0);
-  const day = d.getDay();
-  const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  d.setDate(diff);
-  return d;
-}
-
-function endOfWeek(date: Date) {
-  const d = startOfWeek(date);
-  d.setDate(d.getDate() + 6);
-  d.setHours(23, 59, 59, 999);
-  return d;
-}
-
-function startOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), 1, 0, 0, 0, 0);
-}
-
-function endOfMonth(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth() + 1, 0, 23, 59, 59, 999);
-}
-
-function isBetween(date: Date, start: Date, end: Date) {
-  return date >= start && date <= end;
-}
-
-function fmtDateTime(date: string) {
-  return new Date(date).toLocaleString("pt-BR", {
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
 
 function fmtCurrency(value: number) {
   return value.toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
+    maximumFractionDigits: 0,
   });
 }
 
-function fmtMinutes(min: number) {
-  const h = Math.floor(min / 60);
-  const m = min % 60;
-
-  if (h > 0 && m > 0) return `${h}h ${m}min`;
-  if (h > 0) return `${h}h`;
-  return `${m}min`;
+function fmtDate(date: string) {
+  return new Date(date).toLocaleDateString("pt-BR");
 }
 
-function statusBadgeClasses(status: AppointmentStatus) {
-  if (status === "COMPLETED") return "bg-green-100 text-green-800 border-green-200";
-  if (status === "CANCELED") return "bg-gray-100 text-gray-700 border-gray-200";
-  return "bg-yellow-100 text-yellow-800 border-yellow-200";
+function fmtTime(date: string) {
+  return new Date(date).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
-function paymentBadgeClasses(status: PaymentStatus) {
-  if (status === "PAID") return "bg-green-100 text-green-800 border-green-200";
-  if (status === "CANCELED") return "bg-gray-100 text-gray-700 border-gray-200";
-  return "bg-orange-100 text-orange-800 border-orange-200";
+function isSameMonth(date: string, base = new Date()) {
+  const d = new Date(date);
+  return (
+    d.getMonth() === base.getMonth() &&
+    d.getFullYear() === base.getFullYear()
+  );
 }
 
-function blockedDurationInMinutes(start: string, end: string) {
-  const s = new Date(start).getTime();
-  const e = new Date(end).getTime();
-  return Math.max(0, Math.round((e - s) / 60000));
+function isToday(date: string) {
+  const d = new Date(date);
+  const now = new Date();
+
+  return (
+    d.getDate() === now.getDate() &&
+    d.getMonth() === now.getMonth() &&
+    d.getFullYear() === now.getFullYear()
+  );
+}
+
+function isFuture(date: string) {
+  return new Date(date).getTime() >= new Date().getTime();
+}
+
+function getInitial(name: string) {
+  return name?.trim()?.charAt(0)?.toUpperCase() || "P";
+}
+
+function statusBadge(status: AppointmentStatus) {
+  if (status === "COMPLETED") {
+    return "border-green-200 bg-green-50 text-green-700";
+  }
+
+  if (status === "CANCELED") {
+    return "border-gray-200 bg-gray-100 text-gray-600";
+  }
+
+  return "border-yellow-200 bg-yellow-50 text-yellow-700";
+}
+
+function SectionTitle({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div>
+      <p className="text-[10px] uppercase tracking-[0.38em] text-[#C8A35F]">
+        {eyebrow}
+      </p>
+
+      <h2
+        className="mt-2 text-[28px] leading-none text-[#111111]"
+        style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+      >
+        {title}
+      </h2>
+
+      {description ? (
+        <p className="mt-2 text-sm text-[#64748B]">{description}</p>
+      ) : null}
+    </div>
+  );
 }
 
 export default function DashboardPage() {
+  const [transactions, setTransactions] = useState<FinancialTransaction[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
+  const [patients, setPatients] = useState<Patient[]>([]);
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [period, setPeriod] = useState<DashboardPeriod>("month");
 
   async function loadDashboard() {
     setLoading(true);
     setError("");
 
     try {
-      const now = new Date();
-      const monthStart = startOfMonth(now).toISOString();
-      const monthEnd = endOfMonth(now).toISOString();
-
-      const [apptRes, blockedRes] = await Promise.all([
+      const [transactionsRes, appointmentsRes, patientsRes] = await Promise.all([
+        fetch("/api/financial-transactions", { cache: "no-store" }),
         fetch("/api/appointments", { cache: "no-store" }),
-        fetch(
-          `/api/blocked-times?dateFrom=${encodeURIComponent(monthStart)}&dateTo=${encodeURIComponent(monthEnd)}`,
-          { cache: "no-store" }
-        ),
+        fetch("/api/patients?includeInactive=true", { cache: "no-store" }),
       ]);
 
-      const apptData = await apptRes.json();
-      const blockedData = await blockedRes.json();
+      const transactionsData = await transactionsRes.json();
+      const appointmentsData = await appointmentsRes.json();
+      const patientsData = await patientsRes.json();
 
-      if (!apptRes.ok) {
-        setError(apptData?.error ?? "Erro ao carregar dashboard.");
-        return;
+      if (!transactionsRes.ok) {
+        throw new Error(transactionsData?.error || "Erro ao carregar transações.");
       }
 
-      if (!blockedRes.ok) {
-        setError(blockedData?.error ?? "Erro ao carregar bloqueios.");
-        return;
+      if (!appointmentsRes.ok) {
+        throw new Error(appointmentsData?.error || "Erro ao carregar agenda.");
       }
 
-      setAppointments(Array.isArray(apptData) ? apptData : []);
-      setBlockedTimes(Array.isArray(blockedData) ? blockedData : []);
-    } catch {
+      if (!patientsRes.ok) {
+        throw new Error(patientsData?.error || "Erro ao carregar pacientes.");
+      }
+
+      setTransactions(Array.isArray(transactionsData) ? transactionsData : []);
+      setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
+      setPatients(Array.isArray(patientsData) ? patientsData : []);
+    } catch (err) {
+      console.error(err);
       setError("Erro ao carregar dashboard.");
     } finally {
       setLoading(false);
@@ -178,300 +183,356 @@ export default function DashboardPage() {
     loadDashboard();
   }, []);
 
-  const dashboard = useMemo(() => {
-    const now = new Date();
+  const summary = useMemo(() => {
+    const monthIncome = transactions
+      .filter((item) => item.type === "INCOME" && isSameMonth(item.date))
+      .reduce((acc, item) => acc + item.amount, 0);
 
-    const ranges = {
-      today: {
-        start: startOfDay(now),
-        end: endOfDay(now),
-      },
-      week: {
-        start: startOfWeek(now),
-        end: endOfWeek(now),
-      },
-      month: {
-        start: startOfMonth(now),
-        end: endOfMonth(now),
-      },
-    };
+    const monthExpense = transactions
+      .filter((item) => item.type === "EXPENSE" && isSameMonth(item.date))
+      .reduce((acc, item) => acc + item.amount, 0);
 
-    const selectedRange = ranges[period];
+    const activePatients = patients.filter((item) => item.isActive !== false).length;
 
-    const filteredAppointments = appointments.filter((a) =>
-      isBetween(new Date(a.date), selectedRange.start, selectedRange.end)
-    );
-
-    const filteredBlockedTimes = blockedTimes.filter((b) =>
-      isBetween(new Date(b.start), selectedRange.start, selectedRange.end)
-    );
-
-    const scheduled = filteredAppointments.filter((a) => a.status === "SCHEDULED").length;
-    const completed = filteredAppointments.filter((a) => a.status === "COMPLETED").length;
-    const canceled = filteredAppointments.filter((a) => a.status === "CANCELED").length;
-
-    const paidAppointments = filteredAppointments.filter((a) => a.paymentStatus === "PAID");
-    const pendingAppointments = filteredAppointments.filter((a) => a.paymentStatus === "PENDING");
-
-    const totalRevenue = paidAppointments.reduce((acc, a) => acc + (a.price ?? 0), 0);
-    const totalPending = pendingAppointments.reduce((acc, a) => acc + (a.price ?? 0), 0);
-
-    const blockedMinutes = filteredBlockedTimes.reduce(
-      (acc, b) => acc + blockedDurationInMinutes(b.start, b.end),
-      0
-    );
-
-    const nextAppointments = appointments
-      .filter((a) => new Date(a.date) >= now && a.status !== "CANCELED")
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, 5);
-
-    const recentBlockedTimes = blockedTimes
-      .slice()
-      .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime())
-      .slice(0, 5);
-
-    const topProcedures = Object.entries(
-      filteredAppointments.reduce<Record<string, number>>((acc, a) => {
-        const key = a.procedureName?.trim();
-        if (!key) return acc;
-        acc[key] = (acc[key] ?? 0) + 1;
-        return acc;
-      }, {})
-    )
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5);
-
-    const uniquePatients = new Set(
-      filteredAppointments.map((a) => a.patientId).filter(Boolean)
-    ).size;
+    const todayAppointments = appointments.filter(
+      (item) => isToday(item.date) && item.status !== "CANCELED"
+    ).length;
 
     return {
-      filteredAppointments,
-      scheduled,
-      completed,
-      canceled,
-      paidCount: paidAppointments.length,
-      pendingCount: pendingAppointments.length,
-      totalRevenue,
-      totalPending,
-      blockedMinutes,
-      nextAppointments,
-      recentBlockedTimes,
-      topProcedures,
-      uniquePatients,
+      monthIncome,
+      monthExpense,
+      monthBalance: monthIncome - monthExpense,
+      activePatients,
+      todayAppointments,
     };
-  }, [appointments, blockedTimes, period]);
+  }, [transactions, appointments, patients]);
+
+  const upcomingAppointments = useMemo(() => {
+    return appointments
+      .filter((item) => item.status !== "CANCELED" && isFuture(item.date))
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 8);
+  }, [appointments]);
+
+  const todayAppointments = useMemo(() => {
+    return appointments
+      .filter((item) => isToday(item.date) && item.status !== "CANCELED")
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [appointments]);
+
+  const recentPatients = useMemo(() => {
+    return [...patients]
+      .sort((a, b) => {
+        const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+        const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+        return bTime - aTime;
+      })
+      .slice(0, 6);
+  }, [patients]);
+
+  const filteredUpcomingAppointments = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    if (!term) return upcomingAppointments;
+
+    return upcomingAppointments.filter((item) => {
+      const patientName = item.patient?.name?.toLowerCase() || "";
+      const procedure = item.procedureName?.toLowerCase() || "";
+      return patientName.includes(term) || procedure.includes(term);
+    });
+  }, [upcomingAppointments, search]);
 
   return (
-    <div className="bg-[#FAF8F3] p-8 md:p-10">
-      <DashboardHeader loading={loading} onRefresh={loadDashboard} />
+    <div className="min-h-screen bg-[#FAF8F3] px-8 py-8 md:px-10 xl:px-14 xl:py-10">
+      <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.38em] text-[#C8A35F]">
+            Harmonie Management System
+          </p>
 
-      <DashboardPeriodFilter value={period} onChange={setPeriod} />
+          <h1
+            className="mt-3 text-[46px] leading-none text-[#111111] xl:text-[48px]"
+            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+          >
+            Dashboard
+          </h1>
+        </div>
 
-      {error && (
-        <div className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="flex items-center gap-5 pt-1">
+          <div className="flex h-10 w-[320px] items-center gap-3 border-b border-[#D9DEEA] text-[#B3BED2]">
+            <Search size={15} strokeWidth={1.8} />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="BUSCAR CONSULTA OU PACIENTE..."
+              className="w-full bg-transparent text-[11px] font-semibold uppercase tracking-[0.16em] text-[#111111] outline-none placeholder:text-[#C6D0E0]"
+            />
+          </div>
+
+          <button type="button" className="relative text-[#C1CAD9]">
+            <Bell size={17} strokeWidth={1.8} />
+            <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[#C8A35F]" />
+          </button>
+        </div>
+      </div>
+
+      {error ? (
+        <div className="mt-6 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
           {error}
         </div>
-      )}
+      ) : null}
 
-      <div className="mt-6">
-        <MonthlyKpis />
-      </div>
-
-      <KpiCards
-        totalRevenue={dashboard.totalRevenue}
-        totalAppointments={dashboard.filteredAppointments.length}
-        totalPatients={dashboard.uniquePatients}
-        totalPending={dashboard.totalPending}
-      />
-
-      <DashboardFinancialCards />
-
-      <DashboardCharts appointments={appointments} />
-
-      <DashboardFinancialCharts />
-
-      <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-4">
-        <div className="border border-[#ECE7DD] bg-white p-6 shadow-sm">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[#8E9AAF]">
-            Agendadas
-          </p>
-          <h2 className="mt-3 text-4xl font-light text-[#111827]">{dashboard.scheduled}</h2>
-        </div>
-
-        <div className="border border-[#ECE7DD] bg-white p-6 shadow-sm">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[#8E9AAF]">
-            Concluídas
-          </p>
-          <h2 className="mt-3 text-4xl font-light text-[#111827]">{dashboard.completed}</h2>
-        </div>
-
-        <div className="border border-[#ECE7DD] bg-white p-6 shadow-sm">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[#8E9AAF]">
-            Canceladas
-          </p>
-          <h2 className="mt-3 text-4xl font-light text-[#111827]">{dashboard.canceled}</h2>
-        </div>
-
-        <div className="border border-[#ECE7DD] bg-white p-6 shadow-sm">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[#8E9AAF]">
-            Tempo bloqueado
-          </p>
-          <h2 className="mt-3 text-4xl font-light text-[#111827]">
-            {fmtMinutes(dashboard.blockedMinutes)}
-          </h2>
-        </div>
-      </div>
-
-      <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="overflow-hidden border border-[#ECE7DD] bg-white shadow-sm">
-          <div className="border-b border-[#ECE7DD] bg-[#FCFAF6] p-4">
-            <h2 className="text-lg font-medium text-[#111827]">Próximas consultas</h2>
+      <div className="mt-10 grid grid-cols-1 gap-4 xl:grid-cols-4">
+        <div className="border border-[#F0ECE4] bg-white p-7">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
+              Receita do mês
+            </p>
+            <DollarSign size={16} className="text-[#C8A35F]" />
           </div>
 
-          {loading ? (
-            <div className="p-4 text-sm text-gray-500">Carregando...</div>
-          ) : dashboard.nextAppointments.length === 0 ? (
-            <div className="p-4 text-sm text-gray-500">Nenhuma próxima consulta.</div>
-          ) : (
-            <div className="divide-y divide-[#F3EFE7]">
-              {dashboard.nextAppointments.map((a) => {
-                const whatsappLink = a.patient?.phone
-                  ? getWhatsappLink(
-                      a.patient.phone,
-                      buildWhatsappMessage({
-                        patientName: a.patient?.name,
-                        procedureName: a.procedureName,
-                        date: a.date,
-                        room: a.room ?? "A",
-                      })
-                    )
-                  : null;
+          <div
+            className="mt-4 text-[26px] text-[#C8A35F]"
+            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+          >
+            {fmtCurrency(summary.monthIncome)}
+          </div>
+        </div>
 
-                return (
-                  <div
-                    key={a.id}
-                    className="flex flex-col gap-3 p-4 md:flex-row md:items-center md:justify-between"
-                  >
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClasses(
-                            a.status
-                          )}`}
-                        >
-                          {a.status}
-                        </span>
+        <div className="border border-[#F0ECE4] bg-white p-7">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
+              Despesa do mês
+            </p>
+            <Wallet size={16} className="text-[#111111]" />
+          </div>
 
-                        <span
-                          className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${paymentBadgeClasses(
-                            a.paymentStatus ?? "PENDING"
-                          )}`}
-                        >
-                          {a.paymentStatus ?? "PENDING"}
-                        </span>
+          <div
+            className="mt-4 text-[26px] text-rose-500"
+            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+          >
+            {fmtCurrency(summary.monthExpense)}
+          </div>
+        </div>
 
-                        <span className="text-sm text-gray-600">
-                          {fmtDateTime(a.date)} • {a.durationMinutes ?? 30}min
-                        </span>
+        <div className="border border-[#F0ECE4] bg-white p-7">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
+              Saldo do mês
+            </p>
+            <Wallet size={16} className="text-[#C8A35F]" />
+          </div>
 
-                        <span className="text-sm text-gray-600">
-                          • Sala {a.room ?? "A"}
-                        </span>
-                      </div>
+          <div
+            className="mt-4 text-[26px] text-[#111111]"
+            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+          >
+            {fmtCurrency(summary.monthBalance)}
+          </div>
+        </div>
 
-                      <div className="mt-1 font-medium text-[#111827]">
-                        {a.patient?.name ?? "Paciente"}
-                      </div>
+        <div className="border border-[#F0ECE4] bg-white p-7">
+          <div className="flex items-center justify-between">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
+              Sessões hoje
+            </p>
+            <CalendarDays size={16} className="text-[#C8A35F]" />
+          </div>
 
-                      <div className="text-sm text-gray-600">{a.patient?.email ?? ""}</div>
+          <div
+            className="mt-4 text-[26px] text-[#111111]"
+            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+          >
+            {summary.todayAppointments}
+          </div>
+        </div>
+      </div>
 
-                      {a.procedureName && (
-                        <div className="mt-1 text-xs text-gray-700">{a.procedureName}</div>
-                      )}
-
-                      {a.notes && (
-                        <div className="mt-1 text-xs text-gray-500">{a.notes}</div>
-                      )}
-
-                      <div className="mt-3 flex gap-2">
-                        {whatsappLink && (
-                          <a
-                            href={whatsappLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-xs font-semibold text-white hover:bg-green-700"
-                          >
-                            WhatsApp
-                          </a>
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="text-right text-sm text-gray-500">
-                      {fmtCurrency(a.price ?? 0)}
-                    </div>
-                  </div>
-                );
-              })}
+      <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <div className="border border-[#F0ECE4] bg-white p-7">
+          <div className="flex items-center justify-between">
+            <SectionTitle
+              eyebrow="Pacientes"
+              title="Base ativa"
+              description="Total de pacientes ativos na clínica."
+            />
+            <div className="flex h-12 w-12 items-center justify-center border border-[#E9DEC9] text-[#C8A35F]">
+              <UserRound size={18} />
             </div>
-          )}
+          </div>
+
+          <div
+            className="mt-6 text-[36px] text-[#111111]"
+            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+          >
+            {summary.activePatients}
+          </div>
+
+          <div className="mt-4">
+            <Link
+              href="/patients"
+              className="inline-flex h-10 items-center justify-center border border-[#171717] px-4 text-[12px] font-semibold text-[#111111] transition hover:bg-[#171717] hover:text-white"
+            >
+              Abrir CRM
+            </Link>
+          </div>
         </div>
 
-        <div className="overflow-hidden border border-[#ECE7DD] bg-white shadow-sm">
-          <div className="border-b border-[#ECE7DD] bg-[#FCFAF6] p-4">
-            <h2 className="text-lg font-medium text-[#111827]">Bloqueios recentes</h2>
+        <div className="border border-[#F0ECE4] bg-white p-7">
+          <SectionTitle
+            eyebrow="Agenda"
+            title="Hoje"
+            description="Consultas previstas para o dia."
+          />
+
+          <div className="mt-6 space-y-3">
+            {loading ? (
+              <div className="text-sm text-[#64748B]">Carregando agenda...</div>
+            ) : todayAppointments.length === 0 ? (
+              <div className="text-sm text-[#64748B]">Nenhuma consulta hoje.</div>
+            ) : (
+              todayAppointments.slice(0, 4).map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between border border-[#ECE7DD] bg-[#FCFAF6] px-4 py-3"
+                >
+                  <div>
+                    <div className="text-sm font-semibold text-[#111111]">
+                      {item.patient?.name || "Paciente"}
+                    </div>
+                    <div className="mt-1 text-xs text-[#64748B]">
+                      {item.procedureName || "Procedimento não informado"}
+                    </div>
+                  </div>
+
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-[#111111]">
+                      {fmtTime(item.date)}
+                    </div>
+                    <div className="mt-1 text-xs text-[#64748B]">
+                      Sala {item.room || "A"}
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="mt-7 grid grid-cols-1 gap-7 xl:grid-cols-[1.6fr_1fr]">
+        <div className="overflow-hidden border border-[#F0ECE4] bg-white">
+          <div className="border-b border-[#EEF1F5] bg-[#FCFAF6] px-8 py-5">
+            <h2
+              className="text-[22px] text-[#111111]"
+              style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+            >
+              Próximas consultas
+            </h2>
           </div>
 
           {loading ? (
-            <div className="p-4 text-sm text-gray-500">Carregando...</div>
-          ) : dashboard.recentBlockedTimes.length === 0 ? (
-            <div className="p-4 text-sm text-gray-500">Nenhum bloqueio cadastrado.</div>
+            <div className="px-8 py-8 text-sm text-[#64748B]">Carregando...</div>
+          ) : filteredUpcomingAppointments.length === 0 ? (
+            <div className="px-8 py-8 text-sm text-[#64748B]">
+              {search
+                ? "Nenhuma consulta encontrada para a busca."
+                : "Nenhuma próxima consulta."}
+            </div>
           ) : (
-            <div className="divide-y divide-[#F3EFE7]">
-              {dashboard.recentBlockedTimes.map((b) => (
-                <div key={b.id} className="p-4">
-                  <div className="font-medium text-[#111827]">🔒 {b.reason || "Bloqueio"}</div>
-                  <div className="mt-1 text-sm text-gray-600">
-                    {fmtDateTime(b.start)} até {fmtDateTime(b.end)}
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
-                    Duração: {fmtMinutes(blockedDurationInMinutes(b.start, b.end))}
+            <div className="divide-y divide-[#EEF1F5]">
+              {filteredUpcomingAppointments.map((appointment) => (
+                <div key={appointment.id} className="px-8 py-5">
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div>
+                      <div className="text-[15px] font-semibold text-[#111111]">
+                        {appointment.patient?.name || "Paciente"}
+                      </div>
+
+                      <div className="mt-1 text-sm text-[#64748B]">
+                        {appointment.procedureName || "Procedimento não informado"}
+                      </div>
+
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <span className="inline-flex items-center border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                          {fmtDate(appointment.date)}
+                        </span>
+
+                        <span className="inline-flex items-center border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                          {fmtTime(appointment.date)}
+                        </span>
+
+                        <span className="inline-flex items-center border border-[#E5E7EB] bg-[#F8FAFC] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#64748B]">
+                          Sala {appointment.room || "A"}
+                        </span>
+
+                        <span
+                          className={`inline-flex items-center border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] ${statusBadge(
+                            appointment.status
+                          )}`}
+                        >
+                          {appointment.status}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="text-sm text-[#111111]">
+                      {appointment.durationMinutes ?? 30} min
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           )}
         </div>
-      </div>
 
-      <div className="mt-8 overflow-hidden border border-[#ECE7DD] bg-white shadow-sm">
-        <div className="border-b border-[#ECE7DD] bg-[#FCFAF6] p-4">
-          <h2 className="text-lg font-medium text-[#111827]">Procedimentos mais frequentes</h2>
-        </div>
+        <div className="border border-[#F0ECE4] bg-white p-7">
+          <SectionTitle
+            eyebrow="CRM"
+            title="Pacientes recentes"
+            description="Últimos cadastros da clínica."
+          />
 
-        {loading ? (
-          <div className="p-4 text-sm text-gray-500">Carregando...</div>
-        ) : dashboard.topProcedures.length === 0 ? (
-          <div className="p-4 text-sm text-gray-500">Nenhum procedimento cadastrado ainda.</div>
-        ) : (
-          <div className="divide-y divide-[#F3EFE7]">
-            {dashboard.topProcedures.map(([name, count]) => (
-              <div key={name} className="flex items-center justify-between p-4">
-                <div className="font-medium text-[#111827]">{name}</div>
-                <div className="text-sm text-gray-500">{count} consulta(s)</div>
-              </div>
-            ))}
+          <div className="mt-6 space-y-4">
+            {loading ? (
+              <div className="text-sm text-[#64748B]">Carregando pacientes...</div>
+            ) : recentPatients.length === 0 ? (
+              <div className="text-sm text-[#64748B]">Nenhum paciente encontrado.</div>
+            ) : (
+              recentPatients.map((patient) => (
+                <Link
+                  key={patient.id}
+                  href={`/patients/${patient.id}`}
+                  className="flex items-center gap-4 border border-[#ECE7DD] bg-[#FCFAF6] p-4 transition hover:bg-white"
+                >
+                  <div className="flex h-11 w-11 items-center justify-center bg-[#171717] text-[20px] text-[#C8A35F]">
+                    <span style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+                      {getInitial(patient.name)}
+                    </span>
+                  </div>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="truncate text-sm font-semibold text-[#111111]">
+                      {patient.name}
+                    </div>
+                    <div className="mt-1 truncate text-xs text-[#64748B]">
+                      {patient.phone || patient.email || "Sem contato"}
+                    </div>
+                  </div>
+                </Link>
+              ))
+            )}
           </div>
-        )}
-      </div>
 
-      <AdvancedWeeklyCalendar
-        appointments={appointments}
-        blockedTimes={blockedTimes}
-        onReload={loadDashboard}
-      />
+          <div className="mt-6">
+            <Link
+              href="/patients/new"
+              className="inline-flex h-10 items-center justify-center border border-[#171717] px-4 text-[12px] font-semibold text-[#111111] transition hover:bg-[#171717] hover:text-white"
+            >
+              Novo paciente
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

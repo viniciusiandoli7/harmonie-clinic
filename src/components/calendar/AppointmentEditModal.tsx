@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { X } from "lucide-react";
 
 type Patient = {
   id: string;
@@ -40,6 +41,14 @@ function toLocalInputValue(date: Date) {
   const hh = pad(date.getHours());
   const mi = pad(date.getMinutes());
   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+}
+
+function FieldLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <label className="mb-2 block text-[10px] font-semibold uppercase tracking-[0.22em] text-[#96A4C1]">
+      {children}
+    </label>
+  );
 }
 
 export default function AppointmentEditModal({
@@ -102,7 +111,7 @@ export default function AppointmentEditModal({
   const title = useMemo(() => {
     if (!appointment) return "Editar consulta";
     return appointment.patient?.name
-      ? `Editar consulta • ${appointment.patient.name}`
+      ? `Editar • ${appointment.patient.name}`
       : "Editar consulta";
   }, [appointment]);
 
@@ -181,27 +190,43 @@ export default function AppointmentEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4">
-      <div className="w-full max-w-2xl border border-[#ECE7DD] bg-white shadow-2xl">
-        <div className="border-b border-[#ECE7DD] bg-[#FCFAF6] px-6 py-4">
-          <h2 className="text-xl font-medium text-[#111827]">{title}</h2>
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4">
+      <div className="w-full max-w-2xl border border-[#F0ECE4] bg-white shadow-[0_20px_60px_rgba(17,17,17,0.18)]">
+        <div className="flex items-center justify-between border-b border-[#F0ECE4] bg-[#FCFAF6] px-6 py-4">
+          <div>
+            <p className="text-[10px] uppercase tracking-[0.34em] text-[#C8A35F]">
+              Agenda
+            </p>
+            <h2
+              className="mt-2 text-[28px] text-[#111111]"
+              style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+            >
+              {title}
+            </h2>
+          </div>
+
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-10 w-10 items-center justify-center border border-[#ECE7DD] text-[#64748B] transition hover:text-[#111111]"
+          >
+            <X size={16} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-5 p-6">
           {error && (
-            <div className="border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+            <div className="border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
               {error}
             </div>
           )}
 
           <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-              Paciente
-            </label>
+            <FieldLabel>Paciente</FieldLabel>
             <select
               value={patientId}
               onChange={(e) => setPatientId(e.target.value)}
-              className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+              className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
               required
             >
               <option value="">Selecione</option>
@@ -215,26 +240,22 @@ export default function AppointmentEditModal({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div className="md:col-span-2">
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-                Data e hora
-              </label>
+              <FieldLabel>Data e hora</FieldLabel>
               <input
                 type="datetime-local"
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
                 required
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-                Sala
-              </label>
+              <FieldLabel>Sala</FieldLabel>
               <select
                 value={room}
                 onChange={(e) => setRoom(e.target.value as Room)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
               >
                 <option value="A">Sala A</option>
                 <option value="B">Sala B</option>
@@ -244,13 +265,11 @@ export default function AppointmentEditModal({
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-                Duração
-              </label>
+              <FieldLabel>Duração</FieldLabel>
               <select
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(e.target.value)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
               >
                 <option value="30">30 min</option>
                 <option value="60">60 min</option>
@@ -260,27 +279,23 @@ export default function AppointmentEditModal({
             </div>
 
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-                Valor
-              </label>
+              <FieldLabel>Valor</FieldLabel>
               <input
                 type="number"
                 min="0"
                 step="0.01"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
               />
             </div>
 
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-                Status
-              </label>
+              <FieldLabel>Status</FieldLabel>
               <select
                 value={status}
                 onChange={(e) => setStatus(e.target.value as AppointmentStatus)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
               >
                 <option value="SCHEDULED">Agendada</option>
                 <option value="COMPLETED">Concluída</option>
@@ -289,13 +304,11 @@ export default function AppointmentEditModal({
             </div>
 
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-                Pagamento
-              </label>
+              <FieldLabel>Pagamento</FieldLabel>
               <select
                 value={paymentStatus}
                 onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
               >
                 <option value="PENDING">Pendente</option>
                 <option value="PAID">Pago</option>
@@ -305,33 +318,29 @@ export default function AppointmentEditModal({
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-              Procedimento
-            </label>
+            <FieldLabel>Procedimento</FieldLabel>
             <input
               value={procedureName}
               onChange={(e) => setProcedureName(e.target.value)}
-              className="h-11 w-full border border-[#ECE7DD] px-3 outline-none"
+              className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
             />
           </div>
 
           <div>
-            <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-              Observações
-            </label>
+            <FieldLabel>Observações</FieldLabel>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[100px] w-full border border-[#ECE7DD] p-3 outline-none"
+              className="min-h-[96px] w-full border border-[#ECE7DD] p-3 text-sm outline-none"
             />
           </div>
 
-          <div className="flex flex-wrap justify-between gap-3">
+          <div className="flex flex-wrap justify-between gap-3 pt-1">
             <button
               type="button"
               onClick={handleDelete}
               disabled={deleting || saving}
-              className="h-11 border border-red-200 px-5 text-sm font-semibold uppercase tracking-[0.14em] text-red-700 disabled:opacity-60"
+              className="h-11 border border-red-200 px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-red-700 disabled:opacity-60"
             >
               {deleting ? "Excluindo..." : "Excluir"}
             </button>
@@ -340,7 +349,7 @@ export default function AppointmentEditModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="h-11 border border-[#ECE7DD] px-5 text-sm font-semibold uppercase tracking-[0.14em] text-[#111827]"
+                className="h-11 border border-[#ECE7DD] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#111827]"
               >
                 Cancelar
               </button>
@@ -348,7 +357,7 @@ export default function AppointmentEditModal({
               <button
                 type="submit"
                 disabled={saving}
-                className="h-11 bg-[#111111] px-5 text-sm font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
+                className="h-11 bg-[#111111] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
               >
                 {saving ? "Salvando..." : "Salvar alterações"}
               </button>

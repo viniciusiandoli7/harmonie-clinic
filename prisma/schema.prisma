@@ -8,17 +8,20 @@ datasource db {
 }
 
 model Patient {
-  id           String        @id @default(uuid())
-  name         String
-  email        String?       @unique
-  phone        String?       // já pronto para WhatsApp
-  birthDate    DateTime?
-  notes        String?
-  isActive     Boolean       @default(true)
-  createdAt    DateTime      @default(now())
-  updatedAt    DateTime      @default(now()) @updatedAt
+  id               String                  @id @default(uuid())
+  name             String
+  email            String?                 @unique
+  phone            String?
+  birthDate        DateTime?
+  notes            String?
+  isActive         Boolean                 @default(true)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @default(now()) @updatedAt
 
-  appointments Appointment[]
+  appointments     Appointment[]
+  consentDocuments PatientConsentDocument[]
+  contracts        PatientContract[]
+  evolutionPlans   ClinicalEvolutionPlan[]
 }
 
 enum AppointmentStatus {
@@ -38,10 +41,37 @@ enum TransactionType {
   EXPENSE
 }
 
-// 👇 NOVO ENUM (melhor que string)
 enum Room {
   A
   B
+}
+
+enum ConsentDocumentStatus {
+  PENDING
+  SIGNED
+  CANCELED
+}
+
+enum ContractStatus {
+  PENDING
+  SIGNED
+  CANCELED
+}
+
+enum ContractPaymentMethod {
+  CREDIT_CARD
+  DEBIT_CARD
+  PIX
+  CASH
+  BANK_SLIP
+  BANK_TRANSFER
+  OTHER
+}
+
+enum ClinicalEvolutionPlanStatus {
+  ACTIVE
+  FINISHED
+  CANCELED
 }
 
 model Appointment {
@@ -53,8 +83,6 @@ model Appointment {
   procedureName   String?
   price           Float?
   paymentStatus   PaymentStatus     @default(PENDING)
-
-  
   room            Room              @default(A)
 
   patientId       String
@@ -79,15 +107,128 @@ model BlockedTime {
 }
 
 model FinancialTransaction {
-  id          String          @id @default(uuid())
-  date        DateTime
-  description String
-  category    String
-  amount      Float
-  type        TransactionType
-  notes       String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @default(now()) @updatedAt
+  id                    String          @id @default(uuid())
+  date                  DateTime
+  description           String
+  category              String
+  amount                Float
+  type                  TransactionType
+
+  grossAmount           Float?
+  receivedAmount        Float?
+  pendingAmount         Float?
+  clinicCommissionPct   Float?
+  clinicCommissionValue Float?
+  professionalValue     Float?
+  operationalCost       Float?
+  clinicProfit          Float?
+
+  notes                 String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @default(now()) @updatedAt
 
   @@index([date])
+}
+
+model TreatmentConsentTemplate {
+  id            String   @id @default(uuid())
+  treatmentName String   @unique
+  title         String
+  content       String
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @default(now()) @updatedAt
+}
+
+model PatientConsentDocument {
+  id            String                @id @default(uuid())
+  token         String                @unique
+  patientId     String
+  patient       Patient               @relation(fields: [patientId], references: [id])
+  treatmentName String
+  title         String
+  content       String
+  status        ConsentDocumentStatus @default(PENDING)
+  signedAt      DateTime?
+  signatureName String?
+  signatureIp   String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([token])
+}
+
+model PatientContract {
+  id               String                @id @default(uuid())
+  token            String                @unique
+  patientId        String
+  patient          Patient               @relation(fields: [patientId], references: [id])
+
+  title            String
+  content          String
+
+  subtotal         Float                 @default(0)
+  discount         Float                 @default(0)
+  total            Float                 @default(0)
+
+  paymentMethod    ContractPaymentMethod @default(OTHER)
+  paymentDetails   String?
+
+  itemsJson        Json
+  status           ContractStatus        @default(PENDING)
+
+  signedAt         DateTime?
+  signatureName    String?
+  signatureIp      String?
+
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @default(now()) @updatedAt
+
+  @@index([patientId])
+  @@index([token])
+}
+
+model ClinicalEvolutionPlan {
+  id                String                      @id @default(uuid())
+  patientId         String
+  patient           Patient                     @relation(fields: [patientId], references: [id])
+
+  treatmentName     String
+  packageName       String?
+  totalSessions     Int                         @default(1)
+  completedSessions Int                         @default(0)
+  status            ClinicalEvolutionPlanStatus @default(ACTIVE)
+
+  startDate         DateTime?
+  endDate           DateTime?
+  goals             String?
+  notes             String?
+
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @default(now()) @updatedAt
+
+  sessions          ClinicalEvolutionSession[]
+
+  @@index([patientId])
+}
+
+model ClinicalEvolutionSession {
+  id                   String                @id @default(uuid())
+  planId               String
+  plan                 ClinicalEvolutionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  sessionNumber        Int
+  sessionDate          DateTime              @default(now())
+  performedProcedure   String?
+  bodyMeasurements     String?
+  clinicalNotes        String?
+  patientSignatureName String?
+  signedAt             DateTime?
+  imagesJson           Json?
+
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @default(now()) @updatedAt
+
+  @@index([planId])
 }

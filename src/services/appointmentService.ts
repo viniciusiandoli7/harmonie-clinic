@@ -107,13 +107,12 @@ async function assertNoConflictRange(
 export async function createAppointment(data: CreateAppointmentInput) {
   const date = toDate(data.date);
   const durationMinutes = normalizeDuration(data.durationMinutes);
-
   const end = addMinutes(date, durationMinutes);
 
   await assertNotBlocked(date, end);
   await assertNoConflictRange(date, durationMinutes);
 
-  return prisma.appointment.create({
+  const appointment = await prisma.appointment.create({
     data: {
       patientId: data.patientId,
       date,
@@ -127,6 +126,8 @@ export async function createAppointment(data: CreateAppointmentInput) {
     },
     include: { patient: true },
   });
+
+  return appointment;
 }
 
 export async function getAppointments(filters: GetAppointmentsFilters = {}) {
@@ -179,14 +180,13 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
   const nextStatus: AppointmentStatus =
     (data.status ?? current.status) as AppointmentStatus;
 
+  const nextDate = data.date ? toDate(data.date) : current.date;
+  const nextDuration = normalizeDuration(
+    data.durationMinutes ?? current.durationMinutes
+  );
+
   if (nextStatus !== "CANCELED") {
-    const nextDate = data.date ? toDate(data.date) : current.date;
-    const nextDuration = normalizeDuration(
-      data.durationMinutes ?? current.durationMinutes
-    );
-
     const nextEnd = addMinutes(nextDate, nextDuration);
-
     await assertNotBlocked(nextDate, nextEnd);
     await assertNoConflictRange(nextDate, nextDuration, id);
   }
@@ -200,7 +200,7 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
     where: { id },
     data: {
       ...(data.patientId !== undefined ? { patientId: data.patientId } : {}),
-      ...(data.date !== undefined ? { date: toDate(data.date) } : {}),
+      ...(data.date !== undefined ? { date: nextDate } : {}),
       ...(data.status !== undefined ? { status: data.status } : {}),
       ...(durationMinutes !== undefined ? { durationMinutes } : {}),
       ...(data.notes !== undefined ? { notes: data.notes } : {}),

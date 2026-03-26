@@ -1,103 +1,133 @@
 ﻿"use client";
 
-import React from "react";
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
-  Calendar,
+  CalendarDays,
   Users,
   DollarSign,
-  MessageSquare,
   Sparkles,
-  Settings,
 } from "lucide-react";
 
-type NavItem = {
-  icon: React.ComponentType<{ size?: number; strokeWidth?: number }>;
-  label: string;
-  href: string;
-};
-
-type NavItemProps = NavItem & {
-  active?: boolean;
-};
-
-function NavItem({ icon: Icon, label, href, active = false }: NavItemProps) {
-  return (
-    <Link
-      href={href}
-      className={`flex w-full items-center gap-3 text-left uppercase tracking-[0.1em] transition-colors ${
-        active ? "text-[#C5A059]" : "text-[#FAFAFA]/70 hover:text-[#FAFAFA]"
-      }`}
-    >
-      <span className={`h-7 w-[3px] ${active ? "bg-[#C5A059]" : "bg-transparent"}`} />
-      <Icon size={17} strokeWidth={1.8} />
-      <span className="text-[13px] font-semibold leading-none">{label}</span>
-    </Link>
-  );
-}
-
-function isActive(pathname: string, href: string) {
-  return pathname.startsWith(href);
-}
+const menu = [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Agenda", href: "/appointments", icon: CalendarDays },
+  { label: "CRM Pacientes", href: "/patients", icon: Users },
+  { label: "Financeiro", href: "/finance", icon: DollarSign },
+  { label: "IA Marketing", href: "/marketing", icon: Sparkles },
+];
 
 export default function Sidebar() {
   const pathname = usePathname();
 
-  const items: NavItem[] = [
-    { label: "Dashboard", icon: LayoutDashboard, href: "/dashboard" },
-    { label: "Agenda", icon: Calendar, href: "/appointments" },
-    { label: "CRM Pacientes", icon: Users, href: "/patients" },
-    { label: "Financeiro", icon: DollarSign, href: "/finance" },
-    { label: "WhatsApp", icon: MessageSquare, href: "/whatsapp" },
-    { label: "IA Marketing", icon: Sparkles, href: "/marketing" },
-  ];
-
   return (
-    <aside className="flex min-h-screen w-[320px] flex-col bg-[#1A1A1A] text-[#FAFAFA]">
-      <div className="border-t border-[#FAFAFA]/10 px-8 pt-10">
-        <div className="mb-12 flex flex-col items-center">
-          <div className="mb-8 flex h-12 w-12 items-center justify-center border border-[#C5A059]/65 text-[#C5A059]">
-            <Sparkles size={18} strokeWidth={1.8} />
+    <aside className="flex min-h-screen w-[286px] flex-col justify-between border-r border-[#1A1A1A] bg-[#0D0E10] text-white">
+      <div>
+        <div className="px-7 pb-10 pt-8">
+          <div className="mb-10 flex justify-center">
+            <div className="flex h-[50px] w-[50px] items-center justify-center border border-[#C8A35F]/55 bg-[#111214] shadow-[0_0_20px_rgba(200,163,95,0.08)]">
+              <Image
+                src="/harmonie-h-sidebar.png"
+                alt="Harmonie"
+                width={18}
+                height={18}
+                className="opacity-95"
+                unoptimized
+              />
+            </div>
           </div>
-          <h1 className="font-serif text-[18px] tracking-[0.42em] text-[#FAFAFA]">HARMONIE</h1>
-          <p className="mt-2 text-[11px] font-semibold tracking-[0.28em] text-[#C5A059]">CLINIC</p>
+
+          <div className="flex flex-col items-center text-center">
+            <div
+              className="whitespace-nowrap text-white"
+              style={{
+                fontFamily: 'Georgia, "Times New Roman", serif',
+                fontSize: "16px",
+                lineHeight: 1,
+                letterSpacing: "0.42em",
+                fontWeight: 300,
+              }}
+            >
+              HARMONIE
+            </div>
+
+            <div
+              className="mt-3 whitespace-nowrap text-[#C8A35F]"
+              style={{
+                fontSize: "9px",
+                lineHeight: 1,
+                letterSpacing: "0.48em",
+                fontWeight: 400,
+                textTransform: "uppercase",
+              }}
+            >
+              CLINIC
+            </div>
+          </div>
         </div>
 
-        <nav className="space-y-9">
-          {items.map((item) => (
-            <NavItem
-              key={item.label}
-              icon={item.icon}
-              label={item.label}
-              href={item.href}
-              active={isActive(pathname, item.href)}
-            />
-          ))}
+        <nav className="px-4">
+          <ul className="space-y-2">
+            {menu.map((item) => {
+              const Icon = item.icon;
+
+              const active =
+                pathname === item.href ||
+                (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+
+              return (
+                <li key={item.href}>
+                  <Link
+                    href={item.href}
+                    className={[
+                      "group relative flex items-center gap-4 px-4 py-3 text-[14px] uppercase tracking-[0.08em] transition-all duration-200",
+                      active
+                        ? "border-l-2 border-[#C8A35F] bg-gradient-to-r from-white/8 to-white/[0.03] text-[#C8A35F]"
+                        : "border-l-2 border-transparent text-[#94A3B8] hover:bg-white/5 hover:text-white",
+                    ].join(" ")}
+                  >
+                    <Icon
+                      size={17}
+                      strokeWidth={1.6}
+                      className={
+                        active
+                          ? "text-[#C8A35F]"
+                          : "text-[#64748B] transition-colors group-hover:text-white"
+                      }
+                    />
+
+                    <span className="font-medium tracking-[0.06em]">
+                      {item.label}
+                    </span>
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
         </nav>
       </div>
 
-      <div className="mt-auto px-8 pb-8">
-        <div className="mb-8 border-t border-[#FAFAFA]/10" />
-        <div className="flex flex-col items-center">
-          <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-full border border-[#C5A059]/65 text-lg font-serif text-[#C5A059]">
+      <div className="border-t border-[#222222] px-8 py-8">
+        <div className="flex flex-col items-center text-center">
+          <div className="flex h-14 w-14 items-center justify-center rounded-full border border-[#C8A35F]/40 text-[17px] font-light text-[#C8A35F] shadow-[0_0_18px_rgba(200,163,95,0.06)]">
             M
           </div>
-          <p className="text-center text-[12px] font-semibold uppercase tracking-[0.11em] text-[#FAFAFA]">
+
+          <p className="mt-5 text-[14px] font-semibold text-white tracking-[0.02em]">
             Dra. Mariana
           </p>
-          <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.17em] text-[#C5A059]">
-            Diretora Clinica
-          </p>
 
-          <Link
-            aria-label="Configuracoes"
-            className="mt-5 text-[#FAFAFA]/60 transition-colors hover:text-[#C5A059]"
-            href="/settings"
+          <p
+            className="mt-2 text-[9px] uppercase text-[#C8A35F]"
+            style={{
+              letterSpacing: "0.24em",
+              fontWeight: 400,
+            }}
           >
-            <Settings size={16} strokeWidth={1.8} />
-          </Link>
+            Diretora Clínica
+          </p>
         </div>
       </div>
     </aside>

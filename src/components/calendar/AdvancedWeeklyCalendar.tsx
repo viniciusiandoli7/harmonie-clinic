@@ -13,8 +13,20 @@ import {
   useSensors,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { addDays, format, isSameDay, startOfWeek, subDays } from "date-fns";
+import {
+  addDays,
+  format,
+  isSameDay,
+  startOfWeek,
+  subDays,
+} from "date-fns";
 import { ptBR } from "date-fns/locale";
+import {
+  ChevronLeft,
+  ChevronRight,
+  GripVertical,
+  Search,
+} from "lucide-react";
 import CalendarQuickCreateModal from "@/components/calendar/CalendarQuickCreateModal";
 import AppointmentEditModal from "@/components/calendar/AppointmentEditModal";
 import BlockedTimeQuickModal from "@/components/calendar/BlockedTimeQuickModal";
@@ -66,9 +78,9 @@ type CalendarColumn = {
 
 const ROOMS: Room[] = ["A", "B"];
 const START_HOUR = 8;
-const END_HOUR = 20;
+const END_HOUR = 19;
 const SLOT_MINUTES = 30;
-const SLOT_HEIGHT = 44;
+const SLOT_HEIGHT = 34;
 const DAY_COLUMN_HEIGHT =
   (((END_HOUR - START_HOUR) * 60) / SLOT_MINUTES) * SLOT_HEIGHT;
 
@@ -117,9 +129,15 @@ function parseSlotId(slotId: string) {
 }
 
 function getStatusClasses(status?: Appointment["status"]) {
-  if (status === "COMPLETED") return "border-green-200 bg-green-50 text-green-700";
-  if (status === "CANCELED") return "border-gray-200 bg-gray-100 text-gray-700";
-  return "border-[#111827] bg-[#111827] text-white";
+  if (status === "COMPLETED") {
+    return "border-[#CFE9D8] bg-[#F3FBF6] text-[#4A9B68]";
+  }
+
+  if (status === "CANCELED") {
+    return "border-[#E5E7EB] bg-[#F8FAFC] text-[#64748B]";
+  }
+
+  return "border-[#E9DEC9] bg-[#FCFAF6] text-[#111111]";
 }
 
 function getPaymentText(status?: Appointment["paymentStatus"]) {
@@ -132,75 +150,28 @@ function formatMoney(value?: number | null) {
   return (value ?? 0).toLocaleString("pt-BR", {
     style: "currency",
     currency: "BRL",
+    maximumFractionDigits: 0,
   });
 }
 
-function DraggableAppointmentCard({
-  appointment,
-  onClick,
+function SummaryCard({
+  label,
+  value,
 }: {
-  appointment: Appointment;
-  onClick: () => void;
+  label: string;
+  value: number | string;
 }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
-    id: appointment.id,
-    data: {
-      type: "appointment",
-      appointmentId: appointment.id,
-    },
-  });
-
-  const style = {
-    transform: CSS.Translate.toString(transform),
-    opacity: isDragging ? 0.35 : 1,
-  };
-
   return (
-    <div
-      ref={setNodeRef}
-      style={style}
-      className={[
-        "absolute left-1 right-1 rounded-2xl border p-2 shadow-sm backdrop-blur-sm",
-        getStatusClasses(appointment.status),
-      ].join(" ")}
-    >
-      <button
-        type="button"
-        onClick={onClick}
-        className="absolute inset-0 z-10 rounded-2xl"
-        aria-label="Editar consulta"
-      />
+    <div className="border border-[#F0ECE4] bg-white px-5 py-4">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#96A4C1]">
+        {label}
+      </div>
 
       <div
-        {...listeners}
-        {...attributes}
-        className="relative z-20 cursor-grab active:cursor-grabbing"
+        className="mt-2 text-[20px] text-[#111111]"
+        style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
       >
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 text-[11px] font-semibold leading-tight">
-            <div className="truncate">{appointment.patient?.name ?? "Paciente"}</div>
-          </div>
-
-          <span className="rounded-full border border-current px-2 py-0.5 text-[9px] font-semibold uppercase opacity-90">
-            Sala {appointment.room ?? "A"}
-          </span>
-        </div>
-
-        <div className="mt-1 truncate text-[10px] opacity-90">
-          {appointment.procedureName ?? "Consulta"}
-        </div>
-
-        <div className="mt-1 flex flex-wrap items-center gap-1 text-[10px] opacity-80">
-          <span>{getPaymentText(appointment.paymentStatus)}</span>
-          <span>•</span>
-          <span>{appointment.durationMinutes ?? 30}min</span>
-          {!!appointment.price && (
-            <>
-              <span>•</span>
-              <span>{formatMoney(appointment.price)}</span>
-            </>
-          )}
-        </div>
+        {value}
       </div>
     </div>
   );
@@ -210,7 +181,7 @@ function OverlayCard({ appointment }: { appointment: Appointment }) {
   return (
     <div
       className={[
-        "w-[260px] rounded-2xl border p-3 shadow-xl",
+        "w-[240px] rounded-xl border px-3 py-3 shadow-xl",
         getStatusClasses(appointment.status),
       ].join(" ")}
     >
@@ -218,16 +189,17 @@ function OverlayCard({ appointment }: { appointment: Appointment }) {
         <div className="text-sm font-semibold">
           {appointment.patient?.name ?? "Paciente"}
         </div>
+
         <span className="rounded-full border border-current px-2 py-0.5 text-[10px] font-semibold uppercase opacity-90">
           Sala {appointment.room ?? "A"}
         </span>
       </div>
 
-      <div className="mt-1 text-xs opacity-90">
+      <div className="mt-1 text-xs opacity-85">
         {appointment.procedureName ?? "Consulta"}
       </div>
 
-      <div className="mt-2 text-xs opacity-80">
+      <div className="mt-2 text-xs opacity-75">
         {getPaymentText(appointment.paymentStatus)} • {appointment.durationMinutes ?? 30}min
       </div>
     </div>
@@ -252,7 +224,7 @@ function DroppableSlot({
       onClick={onClick}
       className={[
         "absolute left-0 right-0 border-t text-left transition-colors",
-        isOver ? "bg-[#C8A35F]/10 border-[#C8A35F]" : "border-[#F3EFE7]",
+        isOver ? "border-[#C8A35F] bg-[#C8A35F]/10" : "border-[#F3EFE7]",
       ].join(" ")}
       style={{
         top,
@@ -262,19 +234,87 @@ function DroppableSlot({
   );
 }
 
-function SummaryCard({
-  label,
-  value,
+function DraggableAppointmentCard({
+  appointment,
+  onClick,
 }: {
-  label: string;
-  value: number | string;
+  appointment: Appointment;
+  onClick: () => void;
 }) {
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: appointment.id,
+    data: {
+      type: "appointment",
+      appointmentId: appointment.id,
+    },
+  });
+
+  const style = {
+    transform: CSS.Translate.toString(transform),
+    opacity: isDragging ? 0.4 : 1,
+  };
+
   return (
-    <div className="rounded-2xl border border-[#ECE7DD] bg-white px-4 py-3 shadow-sm">
-      <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[#8E9AAF]">
-        {label}
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={[
+        "absolute left-1 right-1 rounded-xl border shadow-sm",
+        getStatusClasses(appointment.status),
+      ].join(" ")}
+    >
+      <div className="flex h-full flex-col px-2 py-2">
+        <div className="flex items-start justify-between gap-2">
+          <button
+            type="button"
+            onClick={onClick}
+            className="min-w-0 flex-1 text-left"
+          >
+            <div className="truncate text-[10px] font-semibold leading-tight">
+              {appointment.patient?.name ?? "Paciente"}
+            </div>
+
+            <div className="mt-1 truncate text-[9px] opacity-80">
+              {appointment.procedureName ?? "Consulta"}
+            </div>
+          </button>
+
+          <div className="flex items-start gap-1.5">
+            <span className="rounded-full border border-current px-1.5 py-0.5 text-[8px] font-semibold uppercase opacity-90">
+              {appointment.room ?? "A"}
+            </span>
+
+            <button
+              type="button"
+              aria-label="Arrastar consulta"
+              title="Arrastar consulta"
+              className="cursor-grab rounded-md p-1 opacity-70 transition hover:bg-black/5 hover:opacity-100 active:cursor-grabbing"
+              {...listeners}
+              {...attributes}
+            >
+              <GripVertical size={12} />
+            </button>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onClick}
+          className="mt-1 flex-1 text-left"
+        >
+          <div className="flex flex-wrap items-center gap-1 text-[9px] opacity-75">
+            <span>{getPaymentText(appointment.paymentStatus)}</span>
+            <span>•</span>
+            <span>{appointment.durationMinutes ?? 30}min</span>
+            {!!appointment.price && (
+              <>
+                <span>•</span>
+                <span>{formatMoney(appointment.price)}</span>
+              </>
+            )}
+          </div>
+        </button>
       </div>
-      <div className="mt-1 text-lg font-semibold text-[#111827]">{value}</div>
     </div>
   );
 }
@@ -308,7 +348,11 @@ export default function AdvancedWeeklyCalendar({
   }, [appointments]);
 
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } })
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 12,
+      },
+    })
   );
 
   const weekStart = startOfWeek(weekAnchor, { weekStartsOn: 1 });
@@ -342,6 +386,16 @@ export default function AdvancedWeeklyCalendar({
           });
         }
       }
+
+      const endDate = new Date(column.day);
+      endDate.setHours(END_HOUR, 0, 0, 0);
+
+      items.push({
+        id: slotIdFromDateAndRoom(endDate, column.room),
+        date: endDate,
+        room: column.room,
+        top: toY(endDate),
+      });
     }
 
     return items;
@@ -352,7 +406,9 @@ export default function AdvancedWeeklyCalendar({
 
     return localAppointments.filter((appointment) => {
       if (roomFilter !== "ALL" && (appointment.room ?? "A") !== roomFilter) return false;
-      if (statusFilter !== "ALL" && (appointment.status ?? "SCHEDULED") !== statusFilter) return false;
+      if (statusFilter !== "ALL" && (appointment.status ?? "SCHEDULED") !== statusFilter) {
+        return false;
+      }
 
       if (!term) return true;
 
@@ -455,7 +511,7 @@ export default function AdvancedWeeklyCalendar({
 
   return (
     <>
-      <div className="mt-10 space-y-4">
+      <div className="mt-8 space-y-4">
         <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
           <SummaryCard label="Consultas na visão" value={weekAppointmentsCount} />
           <SummaryCard label="Agendadas" value={scheduledCount} />
@@ -463,15 +519,18 @@ export default function AdvancedWeeklyCalendar({
           <SummaryCard label="Receita paga" value={formatMoney(weekRevenue)} />
         </div>
 
-        <div className="overflow-hidden rounded-[28px] border border-[#ECE7DD] bg-white shadow-sm">
-          <div className="border-b border-[#ECE7DD] bg-gradient-to-r from-[#FCFAF6] to-white p-5">
+        <div className="overflow-hidden border border-[#F0ECE4] bg-white">
+          <div className="border-b border-[#F0ECE4] bg-[#FCFAF6] px-5 py-5">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div>
-                <h2 className="text-xl font-semibold text-[#111827]">
-                  Agenda semanal interativa
+                <h2
+                  className="text-[22px] uppercase tracking-[0.14em] text-[#111111]"
+                  style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
+                >
+                  Agenda Semanal
                 </h2>
-                <p className="mt-1 text-sm text-[#64748B]">
-                  Visual profissional com filtro por sala, status e busca rápida.
+                <p className="mt-1 text-[13px] text-[#64748B]">
+                  Visual profissional por sala, status e período.
                 </p>
               </div>
 
@@ -481,41 +540,42 @@ export default function AdvancedWeeklyCalendar({
                     type="button"
                     onClick={() => setMode("appointment")}
                     className={[
-                      "px-4 py-2 text-sm font-medium",
+                      "px-4 py-2 text-[13px] font-medium",
                       mode === "appointment"
                         ? "bg-[#111111] text-white"
                         : "text-[#111827] hover:bg-gray-50",
                     ].join(" ")}
                   >
-                    Modo consulta
+                    Consulta
                   </button>
 
                   <button
                     type="button"
                     onClick={() => setMode("blocked")}
                     className={[
-                      "px-4 py-2 text-sm font-medium",
+                      "px-4 py-2 text-[13px] font-medium",
                       mode === "blocked"
                         ? "bg-[#111111] text-white"
                         : "text-[#111827] hover:bg-gray-50",
                     ].join(" ")}
                   >
-                    Modo bloqueio
+                    Bloqueio
                   </button>
                 </div>
 
                 <button
                   type="button"
                   onClick={() => setWeekAnchor((prev) => subDays(prev, 7))}
-                  className="h-10 rounded-full border border-[#ECE7DD] bg-white px-4 text-sm font-medium text-[#111827]"
+                  className="inline-flex h-9 items-center gap-2 rounded-full border border-[#ECE7DD] bg-white px-4 text-[13px] font-medium text-[#111827]"
                 >
+                  <ChevronLeft size={14} />
                   Semana anterior
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setWeekAnchor(new Date())}
-                  className="h-10 rounded-full border border-[#ECE7DD] bg-white px-4 text-sm font-medium text-[#111827]"
+                  className="h-9 rounded-full border border-[#ECE7DD] bg-white px-4 text-[13px] font-medium text-[#111827]"
                 >
                   Hoje
                 </button>
@@ -523,21 +583,26 @@ export default function AdvancedWeeklyCalendar({
                 <button
                   type="button"
                   onClick={() => setWeekAnchor((prev) => addDays(prev, 7))}
-                  className="h-10 rounded-full border border-[#ECE7DD] bg-white px-4 text-sm font-medium text-[#111827]"
+                  className="inline-flex h-9 items-center gap-2 rounded-full border border-[#ECE7DD] bg-white px-4 text-[13px] font-medium text-[#111827]"
                 >
                   Próxima semana
+                  <ChevronRight size={14} />
                 </button>
               </div>
             </div>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-4">
-              <div>
+            <div className="mt-4 grid gap-3 lg:grid-cols-[1.2fr_0.9fr_0.9fr_auto]">
+              <div className="relative">
+                <Search
+                  size={14}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#A8B3C6]"
+                />
                 <input
                   type="text"
                   placeholder="Buscar paciente ou procedimento"
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="h-11 w-full rounded-xl border border-[#ECE7DD] px-3 outline-none"
+                  className="h-11 w-full border border-[#ECE7DD] pl-9 pr-3 text-sm outline-none"
                 />
               </div>
 
@@ -545,7 +610,7 @@ export default function AdvancedWeeklyCalendar({
                 <select
                   value={roomFilter}
                   onChange={(e) => setRoomFilter(e.target.value as RoomFilter)}
-                  className="h-11 w-full rounded-xl border border-[#ECE7DD] px-3 outline-none"
+                  className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
                 >
                   <option value="ALL">Todas as salas</option>
                   <option value="A">Sala A</option>
@@ -557,7 +622,7 @@ export default function AdvancedWeeklyCalendar({
                 <select
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}
-                  className="h-11 w-full rounded-xl border border-[#ECE7DD] px-3 outline-none"
+                  className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
                 >
                   <option value="ALL">Todos os status</option>
                   <option value="SCHEDULED">Agendadas</option>
@@ -566,14 +631,14 @@ export default function AdvancedWeeklyCalendar({
                 </select>
               </div>
 
-              <div className="flex items-center gap-2 text-xs text-[#64748B]">
-                <span className="inline-flex items-center rounded-full border border-yellow-200 bg-yellow-100 px-2 py-1 font-semibold text-yellow-800">
+              <div className="flex items-center gap-2 text-[11px] text-[#64748B]">
+                <span className="inline-flex items-center rounded-full border border-[#E9DEC9] bg-[#FCFAF6] px-2 py-1 font-semibold text-[#C8A35F]">
                   Agendada
                 </span>
-                <span className="inline-flex items-center rounded-full border border-green-200 bg-green-100 px-2 py-1 font-semibold text-green-700">
+                <span className="inline-flex items-center rounded-full border border-[#CFE9D8] bg-[#F3FBF6] px-2 py-1 font-semibold text-[#4A9B68]">
                   Concluída
                 </span>
-                <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-100 px-2 py-1 font-semibold text-gray-700">
+                <span className="inline-flex items-center rounded-full border border-[#E5E7EB] bg-[#F8FAFC] px-2 py-1 font-semibold text-[#64748B]">
                   Cancelada
                 </span>
               </div>
@@ -587,7 +652,7 @@ export default function AdvancedWeeklyCalendar({
             onDragEnd={handleDragEnd}
             onDragCancel={() => setActiveId(null)}
           >
-            <div className="grid grid-cols-[72px_repeat(14,minmax(120px,1fr))] overflow-x-auto">
+            <div className="grid grid-cols-[62px_repeat(14,minmax(98px,1fr))] overflow-x-auto">
               <div className="border-r border-[#ECE7DD] bg-white" />
 
               {columns.map((column) => {
@@ -597,17 +662,19 @@ export default function AdvancedWeeklyCalendar({
                   <div
                     key={`${column.day.toISOString()}-${column.room}`}
                     className={[
-                      "border-r border-[#ECE7DD] p-3 text-center last:border-r-0",
+                      "border-r border-[#ECE7DD] px-2 py-3 text-center last:border-r-0",
                       isToday ? "bg-[#FFF8EC]" : "bg-white",
                     ].join(" ")}
                   >
-                    <p className="text-[11px] uppercase tracking-[0.18em] text-[#8E9AAF]">
+                    <p className="text-[10px] uppercase tracking-[0.18em] text-[#8E9AAF]">
                       {format(column.day, "EEE", { locale: ptBR })}
                     </p>
-                    <p className="mt-1 text-sm font-semibold text-[#111827]">
+
+                    <p className="mt-1 text-[13px] font-semibold text-[#111827]">
                       {format(column.day, "dd/MM")}
                     </p>
-                    <p className="mt-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C8A35F]">
+
+                    <p className="mt-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[#C8A35F]">
                       Sala {column.room}
                     </p>
                   </div>
@@ -622,7 +689,7 @@ export default function AdvancedWeeklyCalendar({
                   return (
                     <div
                       key={`${hour}-${minute}`}
-                      className="flex h-[44px] items-start justify-center border-t border-[#F3EFE7] pt-1 text-[11px] text-[#8E9AAF]"
+                      className="flex h-[34px] items-start justify-center border-t border-[#F3EFE7] pt-1 text-[10px] text-[#8E9AAF]"
                     >
                       {fmtHour(hour, minute)}
                     </div>
@@ -677,7 +744,7 @@ export default function AdvancedWeeklyCalendar({
                           key={`${block.id}-${column.room}`}
                           type="button"
                           onClick={() => setEditingBlockedTime(block)}
-                          className="absolute left-1 right-1 rounded-2xl border border-red-200 bg-red-50 p-2 text-left text-xs text-red-700 shadow-sm"
+                          className="absolute left-1 right-1 rounded-xl border border-red-200 bg-red-50 px-2 py-1.5 text-left text-[10px] text-red-700 shadow-sm"
                           style={{
                             top,
                             height: duration,
@@ -712,7 +779,7 @@ export default function AdvancedWeeklyCalendar({
                           />
 
                           {savingId === appointment.id && (
-                            <div className="absolute -top-2 right-2 rounded-full bg-[#111827] px-2 py-0.5 text-[10px] text-white">
+                            <div className="absolute -top-2 right-2 rounded-full bg-[#111827] px-2 py-0.5 text-[9px] text-white">
                               Salvando...
                             </div>
                           )}
@@ -721,7 +788,7 @@ export default function AdvancedWeeklyCalendar({
                     })}
 
                     {columnAppointments.length === 0 && columnBlocked.length === 0 && (
-                      <div className="pointer-events-none absolute inset-x-2 top-2 rounded-xl border border-dashed border-transparent p-2 text-center text-[10px] text-transparent xl:text-[#CBD5E1]">
+                      <div className="pointer-events-none absolute inset-x-2 top-2 border border-dashed border-transparent p-2 text-center text-[9px] text-transparent xl:text-[#CBD5E1]">
                         Livre
                       </div>
                     )}
@@ -736,18 +803,15 @@ export default function AdvancedWeeklyCalendar({
           </DndContext>
 
           <div className="border-t border-[#ECE7DD] bg-[#FCFAF6] px-5 py-3">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-[#64748B]">
-              <span className="inline-flex items-center rounded-full border px-2 py-1 font-semibold">
+            <div className="flex flex-wrap items-center gap-2 text-[10px] text-[#64748B]">
+              <span className="inline-flex items-center border px-2 py-1 font-semibold">
                 Clique no slot para criar {mode === "appointment" ? "consulta" : "bloqueio"}
               </span>
-              <span className="inline-flex items-center rounded-full border px-2 py-1 font-semibold">
-                Clique no card para editar consulta
+              <span className="inline-flex items-center border px-2 py-1 font-semibold">
+                Clique no card para editar
               </span>
-              <span className="inline-flex items-center rounded-full border px-2 py-1 font-semibold">
-                Clique no bloqueio para editar
-              </span>
-              <span className="inline-flex items-center rounded-full border px-2 py-1 font-semibold">
-                Arraste para reagendar
+              <span className="inline-flex items-center border px-2 py-1 font-semibold">
+                Arraste só pela alça
               </span>
             </div>
           </div>

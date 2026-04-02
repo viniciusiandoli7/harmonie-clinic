@@ -181,7 +181,7 @@ function OverlayCard({ appointment }: { appointment: Appointment }) {
   return (
     <div
       className={[
-        "w-[240px] rounded-xl border px-3 py-3 shadow-xl",
+        "w-60 rounded-xl border px-3 py-3 shadow-xl",
         getStatusClasses(appointment.status),
       ].join(" ")}
     >
@@ -689,7 +689,7 @@ export default function AdvancedWeeklyCalendar({
                   return (
                     <div
                       key={`${hour}-${minute}`}
-                      className="flex h-[34px] items-start justify-center border-t border-[#F3EFE7] pt-1 text-[10px] text-[#8E9AAF]"
+                      className="flex h-8.5 items-start justify-center border-t border-[#F3EFE7] pt-1 text-[10px] text-[#8E9AAF]"
                     >
                       {fmtHour(hour, minute)}
                     </div>

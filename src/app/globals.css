@@ -1,12 +1,15 @@
+/* Importação das fontes de luxo */
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #f8f6f2;
-  --foreground: #111111;
-  --gold: #c8a35f;
-  --border: #ece7dd;
-  --muted: #8e9aaf;
-  --card: #ffffff;
+  /* Paleta Harmonie Clinic */
+  --background: #FAFAFA;    /* Blanc Pur */
+  --foreground: #1A1A1A;    /* Noir Absolu */
+  --gold: #C5A059;          /* Or Harmonie */
+  --border: #EEECE7;        /* Bordas finas e sutis */
+  --muted: #94A3B8;         /* Cinza para micro-labels */
+  --card: #FFFFFF;
 }
 
 html {
@@ -16,72 +19,125 @@ html {
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Inter', sans-serif; /* Fonte base para dados e interface */
+  -webkit-font-smoothing: antialiased;
+  letter-spacing: -0.01em;
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
-h6 {
+/* Títulos: O peso da tradição e sofisticação */
+h1, h2, h3, h4, .font-serif {
+  font-family: 'Cormorant Garamond', serif;
   color: var(--foreground);
-  letter-spacing: -0.02em;
+  font-weight: 400;
+  letter-spacing: -0.01em;
 }
 
+/* Estilo de Card: Arquitetônico (Bordas Retas) */
 .card {
   border: 1px solid var(--border);
-  background: white;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  background: var(--card);
+  border-radius: 0px; /* Forçar quinas retas */
+  transition: all 0.4s ease;
 }
 
+.card:hover {
+  border-color: var(--gold);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.03);
+}
+
+/* Botão Primário: Noir & Gold */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: #111111;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  background: var(--foreground);
+  padding: 1rem 2rem;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
+  letter-spacing: 0.25em;
   color: white;
-  transition: opacity 0.2s ease;
+  border-radius: 0px;
+  transition: all 0.3s ease;
+  border: 1px solid var(--foreground);
 }
 
 .btn-primary:hover {
-  opacity: 0.9;
+  background: var(--gold);
+  border-color: var(--gold);
+  transform: translateY(-1px);
 }
 
+/* Botão Secundário: Minimalismo Dourado */
 .btn-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--border);
-  background: white;
-  padding: 0.5rem 1rem;
-  font-size: 0.875rem;
-  font-weight: 600;
+  border: 1px solid var(--gold);
+  background: transparent;
+  padding: 1rem 2rem;
+  font-size: 11px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  color: #111111;
-  transition: background-color 0.2s ease;
+  letter-spacing: 0.25em;
+  color: var(--gold);
+  border-radius: 0px;
+  transition: all 0.3s ease;
 }
 
 .btn-secondary:hover {
-  background: #f9fafb;
+  background: var(--gold);
+  color: white;
 }
 
-.section-title {
-  font-size: 11px;
+/* Micro-labels: O segredo da delicadeza */
+.section-title, label, .micro-label {
+  font-size: 9px;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.28em;
+  letter-spacing: 0.35em;
   color: var(--muted);
+  margin-bottom: 0.5rem;
+  display: block;
 }
 
+/* Page Title: Grandeza sem ser pesado */
 .page-title {
-  font-size: 2.25rem;
+  font-family: 'Cormorant Garamond', serif;
+  font-size: 2.75rem;
+  line-height: 1.1;
   font-weight: 300;
-  color: #111111;
+  color: var(--foreground);
+}
+
+/* Inputs Delicados */
+input, select, textarea {
+  border-bottom: 1px solid var(--border) !important;
+  border-top: none !important;
+  border-left: none !important;
+  border-right: none !important;
+  border-radius: 0px !important;
+  background: transparent !important;
+  padding: 0.5rem 0 !important;
+  font-size: 14px;
+  transition: border-color 0.3s ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  border-bottom-color: var(--gold) !important;
+  outline: none !important;
+}
+
+/* Ajuste de scrollbar para ser invisível/delicada */
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: var(--background);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--gold);
 }

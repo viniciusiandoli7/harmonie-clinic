@@ -43,9 +43,7 @@ export default function PatientForm({ mode, patient }: Props) {
 
       const response = await fetch(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name,
           email: email || null,
@@ -57,10 +55,7 @@ export default function PatientForm({ mode, patient }: Props) {
       });
 
       const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data?.error || "Erro ao salvar paciente");
-      }
+      if (!response.ok) throw new Error(data?.error || "Erro ao salvar paciente");
 
       router.push(mode === "create" ? `/patients/${data.id}` : `/patients/${patient?.id}`);
       router.refresh();
@@ -72,80 +67,81 @@ export default function PatientForm({ mode, patient }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border bg-white p-6 shadow-sm">
+    <form onSubmit={handleSubmit} className="space-y-5 rounded-2xl border border-[#EAEAEC] bg-white p-8 shadow-sm font-sans">
       {error && (
-        <div className="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-600 font-light">
           {error}
         </div>
       )}
 
       <div>
-        <label className="mb-2 block text-sm font-medium">Nome</label>
+        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">Nome Completo</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-md border p-3 outline-none"
+          className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
           required
         />
       </div>
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div>
-          <label className="mb-2 block text-sm font-medium">E-mail</label>
+          <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">E-mail</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-md border p-3 outline-none"
+            className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
           />
         </div>
 
         <div>
-          <label className="mb-2 block text-sm font-medium">Telefone</label>
+          <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">Telefone</label>
           <input
             value={phone}
             onChange={(e) => setPhone(e.target.value)}
-            placeholder="11999998888"
-            className="w-full rounded-md border p-3 outline-none"
+            placeholder="(11) 99999-8888"
+            className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
           />
         </div>
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium">Data de nascimento</label>
+        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">Data de Nascimento</label>
         <input
           type="date"
           value={birthDate}
           onChange={(e) => setBirthDate(e.target.value)}
-          className="w-full rounded-md border p-3 outline-none"
+          className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
         />
       </div>
 
       <div>
-        <label className="mb-2 block text-sm font-medium">Observações</label>
+        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">Observações</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="min-h-[120px] w-full rounded-md border p-3 outline-none"
+          className="min-h-24 w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
         />
       </div>
 
       {mode === "edit" && (
-        <label className="flex items-center gap-2 text-sm">
+        <label className="flex items-center gap-3 text-[13px] font-light text-harmonie-dark cursor-pointer">
           <input
             type="checkbox"
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
+            className="h-4 w-4 rounded border-[#EAEAEC] text-harmonie-gold focus:ring-harmonie-gold"
           />
-          Paciente ativo
+          Paciente ativo no sistema
         </label>
       )}
 
-      <div className="flex justify-end gap-3">
+      <div className="mt-8 flex justify-end gap-4 border-t border-[#F0F0F0] pt-6">
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-md border px-4 py-2 text-sm hover:bg-gray-50"
+          className="rounded-lg border border-harmonie-goldLight bg-white px-5 py-2.5 text-[11px] font-medium uppercase tracking-widest text-harmonie-dark hover:bg-harmonie-bg transition-colors"
         >
           Cancelar
         </button>
@@ -153,9 +149,9 @@ export default function PatientForm({ mode, patient }: Props) {
         <button
           type="submit"
           disabled={saving}
-          className="rounded-md bg-black px-4 py-2 text-sm text-white hover:opacity-90 disabled:opacity-60"
+          className="rounded-lg bg-harmonie-dark px-6 py-2.5 text-[11px] font-medium uppercase tracking-widest text-white hover:bg-harmonie-gold transition-colors disabled:opacity-60"
         >
-          {saving ? "Salvando..." : mode === "create" ? "Criar paciente" : "Salvar alterações"}
+          {saving ? "Salvando..." : mode === "create" ? "Criar Paciente" : "Salvar Alterações"}
         </button>
       </div>
     </form>

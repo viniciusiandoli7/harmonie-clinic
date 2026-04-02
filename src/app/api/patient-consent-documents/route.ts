@@ -1,18 +1,41 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { ULTRASSOM_MICRO_MACROFOCADO_TEMPLATE } from "@/lib/consent-templates";
+
+export async function GET(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const patientId = searchParams.get("patientId");
+
+    if (!patientId) {
+      return NextResponse.json({ error: "patientId obrigatório" }, { status: 400 });
+    }
+
+    const documents = await prisma.patientConsentDocument.findMany({
+      where: { patientId },
+      include: {
+        treatment: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    return NextResponse.json(documents);
+  } catch (error) {
+    console.error(error);
+    return NextResponse.json({ error: "Erro ao buscar documentos" }, { status: 500 });
+  }
+}
 
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
 
     const patientId = String(body.patientId || "");
-    const treatmentName = String(body.treatmentName || "").trim();
+    const treatmentId = String(body.treatmentId || "");
 
-    if (!patientId || !treatmentName) {
+    if (!patientId || !treatmentId) {
       return NextResponse.json(
-        { error: "patientId e treatmentName são obrigatórios." },
+        { error: "patientId e treatmentId são obrigatórios." },
         { status: 400 }
       );
     }
@@ -25,22 +48,12 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Paciente não encontrado." }, { status: 404 });
     }
 
-    let title = `Termo de Consentimento - ${treatmentName}`;
-    let content = String(body.content || "").trim();
+    const treatment = await prisma.treatment.findUnique({
+      where: { id: treatmentId },
+    });
 
-    if (
-      !content &&
-      treatmentName === ULTRASSOM_MICRO_MACROFOCADO_TEMPLATE.treatmentName
-    ) {
-      title = ULTRASSOM_MICRO_MACROFOCADO_TEMPLATE.title;
-      content = ULTRASSOM_MICRO_MACROFOCADO_TEMPLATE.content;
-    }
-
-    if (!content) {
-      return NextResponse.json(
-        { error: "Não foi encontrado conteúdo para este tratamento." },
-        { status: 400 }
-      );
+    if (!treatment) {
+      return NextResponse.json({ error: "Tratamento não encontrado." }, { status: 404 });
     }
 
     const token = randomUUID().replace(/-/g, "");
@@ -49,9 +62,9 @@ export async function POST(req: NextRequest) {
       data: {
         token,
         patientId,
-        treatmentName,
-        title,
-        content,
+        treatmentId,
+        title: `Termo de Consentimento - ${treatment.name}`,
+        content: treatment.template,
       },
     });
 

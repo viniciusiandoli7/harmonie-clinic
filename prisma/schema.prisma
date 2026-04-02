@@ -1,3 +1,7 @@
+// -----------------------------------------
+// CONFIGURAÇÃO DO CLIENTE E BANCO
+// -----------------------------------------
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,22 +11,302 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Patient {
-  id               String                  @id @default(uuid())
-  name             String
-  email            String?                 @unique
-  phone            String?
-  birthDate        DateTime?
-  notes            String?
-  isActive         Boolean                 @default(true)
-  createdAt        DateTime                @default(now())
-  updatedAt        DateTime                @default(now()) @updatedAt
+// -----------------------------------------
+// MODELOS PRINCIPAIS
+// -----------------------------------------
 
-  appointments     Appointment[]
-  consentDocuments PatientConsentDocument[]
-  contracts        PatientContract[]
-  evolutionPlans   ClinicalEvolutionPlan[]
+model Patient {
+  id                 String    @id @default(uuid())
+  name               String
+  email              String?   @unique
+  phone              String?
+  createdAt          DateTime  @default(now())
+  birthDate          DateTime?
+  
+  // 'notes' armazena a "Observação Crítica" que aparece no Insight Clínico
+  notes              String?   
+  
+  updatedAt          DateTime  @default(now()) @updatedAt
+  isActive           Boolean   @default(true)
+  
+  // Endereço e Documentos
+  address            String?
+  addressComplement  String?
+  addressNumber      String?
+  neighborhood       String?
+  city               String?
+  state              String?
+  zipCode            String?
+  cpf                String?   @unique
+  rg                 String?
+  
+  // Marketing e CRM
+  crmSource          String?   // Ex: Instagram, Indicação, Google
+  interestProcedure  String?   // Procedimento de maior interesse
+  
+  // Relacionamentos
+  appointments       Appointment[]
+  evolutionPlans     ClinicalEvolutionPlan[]
+  anamnesis          PatientAnamnesis?
+  consentDocuments   PatientConsentDocument[]
+  contracts          PatientContract[]
+  sales              Sale[]
+  medicalRecords     MedicalRecord[] 
+
+  @@index([name])
 }
+
+model Appointment {
+  id              String            @id @default(uuid())
+  date            DateTime
+  patientId       String
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @default(now()) @updatedAt
+  
+  status          AppointmentStatus @default(SCHEDULED)
+  durationMinutes Int               @default(30)
+  procedureName   String?           // Nome do serviço (Ex: Lavieen)
+  price           Float?
+  paymentStatus   PaymentStatus     @default(PENDING)
+  
+  room            Room              @default(A)
+  notes           String?           // Notas específicas desta sessão
+  
+  patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([date])
+  @@index([patientId])
+}
+
+// -----------------------------------------
+// GESTÃO CLÍNICA E PRONTUÁRIO
+// -----------------------------------------
+
+model MedicalRecord {
+  id          String   @id @default(uuid())
+  patientId   String
+  type        String   // Ex: "TERMO ULTRASSOM", "AVALIAÇÃO FACIAL"
+  content     Json     // Salva o texto editado ou estrutura do termo
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model PatientAnamnesis {
+  id                String   @id @default(uuid())
+  patientId         String   @unique
+  
+  profession        String?
+  sunExposure       Boolean  @default(false)
+  mainComplaint     String?  // Queixa Principal
+  
+  hasAllergies      Boolean  @default(false)
+  allergies         String?
+  hasMedications    Boolean  @default(false)
+  medications       String?
+  hasSurgeries      Boolean  @default(false)
+  surgeries         String?
+  hasDiseases       Boolean  @default(false)
+  diseases          String?
+  
+  smoker            Boolean  @default(false)
+  cigarettesPerDay  Int?
+  drinksAlcohol     Boolean  @default(false)
+  alcoholFrequency  String?
+  exercises         Boolean  @default(false)
+  exerciseFrequency String?
+  
+  familyDiseases    String?
+  skinCareRoutine   String?
+  previousTreatments String?
+  treatmentGoals    String?
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
+model ClinicalEvolutionPlan {
+  id                String                      @id @default(uuid())
+  patientId         String
+  treatmentName     String
+  packageName       String?
+  totalSessions     Int                         @default(1)
+  completedSessions Int                         @default(0)
+  status            ClinicalEvolutionPlanStatus @default(ACTIVE)
+  startDate         DateTime?
+  endDate           DateTime?
+  goals             String?
+  notes             String?
+  
+  createdAt         DateTime                    @default(now())
+  updatedAt         DateTime                    @default(now()) @updatedAt
+  patient           Patient                     @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  sessions          ClinicalEvolutionSession[]
+
+  @@index([patientId])
+}
+
+model ClinicalEvolutionSession {
+  id                   String                @id @default(uuid())
+  planId               String
+  sessionNumber        Int
+  sessionDate          DateTime              @default(now())
+  performedProcedure   String?
+  clinicalNotes        String?
+  imagesJson           Json?                 // Fotos de antes e depois
+  patientSignatureName String?
+  signedAt             DateTime?
+  
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @default(now()) @updatedAt
+  plan                 ClinicalEvolutionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+}
+
+// -----------------------------------------
+// FINANCEIRO E VENDAS
+// -----------------------------------------
+
+model Sale {
+  id             String                @id @default(uuid())
+  patientId      String
+  professionalId String
+  serviceId      String
+  
+  price          Float
+  discount       Float                 @default(0)
+  finalPrice     Float                 @default(0)
+  paymentMethod  ContractPaymentMethod
+  
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @default(now()) @updatedAt
+  
+  patient        Patient               @relation(fields: [patientId], references: [id])
+  professional   Professional          @relation(fields: [professionalId], references: [id])
+  service        Treatment             @relation(fields: [serviceId], references: [id])
+  saleItems      SaleItem[]
+
+  @@index([patientId])
+  @@index([professionalId])
+}
+
+model SaleItem {
+  id             String        @id @default(uuid())
+  saleId         String
+  professionalId String?
+  productName    String
+  quantity       Int           @default(1)
+  unitPrice      Float
+  totalPrice     Float
+  commission     Float         @default(0)
+  
+  sale           Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  professional   Professional? @relation(fields: [professionalId], references: [id])
+
+  @@index([saleId])
+}
+
+model FinancialTransaction {
+  id                    String          @id @default(uuid())
+  date                  DateTime
+  description           String
+  category              String
+  amount                Float
+  type                  TransactionType
+  
+  clinicProfit          Float?
+  operationalCost       Float?
+  professionalValue     Float?
+  
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @default(now()) @updatedAt
+
+  @@index([date])
+}
+
+// -----------------------------------------
+// DOCUMENTOS E CONFIGURAÇÕES
+// -----------------------------------------
+
+model PatientConsentDocument {
+  id            String                @id @default(uuid())
+  token         String                @unique
+  patientId     String
+  treatmentId   String
+  title         String
+  content       String
+  status        ConsentDocumentStatus @default(PENDING)
+  signedAt      DateTime?
+  signatureName String?
+  signatureIp   String?
+  
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @default(now()) @updatedAt
+  
+  patient       Patient               @relation(fields: [patientId], references: [id])
+  treatment     Treatment             @relation(fields: [treatmentId], references: [id])
+
+  @@index([patientId])
+  @@index([treatmentId])
+}
+
+model PatientContract {
+  id            String                @id @default(uuid())
+  token         String                @unique
+  patientId     String
+  title         String
+  content       String
+  total         Float                 @default(0)
+  status        ContractStatus        @default(PENDING)
+  itemsJson     Json
+  
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @default(now()) @updatedAt
+  patient       Patient               @relation(fields: [patientId], references: [id])
+
+  @@index([patientId])
+}
+
+model Treatment {
+  id        String                   @id @default(uuid())
+  name      String                   @unique
+  template  String                   // Template base do termo de consentimento
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @default(now()) @updatedAt
+  
+  documents PatientConsentDocument[]
+  sales     Sale[]
+}
+
+model Professional {
+  id         String     @id @default(uuid())
+  name       String
+  commission Float      @default(0.25)
+  isActive   Boolean    @default(true)
+  sales      Sale[]
+  saleItems  SaleItem[]
+}
+
+model BlockedTime {
+  id        String   @id @default(uuid())
+  start     DateTime
+  end       DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([start, end])
+}
+
+// -----------------------------------------
+// ENUMS (PADRONIZAÇÃO)
+// -----------------------------------------
 
 enum AppointmentStatus {
   SCHEDULED
@@ -72,163 +356,4 @@ enum ClinicalEvolutionPlanStatus {
   ACTIVE
   FINISHED
   CANCELED
-}
-
-model Appointment {
-  id              String            @id @default(uuid())
-  date            DateTime
-  status          AppointmentStatus @default(SCHEDULED)
-  durationMinutes Int               @default(30)
-  notes           String?
-  procedureName   String?
-  price           Float?
-  paymentStatus   PaymentStatus     @default(PENDING)
-  room            Room              @default(A)
-
-  patientId       String
-  patient         Patient           @relation(fields: [patientId], references: [id])
-
-  createdAt       DateTime          @default(now())
-  updatedAt       DateTime          @default(now()) @updatedAt
-
-  @@index([date])
-  @@index([patientId])
-}
-
-model BlockedTime {
-  id        String   @id @default(uuid())
-  start     DateTime
-  end       DateTime
-  reason    String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
-
-  @@index([start, end])
-}
-
-model FinancialTransaction {
-  id                    String          @id @default(uuid())
-  date                  DateTime
-  description           String
-  category              String
-  amount                Float
-  type                  TransactionType
-
-  grossAmount           Float?
-  receivedAmount        Float?
-  pendingAmount         Float?
-  clinicCommissionPct   Float?
-  clinicCommissionValue Float?
-  professionalValue     Float?
-  operationalCost       Float?
-  clinicProfit          Float?
-
-  notes                 String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @default(now()) @updatedAt
-
-  @@index([date])
-}
-
-model TreatmentConsentTemplate {
-  id            String   @id @default(uuid())
-  treatmentName String   @unique
-  title         String
-  content       String
-  isActive      Boolean  @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @default(now()) @updatedAt
-}
-
-model PatientConsentDocument {
-  id            String                @id @default(uuid())
-  token         String                @unique
-  patientId     String
-  patient       Patient               @relation(fields: [patientId], references: [id])
-  treatmentName String
-  title         String
-  content       String
-  status        ConsentDocumentStatus @default(PENDING)
-  signedAt      DateTime?
-  signatureName String?
-  signatureIp   String?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @default(now()) @updatedAt
-
-  @@index([patientId])
-  @@index([token])
-}
-
-model PatientContract {
-  id               String                @id @default(uuid())
-  token            String                @unique
-  patientId        String
-  patient          Patient               @relation(fields: [patientId], references: [id])
-
-  title            String
-  content          String
-
-  subtotal         Float                 @default(0)
-  discount         Float                 @default(0)
-  total            Float                 @default(0)
-
-  paymentMethod    ContractPaymentMethod @default(OTHER)
-  paymentDetails   String?
-
-  itemsJson        Json
-  status           ContractStatus        @default(PENDING)
-
-  signedAt         DateTime?
-  signatureName    String?
-  signatureIp      String?
-
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @default(now()) @updatedAt
-
-  @@index([patientId])
-  @@index([token])
-}
-
-model ClinicalEvolutionPlan {
-  id                String                      @id @default(uuid())
-  patientId         String
-  patient           Patient                     @relation(fields: [patientId], references: [id])
-
-  treatmentName     String
-  packageName       String?
-  totalSessions     Int                         @default(1)
-  completedSessions Int                         @default(0)
-  status            ClinicalEvolutionPlanStatus @default(ACTIVE)
-
-  startDate         DateTime?
-  endDate           DateTime?
-  goals             String?
-  notes             String?
-
-  createdAt         DateTime                    @default(now())
-  updatedAt         DateTime                    @default(now()) @updatedAt
-
-  sessions          ClinicalEvolutionSession[]
-
-  @@index([patientId])
-}
-
-model ClinicalEvolutionSession {
-  id                   String                @id @default(uuid())
-  planId               String
-  plan                 ClinicalEvolutionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
-
-  sessionNumber        Int
-  sessionDate          DateTime              @default(now())
-  performedProcedure   String?
-  bodyMeasurements     String?
-  clinicalNotes        String?
-  patientSignatureName String?
-  signedAt             DateTime?
-  imagesJson           Json?
-
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @default(now()) @updatedAt
-
-  @@index([planId])
 }

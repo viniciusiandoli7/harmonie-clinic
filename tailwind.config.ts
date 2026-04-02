@@ -1,26 +1,22 @@
+// tailwind.config.ts
 const config = {
-  content: [
-    "./src/**/*.{js,ts,jsx,tsx}",
-  ],
   theme: {
     extend: {
       colors: {
-        hcBlack: "#1A1A1A",
-        hcGold: "#C5A059",
-        hcOffWhite: "#FAF8F4",
-        hcBorder: "#E5E7EB",
-        hcGray: "#6B7280",
+        harmonie: {
+          noir: "#1A1A1A",   // Noir Absolu
+          gold: "#C5A059",   // Or Harmonie
+          blanc: "#FAFAFA",  // Blanc Pur
+          gray: "#94A3B8",   // Para textos secundários delicados
+        }
       },
       fontFamily: {
         serif: ["Cormorant Garamond", "serif"],
         sans: ["Inter", "sans-serif"],
       },
-      letterSpacing: {
-        widestPlus: "0.2em",
-      },
+      borderRadius: {
+        'none': '0px', // Forçar bordas retas em tudo
+      }
     },
   },
-  plugins: [],
 };
-
-export default config;

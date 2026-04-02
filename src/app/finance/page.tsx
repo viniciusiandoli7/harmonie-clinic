@@ -1,463 +1,223 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { Bell, Search } from "lucide-react";
-import TransactionModal from "@/components/finance/TransactionModal";
-import CloseSaleAutomationCard from "@/components/finance/CloseSaleAutomationCard";
-
-type TransactionType = "INCOME" | "EXPENSE";
-
-type FinancialTransaction = {
-  id: string;
-  date: string;
-  description: string;
-  category: string;
-  amount: number;
-  type: TransactionType;
-  grossAmount?: number | null;
-  receivedAmount?: number | null;
-  pendingAmount?: number | null;
-  clinicCommissionPct?: number | null;
-  clinicCommissionValue?: number | null;
-  professionalValue?: number | null;
-  operationalCost?: number | null;
-  clinicProfit?: number | null;
-  notes?: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type Patient = {
-  id: string;
-  name: string;
-  phone?: string | null;
-  email?: string | null;
-};
-
-function fmtCurrency(value: number) {
-  return value.toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    maximumFractionDigits: 0,
-  });
-}
-
-function fmtDate(date: string) {
-  return new Date(date).toLocaleDateString("pt-BR");
-}
-
-function categoryBadge(category: string) {
-  return "border border-[#E9DEC9] bg-[#FCFAF6] px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#C8A35F]";
-}
-
-type PageHeaderProps = {
-  search: string;
-  onSearchChange: (value: string) => void;
-};
-
-function PageHeader({ search, onSearchChange }: PageHeaderProps) {
-  return (
-    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.38em] text-[#C8A35F]">
-          Harmonie Management System
-        </p>
-
-        <h1
-          className="mt-3 text-[46px] leading-none text-[#111111] xl:text-[48px]"
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-        >
-          Finances
-        </h1>
-      </div>
-
-      <div className="flex items-center gap-5 pt-1">
-        <div className="flex h-10 w-[300px] items-center gap-3 border-b border-[#D9DEEA] text-[#B3BED2]">
-          <Search size={15} strokeWidth={1.8} />
-          <input
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="BUSCAR TRANSAÇÃO OU PACIENTE..."
-            className="w-full bg-transparent text-[11px] font-semibold uppercase tracking-[0.16em] text-[#111111] outline-none placeholder:text-[#C6D0E0]"
-          />
-        </div>
-
-        <button type="button" className="relative text-[#C1CAD9]">
-          <Bell size={17} strokeWidth={1.8} />
-          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[#C8A35F]" />
-        </button>
-      </div>
-    </div>
-  );
-}
+import { useState, useEffect, useMemo } from "react";
+import { 
+  Search, Plus, TrendingUp, Filter, 
+  Activity, Download, X, Check
+} from "lucide-react";
 
 export default function FinancePage() {
-  const [items, setItems] = useState<FinancialTransaction[]>([]);
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [openModal, setOpenModal] = useState(false);
-  const [editingItem, setEditingItem] = useState<FinancialTransaction | null>(null);
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
-  async function loadTransactions() {
-    setLoading(true);
-    setError("");
-
+  // --- CARREGAR DADOS ---
+  async function loadFinance() {
     try {
-      const [transactionsRes, patientsRes] = await Promise.all([
-        fetch("/api/financial-transactions", {
-          cache: "no-store",
-        }),
-        fetch("/api/patients?includeInactive=true", {
-          cache: "no-store",
-        }),
-      ]);
-
-      const transactionsData = await transactionsRes.json();
-      const patientsData = await patientsRes.json();
-
-      if (!transactionsRes.ok) {
-        setError(transactionsData?.error ?? "Erro ao carregar transações.");
-        return;
-      }
-
-      if (!patientsRes.ok) {
-        setError(patientsData?.error ?? "Erro ao carregar pacientes.");
-        return;
-      }
-
-      setItems(Array.isArray(transactionsData) ? transactionsData : []);
-      setPatients(Array.isArray(patientsData) ? patientsData : []);
-    } catch {
-      setError("Erro ao carregar dados do financeiro.");
+      setLoading(true);
+      const res = await fetch("/api/finance/stats");
+      const data = await res.json();
+      setStats(data);
     } finally {
       setLoading(false);
     }
   }
 
-  async function handleDelete(id: string) {
-    const confirmed = window.confirm("Deseja excluir esta transação?");
-    if (!confirmed) return;
+  useEffect(() => { loadFinance(); }, []);
 
-    try {
-      const res = await fetch(`/api/financial-transactions/${id}`, {
-        method: "DELETE",
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        alert(data?.error ?? "Erro ao excluir.");
-        return;
-      }
-
-      await loadTransactions();
-    } catch {
-      alert("Erro ao excluir.");
-    }
-  }
-
-  function handleEdit(item: FinancialTransaction) {
-    setEditingItem(item);
-    setOpenModal(true);
-  }
-
-  function handleCreate() {
-    setEditingItem(null);
-    setOpenModal(true);
-  }
-
-  useEffect(() => {
-    loadTransactions();
-  }, []);
-
-  const filteredItems = useMemo(() => {
-    const term = search.trim().toLowerCase();
-
-    if (!term) return items;
-
-    return items.filter((item) => {
-      const description = item.description?.toLowerCase() || "";
-      const category = item.category?.toLowerCase() || "";
-      const notes = item.notes?.toLowerCase() || "";
-
-      return (
-        description.includes(term) ||
-        category.includes(term) ||
-        notes.includes(term)
-      );
-    });
-  }, [items, search]);
-
-  const summary = useMemo(() => {
-    const incomeItems = items.filter((item) => item.type === "INCOME");
-    const expenseItems = items.filter((item) => item.type === "EXPENSE");
-
-    const totalReceived = incomeItems.reduce(
-      (acc, item) => acc + (item.receivedAmount ?? item.amount ?? 0),
-      0
+  // --- LÓGICA DE FILTRO REAL ---
+  const filteredMovements = useMemo(() => {
+    if (!stats?.recentMovements) return [];
+    return stats.recentMovements.filter((t: any) => 
+      t.description.toLowerCase().includes(search.toLowerCase()) ||
+      t.category.toLowerCase().includes(search.toLowerCase())
     );
+  }, [stats, search]);
 
-    const totalPending = incomeItems.reduce(
-      (acc, item) => acc + (item.pendingAmount ?? 0),
-      0
-    );
+  // --- FUNÇÃO DE EXPORTAR (CSV para Excel) ---
+  const handleExport = () => {
+    if (!stats?.recentMovements) return;
+    const headers = ["Data", "Descrição", "Categoria", "Valor", "Tipo"];
+    const rows = stats.recentMovements.map((t: any) => [
+      new Date(t.date).toLocaleDateString('pt-BR'),
+      t.description,
+      t.category,
+      t.amount,
+      t.type
+    ]);
 
-    const clinicRevenue = incomeItems.reduce(
-      (acc, item) => acc + (item.clinicCommissionValue ?? 0),
-      0
-    );
+    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.setAttribute("download", `financeiro_harmonie_${new Date().toLocaleDateString()}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
-    const professionalRevenue = incomeItems.reduce(
-      (acc, item) => acc + (item.professionalValue ?? 0),
-      0
-    );
-
-    const totalProfit = incomeItems.reduce(
-      (acc, item) => acc + (item.clinicProfit ?? (item.receivedAmount ?? item.amount ?? 0)),
-      0
-    );
-
-    const totalExpense = expenseItems.reduce(
-      (acc, item) => acc + item.amount,
-      0
-    );
-
-    return {
-      totalReceived,
-      totalPending,
-      clinicRevenue,
-      professionalRevenue,
-      totalExpense,
-      totalProfit,
-      cashBalance: totalReceived - totalExpense,
-    };
-  }, [items]);
+  if (loading) return <div className="min-h-screen bg-[#FAF8F3] flex items-center justify-center font-serif italic text-[#C5A059]">Sincronizando inteligência...</div>;
 
   return (
-    <div className="min-h-screen bg-[#FAF8F3] px-8 py-8 md:px-10 xl:px-14 xl:py-10">
-      <PageHeader search={search} onSearchChange={setSearch} />
+    <div className="min-h-screen bg-[#FAF8F3] px-8 py-8 md:px-12 font-sans antialiased text-[#1A1A1A]">
+      
+      {/* HEADER */}
+      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between border-b border-[#EEECE7] pb-8">
+        <div>
+          <p className="text-[10px] uppercase tracking-[0.4em] text-[#C5A059] font-bold italic">Harmonie Financial Intelligence</p>
+          <h1 className="mt-2 text-5xl font-serif">Financeiro</h1>
+        </div>
 
-      <div className="mt-10 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <h2
-          className="text-[24px] uppercase tracking-[0.16em] text-[#111111]"
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-        >
-          Financeiro
-        </h2>
-
-        <button
-          type="button"
-          onClick={handleCreate}
-          className="inline-flex h-11 items-center justify-center bg-[#111111] px-6 text-[12px] font-semibold uppercase tracking-[0.18em] text-white"
-        >
-          + Nova transação
-        </button>
+        <div className="flex items-center gap-6">
+          <div className="flex h-10 w-72 items-center gap-3 border-b border-[#D9DEEA] focus-within:border-[#C5A059] transition-colors">
+            <Search size={14} className="text-[#B3BED2]" />
+            <input 
+              placeholder="BUSCAR TRANSAÇÃO..." 
+              className="w-full bg-transparent text-[10px] font-bold uppercase tracking-widest outline-none placeholder:text-[#C1CAD9]"
+              value={search} onChange={e => setSearch(e.target.value)}
+            />
+          </div>
+          {/* BOTÃO NOVA TRANSAÇÃO FUNCIONAL */}
+          <button 
+            onClick={() => setIsModalOpen(true)}
+            className="bg-[#1A1A1A] text-white px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest hover:bg-[#C5A059] transition-all shadow-xl"
+          >
+            + Nova Transação
+          </button>
+        </div>
       </div>
 
-      {error ? (
-        <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
-        </div>
-      ) : null}
-
-      <div className="mt-7 grid grid-cols-1 gap-4 xl:grid-cols-3 2xl:grid-cols-6">
-        <div className="border border-[#F0ECE4] bg-white p-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-            Total recebido
-          </p>
-          <div
-            className="mt-3 text-[24px] text-[#111111]"
-            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-          >
-            {fmtCurrency(summary.totalReceived)}
+      {/* DASHBOARD CARDS */}
+      <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+        <FinanceCard label="Lucro Líquido (Mês)" value={stats.netProfit} trend="+12%" icon={<TrendingUp size={14}/>} />
+        <FinanceCard label="Disponível em Caixa" value={stats.totalBalance} color="#C5A059" />
+        <FinanceCard label="Previsão de Recebíveis" value={stats.receivables} />
+        
+        {/* SAÚDE DO NEGÓCIO */}
+        <div className="bg-white border-2 border-[#C5A059] p-7 shadow-sm flex flex-col justify-between relative overflow-hidden">
+          <div className="absolute -top-4 -right-4 opacity-[0.03]"><Activity size={120} /></div>
+          <div>
+            <p className="text-[9px] font-black text-[#C5A059] uppercase tracking-[0.3em] mb-4">Saúde do Negócio</p>
+            <div className="text-3xl font-serif italic">{stats.healthScore}</div>
           </div>
-        </div>
-
-        <div className="border border-[#F0ECE4] bg-white p-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-            Total pendente
-          </p>
-          <div
-            className="mt-3 text-[24px] text-[#111111]"
-            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-          >
-            {fmtCurrency(summary.totalPending)}
-          </div>
-        </div>
-
-        <div className="border border-[#F0ECE4] bg-white p-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-            Receita clínica
-          </p>
-          <div
-            className="mt-3 text-[24px] text-[#C8A35F]"
-            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-          >
-            {fmtCurrency(summary.clinicRevenue)}
-          </div>
-        </div>
-
-        <div className="border border-[#F0ECE4] bg-white p-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-            Receita profissional
-          </p>
-          <div
-            className="mt-3 text-[24px] text-[#111111]"
-            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-          >
-            {fmtCurrency(summary.professionalRevenue)}
-          </div>
-        </div>
-
-        <div className="border border-[#F0ECE4] bg-white p-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-            Despesas
-          </p>
-          <div
-            className="mt-3 text-[24px] text-rose-500"
-            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-          >
-            {fmtCurrency(summary.totalExpense)}
-          </div>
-        </div>
-
-        <div className="border border-[#F0ECE4] bg-white p-7">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-            Caixa total
-          </p>
-          <div
-            className="mt-3 text-[24px] text-[#111111]"
-            style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-          >
-            {fmtCurrency(summary.cashBalance)}
+          <div className="mt-6">
+            <p className="text-[9px] text-[#94A3B8] uppercase font-bold tracking-widest">Meta Trimestre: 85%</p>
+            <div className="h-[2px] w-full bg-[#F5F5F5] mt-2"><div className="h-full bg-[#C5A059] w-[85%]" /></div>
           </div>
         </div>
       </div>
 
-      <CloseSaleAutomationCard patients={patients} onSuccess={loadTransactions} />
+      {/* TABELA COM FILTRO E EXPORTAÇÃO FUNCIONAIS */}
+      <div className="mt-12 bg-white border border-[#EEECE7] rounded-none overflow-hidden shadow-sm">
+        <div className="px-10 py-6 border-b border-[#F9F9F9] flex justify-between items-center bg-[#FCFAF9]/50">
+           <div className="flex items-center gap-3">
+              <div className="w-1 h-4 bg-[#C5A059]" />
+              <h3 className="text-[11px] font-bold uppercase tracking-[0.3em]">Movimentações Recentes</h3>
+           </div>
+           <div className="flex items-center gap-6">
+              {/* BOTÃO EXPORTAR FUNCIONAL */}
+              <button 
+                onClick={handleExport}
+                className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-[#94A3B8] hover:text-[#1A1A1A] transition-all"
+              >
+                 <Download size={14}/> Exportar
+              </button>
+              <Filter size={15} className="text-[#96A4C1] cursor-pointer hover:text-[#C5A059]" />
+           </div>
+        </div>
 
-      <div className="mt-7 overflow-hidden border border-[#F0ECE4] bg-white">
-        <table className="min-w-full">
+        <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-[#EEF1F5]">
-              <th className="px-8 py-5 text-left text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Data
-              </th>
-              <th className="px-8 py-5 text-left text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Descrição
-              </th>
-              <th className="px-8 py-5 text-left text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Categoria
-              </th>
-              <th className="px-8 py-5 text-right text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Recebido
-              </th>
-              <th className="px-8 py-5 text-right text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Pendente
-              </th>
-              <th className="px-8 py-5 text-right text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Clínica
-              </th>
+            <tr className="bg-[#FCFAF6] border-b border-[#EEECE7]">
+              <th className="px-10 py-5 text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Data</th>
+              <th className="px-10 py-5 text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Descrição</th>
+              <th className="px-10 py-5 text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Categoria</th>
+              <th className="px-10 py-5 text-right text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Valor Bruto</th>
+              <th className="px-10 py-5 text-right text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Status</th>
             </tr>
           </thead>
-
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={6} className="px-8 py-8 text-sm text-[#64748B]">
-                  Carregando...
-                </td>
-              </tr>
-            ) : filteredItems.length === 0 ? (
-              <tr>
-                <td colSpan={6} className="px-8 py-8 text-sm text-[#64748B]">
-                  {search
-                    ? "Nenhuma transação encontrada para a busca."
-                    : "Nenhuma transação encontrada."}
-                </td>
-              </tr>
-            ) : (
-              filteredItems.map((item) => (
-                <tr key={item.id} className="border-b border-[#EEF1F5] last:border-b-0">
-                  <td className="px-8 py-5 text-[14px] font-semibold text-[#8E9AAF]">
-                    {fmtDate(item.date)}
-                  </td>
-
-                  <td
-                    className="px-8 py-5 text-[17px] text-[#111111]"
-                    style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                  >
-                    {item.description}
-                  </td>
-
-                  <td className="px-8 py-5">
-                    <span className={categoryBadge(item.category)}>
-                      {item.category}
-                    </span>
-                  </td>
-
-                  <td className="px-8 py-5 text-right">
-                    <div
-                      className="text-[16px] text-[#111111]"
-                      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                    >
-                      {fmtCurrency(item.receivedAmount ?? item.amount ?? 0)}
-                    </div>
-                  </td>
-
-                  <td className="px-8 py-5 text-right">
-                    <div
-                      className="text-[16px] text-[#111111]"
-                      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                    >
-                      {fmtCurrency(item.pendingAmount ?? 0)}
-                    </div>
-                  </td>
-
-                  <td className="px-8 py-5 text-right">
-                    <div
-                      className="text-[16px] text-[#C8A35F]"
-                      style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                    >
-                      {fmtCurrency(item.clinicCommissionValue ?? 0)}
-                    </div>
-
-                    <div className="mt-2 flex justify-end gap-4">
-                      <button
-                        type="button"
-                        onClick={() => handleEdit(item)}
-                        className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#96A4C1] hover:text-[#111111]"
-                      >
-                        Editar
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => handleDelete(item.id)}
-                        className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#C8A35F] hover:opacity-70"
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
-            )}
+          <tbody className="divide-y divide-[#F9F9F9]">
+             {filteredMovements.map((t: any) => (
+               <TransactionRow key={t.id} t={t} />
+             ))}
           </tbody>
         </table>
       </div>
 
-      <TransactionModal
-        open={openModal}
-        onClose={() => {
-          setOpenModal(false);
-          setEditingItem(null);
-        }}
-        onSaved={loadTransactions}
-        initialData={editingItem}
-      />
+      {/* MODAL DE NOVA TRANSAÇÃO */}
+      {isModalOpen && <NewTransactionModal onClose={() => setIsModalOpen(false)} onSave={loadFinance} />}
     </div>
+  );
+}
+
+// --- SUB-COMPONENTES ---
+
+function NewTransactionModal({ onClose, onSave }: any) {
+  const [form, setForm] = useState({ description: "", amount: "", type: "INCOME", category: "PROCEDIMENTO" });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await fetch("/api/finance/transactions", { 
+      method: "POST", 
+      body: JSON.stringify({ ...form, amount: parseFloat(form.amount), date: new Date() }) 
+    });
+    onSave();
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
+      <div className="bg-white w-full max-w-md p-10 border border-[#C5A059]/30 shadow-2xl animate-in fade-in zoom-in-95 duration-300">
+        <div className="flex justify-between items-center mb-10">
+          <h3 className="text-xl font-serif italic">Nova Transação</h3>
+          <button onClick={onClose} className="text-gray-400 hover:text-black"><X size={20}/></button>
+        </div>
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div className="space-y-1">
+            <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Descrição</label>
+            <input required className="w-full border-b border-[#EEE] py-2 text-[12px] outline-none focus:border-[#C5A059]" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+          </div>
+          <div className="grid grid-cols-2 gap-6">
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Valor (R$)</label>
+              <input type="number" required className="w-full border-b border-[#EEE] py-2 text-[12px] outline-none" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Tipo</label>
+              <select className="w-full border-b border-[#EEE] py-2 text-[10px] font-bold uppercase" value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
+                <option value="INCOME">Entrada (+)</option>
+                <option value="EXPENSE">Saída (-)</option>
+              </select>
+            </div>
+          </div>
+          <button type="submit" className="w-full bg-[#1A1A1A] text-white py-4 text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-[#C5A059] transition-all">Confirmar Lançamento</button>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+function FinanceCard({ label, value, trend, icon, color }: any) {
+  return (
+    <div className="bg-white border border-[#EEECE7] p-8 shadow-sm group hover:border-[#C5A059]/40 transition-all">
+      <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.3em] mb-4">{label}</p>
+      <p className="text-3xl font-serif text-[#1A1A1A]" style={{ color }}>R$ {(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
+      {trend && <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 uppercase tracking-widest">{icon} {trend} <span className="text-[#94A3B8] font-medium">vs anterior</span></div>}
+    </div>
+  );
+}
+
+function TransactionRow({ t }: any) {
+  return (
+    <tr className="hover:bg-[#FCFAF9] transition-colors group">
+      <td className="px-10 py-5 text-[11px] text-[#94A3B8]">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
+      <td className="px-10 py-5 text-[12px] font-bold uppercase tracking-tight text-[#1A1A1A]">{t.description}</td>
+      <td className="px-10 py-5"><span className="text-[8px] font-black border border-[#EEECE7] px-2.5 py-1 text-[#C5A059] bg-[#FCFAF6] uppercase group-hover:border-[#C5A059] transition-all">{t.category}</span></td>
+      <td className={`px-10 py-5 text-right font-serif text-[16px] font-bold ${t.type === 'EXPENSE' ? 'text-red-400' : 'text-[#1A1A1A]'}`}>
+        {t.type === 'EXPENSE' ? '- ' : ''} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+      </td>
+      <td className="px-10 py-5 text-right"><div className={`inline-block w-2.5 h-2.5 rounded-full ${t.type === 'INCOME' ? 'bg-emerald-500' : 'bg-red-400'}`} /></td>
+    </tr>
   );
 }

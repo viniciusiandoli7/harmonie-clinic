@@ -107,15 +107,15 @@ function fmtMinutes(min: number) {
 }
 
 function statusBadgeClasses(status: AppointmentStatus) {
-  if (status === "COMPLETED") return "bg-green-100 text-green-800 border-green-200";
-  if (status === "CANCELED") return "bg-gray-100 text-gray-700 border-gray-200";
-  return "bg-yellow-100 text-yellow-800 border-yellow-200";
+  if (status === "COMPLETED") return "border-green-300 bg-green-50 text-green-700";
+  if (status === "CANCELED") return "border-gray-300 bg-gray-50 text-gray-600";
+  return "border-[#C5A059] bg-[#FAFAFA] text-[#1A1A1A]";
 }
 
 function paymentBadgeClasses(status: PaymentStatus) {
-  if (status === "PAID") return "bg-green-100 text-green-800 border-green-200";
-  if (status === "CANCELED") return "bg-gray-100 text-gray-700 border-gray-200";
-  return "bg-orange-100 text-orange-800 border-orange-200";
+  if (status === "PAID") return "border-green-300 bg-green-50 text-green-700";
+  if (status === "CANCELED") return "border-gray-300 bg-gray-50 text-gray-600";
+  return "border-[#C5A059] bg-[#FAFAFA] text-[#1A1A1A]";
 }
 
 function blockedDurationInMinutes(start: string, end: string) {
@@ -260,13 +260,13 @@ export default function DashboardPage() {
   }, [appointments, blockedTimes, period]);
 
   return (
-    <div className="bg-[#FAF8F3] p-8 md:p-10">
+    <div className="min-h-screen bg-[#FAFAFA] px-4 py-4 md:px-8 xl:px-12 xl:py-8">
       <DashboardHeader loading={loading} onRefresh={loadDashboard} />
 
       <DashboardPeriodFilter value={period} onChange={setPeriod} />
 
       {error && (
-        <div className="mt-4 border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+        <div className="mt-4 border border-red-300 bg-red-50 px-4 py-3 text-[12px] text-red-700 rounded-xl" style={{ fontFamily: 'Inter, sans-serif' }}>
           {error}
         </div>
       )}
@@ -289,49 +289,49 @@ export default function DashboardPage() {
       <DashboardFinancialCharts />
 
       <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-4">
-        <div className="border border-[#ECE7DD] bg-white p-6 shadow-sm">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[#8E9AAF]">
+        <div className="border border-[#C5A059] bg-[#FAFAFA] p-5 rounded-xl shadow-md">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>
             Agendadas
           </p>
-          <h2 className="mt-3 text-4xl font-light text-[#111827]">{dashboard.scheduled}</h2>
+          <h2 className="mt-3 text-[28px] text-[#1A1A1A] tracking-[0.08em]" style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 700, letterSpacing: '0.08em' }}>{dashboard.scheduled}</h2>
         </div>
 
-        <div className="border border-[#ECE7DD] bg-white p-6 shadow-sm">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[#8E9AAF]">
+        <div className="border border-[#C5A059] bg-[#FAFAFA] p-5 rounded-xl shadow-md">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>
             Concluídas
           </p>
-          <h2 className="mt-3 text-4xl font-light text-[#111827]">{dashboard.completed}</h2>
+          <h2 className="mt-3 text-[28px] text-[#1A1A1A] tracking-[0.08em]" style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 700, letterSpacing: '0.08em' }}>{dashboard.completed}</h2>
         </div>
 
-        <div className="border border-[#ECE7DD] bg-white p-6 shadow-sm">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[#8E9AAF]">
+        <div className="border border-[#C5A059] bg-[#FAFAFA] p-5 rounded-xl shadow-md">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>
             Canceladas
           </p>
-          <h2 className="mt-3 text-4xl font-light text-[#111827]">{dashboard.canceled}</h2>
+          <h2 className="mt-3 text-[28px] text-[#1A1A1A] tracking-[0.08em]" style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 700, letterSpacing: '0.08em' }}>{dashboard.canceled}</h2>
         </div>
 
-        <div className="border border-[#ECE7DD] bg-white p-6 shadow-sm">
-          <p className="text-[13px] font-semibold uppercase tracking-[0.2em] text-[#8E9AAF]">
+        <div className="border border-[#C5A059] bg-[#FAFAFA] p-5 rounded-xl shadow-md">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>
             Tempo bloqueado
           </p>
-          <h2 className="mt-3 text-4xl font-light text-[#111827]">
+          <h2 className="mt-3 text-[28px] text-[#1A1A1A] tracking-[0.08em]" style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 700, letterSpacing: '0.08em' }}>
             {fmtMinutes(dashboard.blockedMinutes)}
           </h2>
         </div>
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-6 xl:grid-cols-2">
-        <div className="overflow-hidden border border-[#ECE7DD] bg-white shadow-sm">
-          <div className="border-b border-[#ECE7DD] bg-[#FCFAF6] p-4">
-            <h2 className="text-lg font-medium text-[#111827]">Próximas consultas</h2>
+        <div className="overflow-hidden border border-[#C5A059] bg-[#FAFAFA] rounded-xl shadow-md">
+          <div className="border-b border-[#C5A059] bg-[#FAFAFA] p-4">
+            <h2 className="text-[18px] text-[#1A1A1A] tracking-[0.12em]" style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 700, letterSpacing: '0.12em' }}>Próximas consultas</h2>
           </div>
 
           {loading ? (
-            <div className="p-4 text-sm text-gray-500">Carregando...</div>
+            <div className="p-4 text-[12px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>Carregando...</div>
           ) : dashboard.nextAppointments.length === 0 ? (
-            <div className="p-4 text-sm text-gray-500">Nenhuma próxima consulta.</div>
+            <div className="p-4 text-[12px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>Nenhuma próxima consulta.</div>
           ) : (
-            <div className="divide-y divide-[#F3EFE7]">
+            <div className="divide-y divide-[#C5A059]">
               {dashboard.nextAppointments.map((a) => (
                 <div
                   key={a.id}
@@ -340,40 +340,42 @@ export default function DashboardPage() {
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
                       <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${statusBadgeClasses(
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold ${statusBadgeClasses(
                           a.status
                         )}`}
+                        style={{ fontFamily: 'Inter, sans-serif' }}
                       >
                         {a.status}
                       </span>
 
                       <span
-                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-semibold ${paymentBadgeClasses(
+                        className={`inline-flex items-center rounded-full border px-2 py-0.5 text-[9px] font-semibold ${paymentBadgeClasses(
                           a.paymentStatus ?? "PENDING"
                         )}`}
+                        style={{ fontFamily: 'Inter, sans-serif' }}
                       >
                         {a.paymentStatus ?? "PENDING"}
                       </span>
 
-                      <span className="text-sm text-gray-600">
+                      <span className="text-[11px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>
                         {fmtDateTime(a.date)} • {a.durationMinutes ?? 30}min
                       </span>
                     </div>
 
-                    <div className="mt-1 font-medium text-[#111827]">
+                    <div className="mt-1 font-semibold text-[#1A1A1A]" style={{ fontFamily: 'Inter, sans-serif' }}>
                       {a.patient?.name ?? "Paciente"}
                     </div>
 
-                    <div className="text-sm text-gray-600">{a.patient?.email ?? ""}</div>
+                    <div className="text-[11px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>{a.patient?.email ?? ""}</div>
 
                     {a.procedureName && (
-                      <div className="mt-1 text-xs text-gray-700">{a.procedureName}</div>
+                      <div className="mt-1 text-[10px] text-[#1A1A1A]" style={{ fontFamily: 'Inter, sans-serif' }}>{a.procedureName}</div>
                     )}
 
-                    {a.notes && <div className="mt-1 text-xs text-gray-500">{a.notes}</div>}
+                    {a.notes && <div className="mt-1 text-[10px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>{a.notes}</div>}
                   </div>
 
-                  <div className="text-right text-sm text-gray-500">
+                  <div className="text-right text-[12px] text-[#1A1A1A] font-semibold" style={{ fontFamily: 'Inter, sans-serif' }}>
                     {fmtCurrency(a.price ?? 0)}
                   </div>
                 </div>
@@ -382,24 +384,21 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="overflow-hidden border border-[#ECE7DD] bg-white shadow-sm">
-          <div className="border-b border-[#ECE7DD] bg-[#FCFAF6] p-4">
-            <h2 className="text-lg font-medium text-[#111827]">Bloqueios recentes</h2>
+        <div className="overflow-hidden border border-[#C5A059] bg-[#FAFAFA] rounded-xl shadow-md">
+          <div className="border-b border-[#C5A059] bg-[#FAFAFA] p-4">
+            <h2 className="text-[18px] text-[#1A1A1A] tracking-[0.12em]" style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 700, letterSpacing: '0.12em' }}>Bloqueios recentes</h2>
           </div>
 
           {loading ? (
-            <div className="p-4 text-sm text-gray-500">Carregando...</div>
+            <div className="p-4 text-[12px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>Carregando...</div>
           ) : dashboard.recentBlockedTimes.length === 0 ? (
-            <div className="p-4 text-sm text-gray-500">Nenhum bloqueio cadastrado.</div>
+            <div className="p-4 text-[12px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>Nenhum bloqueio cadastrado.</div>
           ) : (
-            <div className="divide-y divide-[#F3EFE7]">
+            <div className="divide-y divide-[#C5A059]">
               {dashboard.recentBlockedTimes.map((b) => (
                 <div key={b.id} className="p-4">
-                  <div className="font-medium text-[#111827]">🔒 {b.reason || "Bloqueio"}</div>
-                  <div className="mt-1 text-sm text-gray-600">
-                    {fmtDateTime(b.start)} até {fmtDateTime(b.end)}
-                  </div>
-                  <div className="mt-1 text-xs text-gray-500">
+                  <div className="font-semibold text-[#1A1A1A]" style={{ fontFamily: 'Inter, sans-serif' }}>🔒 {b.reason || "Bloqueio"}</div>
+                  <div className="mt-1 text-[10px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>
                     Duração: {fmtMinutes(blockedDurationInMinutes(b.start, b.end))}
                   </div>
                 </div>
@@ -409,21 +408,21 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <div className="mt-8 overflow-hidden border border-[#ECE7DD] bg-white shadow-sm">
-        <div className="border-b border-[#ECE7DD] bg-[#FCFAF6] p-4">
-          <h2 className="text-lg font-medium text-[#111827]">Procedimentos mais frequentes</h2>
+      <div className="mt-8 overflow-hidden border border-[#C5A059] bg-[#FAFAFA] rounded-xl shadow-md">
+        <div className="border-b border-[#C5A059] bg-[#FAFAFA] p-4">
+          <h2 className="text-[18px] text-[#1A1A1A] tracking-[0.12em]" style={{ fontFamily: 'Cormorant Garamond, serif', fontWeight: 700, letterSpacing: '0.12em' }}>Procedimentos mais frequentes</h2>
         </div>
 
         {loading ? (
-          <div className="p-4 text-sm text-gray-500">Carregando...</div>
+          <div className="p-4 text-[12px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>Carregando...</div>
         ) : dashboard.topProcedures.length === 0 ? (
-          <div className="p-4 text-sm text-gray-500">Nenhum procedimento cadastrado ainda.</div>
+          <div className="p-4 text-[12px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>Nenhum procedimento cadastrado ainda.</div>
         ) : (
-          <div className="divide-y divide-[#F3EFE7]">
+          <div className="divide-y divide-[#C5A059]">
             {dashboard.topProcedures.map(([name, count]) => (
               <div key={name} className="flex items-center justify-between p-4">
-                <div className="font-medium text-[#111827]">{name}</div>
-                <div className="text-sm text-gray-500">{count} consulta(s)</div>
+                <div className="font-semibold text-[#1A1A1A]" style={{ fontFamily: 'Inter, sans-serif' }}>{name}</div>
+                <div className="text-[11px] text-[#C5A059]" style={{ fontFamily: 'Inter, sans-serif' }}>{count} consulta(s)</div>
               </div>
             ))}
           </div>

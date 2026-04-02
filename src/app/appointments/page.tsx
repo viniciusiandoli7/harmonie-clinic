@@ -1,390 +1,275 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import {
-  Bell,
-  Calendar,
-  Clock3,
-  MessageSquarePlus,
-  Plus,
-  Search,
+import { useState, useMemo } from "react";
+import { 
+  ChevronLeft, ChevronRight, Search, Clock, Plus, 
+  MoreHorizontal, Trash2, Edit3, Bell, MapPin 
 } from "lucide-react";
-import AdvancedWeeklyCalendar from "@/components/calendar/AdvancedWeeklyCalendar";
-import { buildWhatsappMessage, getWhatsappLink } from "@/lib/whatsapp";
 
-type Patient = {
+// --- CONFIGURAÇÕES ---
+const PROCEDIMENTOS = [
+  "ULTRASSOM MICRO E MACROFOCADO", "TOXINA BOTULÍNICA", "SKINBOOSTER",
+  "PREENCHIMENTO", "PEIM", "PEELING", "PDRN", "MICROAGULHAMENTO",
+  "MESOTERAPIA", "LIMPEZA DE PELE PROFUNDA", "LAVIEEN", "JATO DE PLASMA",
+  "FIOS DE PDO BIOESTIMULADOR"
+];
+
+const HOURS = Array.from({ length: 25 }, (_, i) => {
+  const hour = Math.floor(i / 2) + 8;
+  const min = i % 2 === 0 ? "00" : "30";
+  return `${hour.toString().padStart(2, '0')}:${min}`;
+});
+
+const DIAS_SEMANA_NOMES = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
+
+interface Appointment {
   id: string;
-  name: string;
-  email?: string;
-  phone?: string;
-};
+  patient: string;
+  procedure: string;
+  date: string; // formato YYYY-MM-DD
+  time: string;
+  room: "SALA A" | "SALA B";
+  duration: string;
+}
 
-type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
-type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
+export default function AgendaPage() {
+  const [view, setView] = useState<"DIA" | "SEMANA" | "MES">("DIA");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [activeMenu, setActiveMenu] = useState<string | null>(null);
 
-type Appointment = {
-  id: string;
-  date: string;
-  status: AppointmentStatus;
-  patientId: string;
-  patient?: Patient;
-  procedureName?: string | null;
-  price?: number | null;
-  paymentStatus?: PaymentStatus;
-  durationMinutes?: 30 | 60 | 90 | 120;
-  room?: "A" | "B";
-};
+  // --- ESTADO DE AGENDAMENTOS (Exemplos) ---
+  const [appointments, setAppointments] = useState<Appointment[]>([
+    { id: "1", patient: "MARIA SILVA", procedure: "TOXINA BOTULÍNICA", date: "2026-04-01", time: "10:00", room: "SALA A", duration: "60 MIN" },
+    { id: "2", patient: "VINICIUS TESTE", procedure: "LAVIEEN", date: "2026-04-02", time: "14:30", room: "SALA B", duration: "30 MIN" }
+  ]);
 
-type BlockedTime = {
-  id: string;
-  start: string;
-  end: string;
-  reason?: string | null;
-};
-
-function fmtCurrency(value?: number | null) {
-  return (value ?? 0).toLocaleString("pt-BR", {
-    style: "currency",
-    currency: "BRL",
-    maximumFractionDigits: 0,
+  const [formData, setFormData] = useState({ 
+    patient: "", procedure: "", time: "08:00", room: "SALA A" as "SALA A" | "SALA B" 
   });
-}
 
-function fmtDate(date: string) {
-  return new Date(date).toLocaleDateString("pt-BR");
-}
+  // --- AUXILIARES DE DATA ---
+  const formatDate = (date: Date) => date.toISOString().split('T')[0];
 
-function fmtTime(date: string) {
-  return new Date(date).toLocaleTimeString("pt-BR", {
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1).getDay();
+    const days = [];
+    const lastDay = new Date(year, month + 1, 0).getDate();
+    
+    for (let i = 0; i < firstDay; i++) days.push(null);
+    for (let i = 1; i <= lastDay; i++) days.push(new Date(year, month, i));
+    return days;
+  };
 
-function statusLabel(status: AppointmentStatus) {
-  if (status === "COMPLETED") return "CONFIRMADO";
-  if (status === "CANCELED") return "CANCELADO";
-  return "PENDENTE";
-}
+  const currentWeekDays = useMemo(() => {
+    const start = new Date(currentDate);
+    start.setDate(currentDate.getDate() - currentDate.getDay());
+    return Array.from({ length: 7 }).map((_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  }, [currentDate]);
 
-function statusClass(status: AppointmentStatus) {
-  if (status === "COMPLETED") {
-    return "border border-[#CFE9D8] bg-[#F3FBF6] text-[#4A9B68]";
-  }
+  // --- LÓGICA DE NAVEGAÇÃO ---
+  const handleHoje = () => setCurrentDate(new Date());
+  const changeDate = (amount: number) => {
+    const newDate = new Date(currentDate);
+    if (view === "DIA") newDate.setDate(newDate.getDate() + amount);
+    if (view === "SEMANA") newDate.setDate(newDate.getDate() + (amount * 7));
+    if (view === "MES") newDate.setMonth(newDate.getMonth() + amount);
+    setCurrentDate(newDate);
+  };
 
-  if (status === "CANCELED") {
-    return "border border-[#E5E7EB] bg-[#F8FAFC] text-[#64748B]";
-  }
+  // --- DRAG & DROP UNIFICADO ---
+  const onDragStart = (e: React.DragEvent, id: string) => {
+    e.dataTransfer.setData("appointmentId", id);
+  };
 
-  return "border border-[#E9DEC9] bg-[#FCFAF6] text-[#C8A35F]";
-}
+  const updateAppointment = (id: string, updates: Partial<Appointment>) => {
+    setAppointments(prev => prev.map(app => app.id === id ? { ...app, ...updates } : app));
+  };
 
-function PageHeader() {
+  const handleDrop = (e: React.DragEvent, targetDate: string, targetTime?: string, targetRoom?: "SALA A" | "SALA B") => {
+    e.preventDefault();
+    const id = e.dataTransfer.getData("appointmentId");
+    const updates: Partial<Appointment> = { date: targetDate };
+    if (targetTime) updates.time = targetTime;
+    if (targetRoom) updates.room = targetRoom;
+    updateAppointment(id, updates);
+  };
+
   return (
-    <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-      <div>
-        <p className="text-[10px] uppercase tracking-[0.38em] text-[#C8A35F]">
-          Harmonie Management System
-        </p>
-
-        <h1
-          className="mt-3 text-[46px] leading-none text-[#111111] xl:text-[48px]"
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-        >
-          Agenda
-        </h1>
-      </div>
-
-      <div className="flex items-center gap-5 pt-1">
-        <div className="flex h-10 w-[260px] items-center gap-3 border-b border-[#D9DEEA] text-[#B3BED2]">
-          <Search size={15} strokeWidth={1.8} />
-          <input
-            placeholder="BUSCAR PACIENTE..."
-            className="w-full bg-transparent text-[11px] font-semibold uppercase tracking-[0.16em] outline-none placeholder:text-[#C6D0E0]"
-          />
+    <div className="flex h-screen bg-[#FAFAFA] font-sans antialiased text-[#1A1A1A] overflow-hidden text-[11px]">
+      
+      {/* SIDEBAR AGENDAMENTO */}
+      <aside className="w-[300px] bg-white border-r border-[#EEECE7] p-6 overflow-y-auto flex flex-col z-50">
+        <div className="mb-6">
+          <p className="text-[8px] font-bold tracking-[0.4em] text-[#C5A059] uppercase mb-1">Registration</p>
+          <h3 className="text-xl font-serif italic text-[#000]">Agendar Sessão</h3>
+          <div className="h-[1px] w-8 bg-[#C5A059] mt-2" />
         </div>
+        
+        <div className="space-y-5 flex-1">
+          <div className="space-y-1">
+            <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Paciente</label>
+            <input value={formData.patient} onChange={e => setFormData({...formData, patient: e.target.value})} placeholder="BUSCAR NOME..." className="w-full py-1.5 border-b border-[#EEE] outline-none bg-transparent" />
+          </div>
 
-        <button type="button" className="relative text-[#C1CAD9]">
-          <Bell size={17} strokeWidth={1.8} />
-          <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-[#C8A35F]" />
-        </button>
-      </div>
-    </div>
-  );
-}
+          <div className="space-y-1">
+            <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Procedimento</label>
+            <select value={formData.procedure} onChange={e => setFormData({...formData, procedure: e.target.value})} className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none uppercase font-medium">
+              <option value="">Selecione...</option>
+              {PROCEDIMENTOS.map(p => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
 
-function SummaryCard({
-  label,
-  value,
-}: {
-  label: string;
-  value: number | string;
-}) {
-  return (
-    <div className="border border-[#F0ECE4] bg-white px-5 py-4">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-[#96A4C1]">
-        {label}
-      </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Horário</label>
+              <input type="time" value={formData.time} onChange={e => setFormData({...formData, time: e.target.value})} className="w-full py-1 border-b border-[#EEE]" />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Sala</label>
+              <select value={formData.room} onChange={e => setFormData({...formData, room: e.target.value as any})} className="w-full py-1 border-b border-[#EEE]">
+                <option value="SALA A">SALA A</option>
+                <option value="SALA B">SALA B</option>
+              </select>
+            </div>
+          </div>
 
-      <div
-        className="mt-2 text-[20px] text-[#111111]"
-        style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-      >
-        {value}
-      </div>
-    </div>
-  );
-}
-
-export default function AppointmentsPage() {
-  const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [blockedTimes, setBlockedTimes] = useState<BlockedTime[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  async function loadData() {
-    setLoading(true);
-    setError("");
-
-    try {
-      const now = new Date();
-      const start = new Date(now);
-      start.setDate(now.getDate() - 7);
-      start.setHours(0, 0, 0, 0);
-
-      const end = new Date(now);
-      end.setDate(now.getDate() + 30);
-      end.setHours(23, 59, 59, 999);
-
-      const [appointmentsRes, blockedRes] = await Promise.all([
-        fetch("/api/appointments", { cache: "no-store" }),
-        fetch(
-          `/api/blocked-times?dateFrom=${encodeURIComponent(
-            start.toISOString()
-          )}&dateTo=${encodeURIComponent(end.toISOString())}`,
-          { cache: "no-store" }
-        ),
-      ]);
-
-      const appointmentsData = await appointmentsRes.json();
-      const blockedData = await blockedRes.json();
-
-      if (!appointmentsRes.ok) {
-        setError(appointmentsData?.error ?? "Erro ao carregar agenda.");
-        return;
-      }
-
-      if (!blockedRes.ok) {
-        setError(blockedData?.error ?? "Erro ao carregar bloqueios.");
-        return;
-      }
-
-      setAppointments(Array.isArray(appointmentsData) ? appointmentsData : []);
-      setBlockedTimes(Array.isArray(blockedData) ? blockedData : []);
-    } catch {
-      setError("Erro ao carregar agenda.");
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  useEffect(() => {
-    loadData();
-  }, []);
-
-  const upcomingAppointments = useMemo(() => {
-    const now = Date.now();
-
-    return appointments
-      .filter((item) => new Date(item.date).getTime() > now)
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, 8);
-  }, [appointments]);
-
-  const summary = useMemo(() => {
-    const scheduled = upcomingAppointments.filter(
-      (item) => item.status === "SCHEDULED"
-    ).length;
-
-    const completed = upcomingAppointments.filter(
-      (item) => item.status === "COMPLETED"
-    ).length;
-
-    const paidRevenue = upcomingAppointments
-      .filter((item) => item.paymentStatus === "PAID")
-      .reduce((acc, item) => acc + (item.price ?? 0), 0);
-
-    return {
-      total: upcomingAppointments.length,
-      scheduled,
-      completed,
-      paidRevenue,
-    };
-  }, [upcomingAppointments]);
-
-  return (
-    <div className="min-h-screen bg-[#FAF8F3] px-8 py-8 md:px-10 xl:px-14 xl:py-10">
-      <PageHeader />
-
-      <div className="mt-10 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <h2
-          className="text-[24px] uppercase tracking-[0.16em] text-[#111111]"
-          style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-        >
-          Agenda
-        </h2>
-
-        <button
-          type="button"
-          onClick={() => {
-            const el = document.getElementById("agenda-interativa");
-            el?.scrollIntoView({ behavior: "smooth", block: "start" });
-          }}
-          className="inline-flex h-11 items-center justify-center gap-3 bg-[#111111] px-6 text-[12px] font-semibold uppercase tracking-[0.18em] text-white"
-        >
-          <Plus size={14} strokeWidth={2} />
-          Novo agendamento
-        </button>
-      </div>
-
-      {error ? (
-        <div className="mt-5 border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-          {error}
+          <button onClick={() => {
+             const newApp = { id: Math.random().toString(), ...formData, date: formatDate(currentDate), duration: "60 MIN" };
+             setAppointments([...appointments, newApp]);
+          }} className="btn-primary w-full mt-4 !py-3">Confirmar Registro</button>
         </div>
-      ) : null}
+      </aside>
 
-      <div className="mt-7 overflow-hidden border border-[#F0ECE4] bg-white">
-        <table className="min-w-full">
-          <thead>
-            <tr className="border-b border-[#EEF1F5]">
-              <th className="px-8 py-5 text-left text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Paciente
-              </th>
-              <th className="px-8 py-5 text-left text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Procedimento
-              </th>
-              <th className="px-8 py-5 text-left text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Data/Hora
-              </th>
-              <th className="px-8 py-5 text-left text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Status
-              </th>
-              <th className="px-8 py-5 text-right text-[11px] font-semibold uppercase tracking-[0.24em] text-[#96A4C1]">
-                Ações
-              </th>
-            </tr>
-          </thead>
+      {/* ÁREA DA AGENDA */}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        
+        <header className="bg-white border-b border-[#EEECE7] px-8 py-4 flex justify-between items-center z-40">
+          <div>
+            <p className="text-[9px] font-bold uppercase tracking-[0.4em] text-[#C5A059] mb-0.5">Harmonie Concierge</p>
+            <h1 className="text-2xl font-serif italic capitalize text-[#000]">
+              {currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+            </h1>
+          </div>
 
-          <tbody>
-            {loading ? (
-              <tr>
-                <td colSpan={5} className="px-8 py-8 text-sm text-[#64748B]">
-                  Carregando...
-                </td>
-              </tr>
-            ) : upcomingAppointments.length === 0 ? (
-              <tr>
-                <td colSpan={5} className="px-8 py-8 text-sm text-[#64748B]">
-                  Nenhum agendamento encontrado.
-                </td>
-              </tr>
-            ) : (
-              upcomingAppointments.map((item) => {
-                const whatsappLink = item.patient?.phone
-                  ? getWhatsappLink(
-                      item.patient.phone,
-                      buildWhatsappMessage({
-                        patientName: item.patient?.name,
-                        procedureName: item.procedureName,
-                        date: item.date,
-                        room: item.room ?? "A",
-                      })
-                    )
-                  : null;
+          <div className="flex items-center gap-6">
+            <div className="flex bg-[#F5F5F5] p-1 border border-[#EEECE7] scale-90">
+              {(["DIA", "SEMANA", "MES"] as const).map((t) => (
+                <button key={t} onClick={() => setView(t)} className={`px-6 py-1.5 text-[9px] font-bold uppercase tracking-[0.2em] transition-all ${view === t ? "bg-white text-[#1A1A1A] shadow-sm" : "text-[#94A3B8] hover:text-[#1A1A1A]"}`}>{t}</button>
+              ))}
+            </div>
 
-                return (
-                  <tr key={item.id} className="border-b border-[#EEF1F5] last:border-b-0">
-                    <td className="px-8 py-5">
-                      <div
-                        className="text-[17px] text-[#111111]"
-                        style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                      >
-                        {item.patient?.name ?? "Paciente"}
+            <div className="flex items-center border border-[#EEECE7] p-1 bg-white scale-90">
+              <button onClick={() => changeDate(-1)} className="p-1.5 hover:text-[#C5A059] transition-all"><ChevronLeft size={16}/></button>
+              <button onClick={handleHoje} className="px-3 text-[9px] font-bold uppercase tracking-widest border-x border-[#EEECE7]">Hoje</button>
+              <button onClick={() => changeDate(1)} className="p-1.5 hover:text-[#C5A059] transition-all"><ChevronRight size={16}/></button>
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6 bg-[#FAFAFA]">
+          <div className="bg-white border border-[#EEECE7] max-w-[1600px] mx-auto shadow-sm">
+            
+            {/* --- VISUALIZAÇÃO DIA --- */}
+            {view === "DIA" && (
+              <>
+                <div className="flex bg-white border-b border-[#EEECE7] ml-16 sticky top-0 z-30">
+                  <div className="flex-1 py-3 text-center border-r border-[#EEECE7]"><span className="text-[9px] font-bold uppercase tracking-[0.3em]">SALA A (AVANÇADA)</span></div>
+                  <div className="flex-1 py-3 text-center"><span className="text-[9px] font-bold uppercase tracking-[0.3em]">SALA B (BÁSICA)</span></div>
+                </div>
+                <div className="divide-y divide-[#F9F9F9]">
+                  {HOURS.map(hour => (
+                    <div key={hour} className="flex min-h-[60px]">
+                      <div className="w-16 py-4 border-r border-[#EEECE7] flex justify-center items-start bg-[#FAFAFA]/50 font-sans text-[11px] opacity-60">{hour}</div>
+                      <div className="flex-1 border-r border-[#F9F9F9] relative p-1" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(currentDate), hour, "SALA A")}>
+                        {appointments.filter(a => a.time === hour && a.room === "SALA A" && a.date === formatDate(currentDate)).map(app => (
+                          <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} />
+                        ))}
                       </div>
-                    </td>
-
-                    <td className="px-8 py-5 text-[14px] uppercase tracking-[0.08em] text-[#60759B]">
-                      {item.procedureName || "ATENDIMENTO"}
-                    </td>
-
-                    <td className="px-8 py-5">
-                      <div className="flex flex-wrap items-center gap-4 text-[14px] text-[#60759B]">
-                        <span className="inline-flex items-center gap-2">
-                          <Calendar size={13} strokeWidth={1.8} className="text-[#C8A35F]" />
-                          {fmtDate(item.date)}
-                        </span>
-
-                        <span className="inline-flex items-center gap-2">
-                          <Clock3 size={13} strokeWidth={1.8} className="text-[#C8A35F]" />
-                          {fmtTime(item.date)}
-                        </span>
+                      <div className="flex-1 relative p-1" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(currentDate), hour, "SALA B")}>
+                        {appointments.filter(a => a.time === hour && a.room === "SALA B" && a.date === formatDate(currentDate)).map(app => (
+                          <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} />
+                        ))}
                       </div>
-                    </td>
-
-                    <td className="px-8 py-5">
-                      <span
-                        className={`inline-flex px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.16em] ${statusClass(
-                          item.status
-                        )}`}
-                      >
-                        {statusLabel(item.status)}
-                      </span>
-                    </td>
-
-                    <td className="px-8 py-5 text-right">
-                      <div className="flex flex-col items-end gap-2">
-                        {whatsappLink ? (
-                          <a
-                            href={whatsappLink}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="inline-flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-[#C8A35F] hover:opacity-80"
-                          >
-                            <MessageSquarePlus size={12} />
-                            Confirmar WhatsApp
-                          </a>
-                        ) : null}
-
-                        <div
-                          className="text-[17px] text-[#111111]"
-                          style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-                        >
-                          {fmtCurrency(item.price)}
-                        </div>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })
+                    </div>
+                  ))}
+                </div>
+              </>
             )}
-          </tbody>
-        </table>
-      </div>
 
-      <div className="mt-7 grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <SummaryCard label="Consultas futuras" value={summary.total} />
-        <SummaryCard label="Agendadas" value={summary.scheduled} />
-        <SummaryCard label="Concluídas" value={summary.completed} />
-        <SummaryCard label="Receita paga" value={fmtCurrency(summary.paidRevenue)} />
-      </div>
+            {/* --- VISUALIZAÇÃO SEMANA --- */}
+            {view === "SEMANA" && (
+              <div className="overflow-hidden">
+                <div className="grid grid-cols-8 border-b border-[#EEECE7] bg-white sticky top-0 z-30">
+                  <div className="w-16 border-r border-[#EEECE7]"></div>
+                  {currentWeekDays.map(day => (
+                    <div key={day.toString()} className="flex-1 py-3 text-center border-r border-[#EEECE7] last:border-0">
+                      <span className="text-[9px] font-bold uppercase tracking-widest">{DIAS_SEMANA_NOMES[day.getDay()]} {day.getDate()}</span>
+                    </div>
+                  ))}
+                </div>
+                <div className="divide-y divide-[#F9F9F9]">
+                  {HOURS.map(hour => (
+                    <div key={hour} className="flex min-h-[55px]">
+                      <div className="w-16 flex justify-center items-center border-r border-[#EEECE7] bg-[#FAFAFA] font-sans text-[10px] opacity-40">{hour}</div>
+                      {currentWeekDays.map(day => (
+                        <div key={day.toString()} className="flex-1 border-r border-[#F9F9F9] last:border-0 relative p-0.5" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(day), hour)}>
+                          {appointments.filter(a => a.time === hour && a.date === formatDate(day)).map(app => (
+                            <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} compact />
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
 
-      <div id="agenda-interativa" className="mt-8">
-        <AdvancedWeeklyCalendar
-          appointments={appointments}
-          blockedTimes={blockedTimes}
-          onReload={loadData}
-        />
+            {/* --- VISUALIZAÇÃO MÊS --- */}
+            {view === "MES" && (
+              <div className="grid grid-cols-7 border-collapse">
+                {DIAS_SEMANA_NOMES.map(dia => (
+                  <div key={dia} className="py-3 text-center border-b border-r border-[#EEECE7] bg-[#FAFAFA] text-[9px] font-bold tracking-widest">{dia}</div>
+                ))}
+                {getDaysInMonth(currentDate).map((day, i) => (
+                  <div key={i} className="min-h-[110px] p-2 border-b border-r border-[#F5F5F5] transition-colors relative" onDragOver={e => e.preventDefault()} onDrop={e => day && handleDrop(e, formatDate(day))}>
+                    {day && (
+                      <>
+                        <span className={`text-[13px] font-sans font-bold ${day.toDateString() === new Date().toDateString() ? 'text-[#C5A059]' : 'text-[#1A1A1A]'}`}>
+                          {day.getDate()}
+                        </span>
+                        <div className="mt-1 space-y-1">
+                          {appointments.filter(a => a.date === formatDate(day)).map(app => (
+                            <div key={app.id} draggable onDragStart={e => onDragStart(e, app.id)} className="bg-[#C5A059] text-white p-1 text-[8px] font-bold uppercase truncate cursor-move shadow-sm border-l-2 border-black/20">
+                              {app.time} {app.patient.split(' ')[0]}
+                            </div>
+                          ))}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+          </div>
+        </main>
       </div>
+    </div>
+  );
+}
+
+// --- CARD REFINADO ---
+function AppointmentCard({ app, onDragStart, compact }: any) {
+  return (
+    <div draggable onDragStart={e => onDragStart(e, app.id)} className="absolute inset-x-1 top-0.5 bottom-0.5 bg-[#C5A059] p-2 flex flex-col justify-center shadow-md cursor-move border-l-4 border-[#1A1A1A] z-20 transition-all hover:brightness-105 group/card">
+      <p className="text-white text-[9px] font-extrabold uppercase tracking-wide truncate drop-shadow-sm">{app.patient}</p>
+      {!compact && <p className="text-white/95 text-[8px] font-semibold truncate uppercase mt-0.5 leading-tight">{app.procedure}</p>}
     </div>
   );
 }

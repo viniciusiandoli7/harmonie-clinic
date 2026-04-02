@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import {
   deletePatient,
   getPatientById,
@@ -17,6 +19,12 @@ type Ctx = {
 };
 
 export async function GET(_: Request, context: Ctx) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const { id } = paramsSchema.parse(await context.params);
 
@@ -39,6 +47,12 @@ export async function GET(_: Request, context: Ctx) {
 }
 
 export async function PATCH(req: Request, context: Ctx) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const { id } = paramsSchema.parse(await context.params);
     const body = await req.json();
@@ -92,6 +106,12 @@ export async function PATCH(req: Request, context: Ctx) {
 }
 
 export async function DELETE(_: Request, context: Ctx) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const { id } = paramsSchema.parse(await context.params);
 

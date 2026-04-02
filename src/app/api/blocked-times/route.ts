@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import {
   createBlockedTime,
   getBlockedTimes,
@@ -13,6 +15,12 @@ const createBlockedTimeSchema = z.object({
 });
 
 export async function GET(req: Request) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const url = new URL(req.url);
 
@@ -36,6 +44,12 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 

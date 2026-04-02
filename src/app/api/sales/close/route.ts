@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 type SaleItem = {
   description: string;
@@ -72,6 +74,12 @@ function round2(value: number) {
 }
 
 export async function POST(req: NextRequest) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 
@@ -274,7 +282,7 @@ export async function POST(req: NextRequest) {
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao fechar venda:", error);
     return NextResponse.json(
       { error: "Erro ao fechar venda automática." },
       { status: 500 }

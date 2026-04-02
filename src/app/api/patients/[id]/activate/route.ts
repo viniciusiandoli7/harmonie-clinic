@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { activatePatient, getPatientById } from "@/services/patientService";
 
 const paramsSchema = z.object({
@@ -12,6 +14,12 @@ type Ctx = {
 };
 
 export async function PATCH(_: Request, context: Ctx) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const { id } = paramsSchema.parse(await context.params);
 

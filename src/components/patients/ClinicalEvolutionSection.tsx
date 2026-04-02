@@ -487,7 +487,8 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                 const remaining = Math.max(0, plan.totalSessions - plan.completedSessions);
 
                 return (
-                  <div key={plan.id} className="border border-[#ECE7DD] bg-white">
+                  // MUDANÇA 1: O ID de exportação vem para a caixa principal
+                  <div key={plan.id} id={`evolution-plan-${plan.id}`} className="border border-[#ECE7DD] bg-white">
                     <div className="flex flex-col gap-4 border-b border-[#ECE7DD] bg-white px-5 py-5 md:flex-row md:items-center md:justify-between">
                       <div>
                         <div className="flex flex-wrap items-center gap-3">
@@ -519,14 +520,21 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                       </div>
 
                       <div className="flex flex-wrap gap-2">
+                        {/* MUDANÇA 2: Botão inteligente (abre o plano antes de exportar) */}
                         <button
                           type="button"
-                          onClick={() =>
-                            exportElementToPDF(
-                              `evolution-plan-${plan.id}`,
-                              `evolucao-${patient.name}-${plan.treatmentName}.pdf`
-                            )
-                          }
+                          onClick={() => {
+                            const fileName = `evolucao-${patient.name.replace(/\s/g, "_")}-${plan.treatmentName.replace(/\s/g, "_")}`;
+                            if (expandedPlanId !== plan.id) {
+                              setExpandedPlanId(plan.id);
+                              // Espera meio segundo pro React renderizar as sessões e tira o PDF
+                              setTimeout(() => {
+                                exportElementToPDF(`evolution-plan-${plan.id}`, fileName);
+                              }, 500);
+                            } else {
+                              exportElementToPDF(`evolution-plan-${plan.id}`, fileName);
+                            }
+                          }}
                           className="inline-flex h-10 items-center justify-center gap-2 border border-[#C8A35F] px-4 text-sm font-medium text-[#C8A35F] hover:bg-[#FCFAF6]"
                         >
                           <FileText size={14} />
@@ -554,7 +562,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                     </div>
 
                     {expandedPlanId === plan.id ? (
-                      <div id={`evolution-plan-${plan.id}`} className="p-5">
+                      <div className="p-5"> {/* Removi o ID daqui, pois ele está na div de fora */}
                         <div className="grid gap-4 md:grid-cols-2">
                           <div className="border border-[#F2EEE7] bg-[#FCFAF6] p-4">
                             <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#96A4C1]">
@@ -855,7 +863,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
               </button>
             </div>
 
-            <div className="space-y-4 p-6">
+            <div className="space-y-4 p-6 overflow-y-auto max-h-[80vh]">
               <div className="grid gap-4 md:grid-cols-2">
                 <div>
                   <FieldLabel>Nº da sessão</FieldLabel>
@@ -971,7 +979,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                 />
               </div>
 
-              <div className="flex justify-end gap-3">
+              <div className="flex justify-end gap-3 mt-4">
                 <button
                   type="button"
                   onClick={() => setEditingSession(null)}

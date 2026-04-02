@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import {
   createFinancialTransaction,
   listFinancialTransactions,
@@ -15,10 +17,17 @@ const createSchema = z.object({
 });
 
 export async function GET() {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const items = await listFinancialTransactions();
     return NextResponse.json(items);
-  } catch {
+  } catch (error) {
+    console.error("GET /api/financial-transactions error:", error);
     return NextResponse.json(
       { error: "Erro ao listar transações." },
       { status: 500 }
@@ -27,6 +36,12 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const parsed = createSchema.safeParse(body);
@@ -40,7 +55,8 @@ export async function POST(req: NextRequest) {
 
     const created = await createFinancialTransaction(parsed.data);
     return NextResponse.json(created, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("POST /api/financial-transactions error:", error);
     return NextResponse.json(
       { error: "Erro ao criar transação." },
       { status: 500 }

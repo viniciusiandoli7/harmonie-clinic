@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 // SALVAR NOVA FICHA
 export async function POST(req: Request) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
     const { patientId, type, content } = body;
@@ -24,6 +32,12 @@ export async function POST(req: Request) {
 
 // LISTAR FICHAS DO PACIENTE
 export async function GET(req: Request) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const patientId = searchParams.get("patientId");
 
@@ -45,6 +59,12 @@ export async function GET(req: Request) {
 
 // EXCLUIR REGISTRO ESPECÍFICO
 export async function DELETE(req: Request) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   const { searchParams } = new URL(req.url);
   const id = searchParams.get("id");
 

@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(req: NextRequest) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const { searchParams } = new URL(req.url);
     const patientId = searchParams.get("patientId");
@@ -21,12 +29,18 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(documents);
   } catch (error) {
-    console.error(error);
+    console.error("Erro ao buscar documentos de consentimento:", error);
     return NextResponse.json({ error: "Erro ao buscar documentos" }, { status: 500 });
   }
 }
 
 export async function POST(req: NextRequest) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 
@@ -40,6 +54,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Valida se o paciente existe
     const patient = await prisma.patient.findUnique({
       where: { id: patientId },
     });
@@ -48,6 +63,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Paciente não encontrado." }, { status: 404 });
     }
 
+    // Busca o tratamento para herdar o template (termo padrão)
     const treatment = await prisma.treatment.findUnique({
       where: { id: treatmentId },
     });
@@ -56,6 +72,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Tratamento não encontrado." }, { status: 404 });
     }
 
+    // Gera o token de acesso para assinatura externa
     const token = randomUUID().replace(/-/g, "");
 
     const document = await prisma.patientConsentDocument.create({
@@ -64,12 +81,13 @@ export async function POST(req: NextRequest) {
         patientId,
         treatmentId,
         title: `Termo de Consentimento - ${treatment.name}`,
-        content: treatment.template,
+        content: treatment.template, // Aqui o sistema já puxa o texto jurídico padrão
       },
     });
 
     return NextResponse.json(document, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("Erro ao gerar termo de consentimento:", error);
     return NextResponse.json(
       { error: "Erro ao gerar documento de consentimento." },
       { status: 500 }

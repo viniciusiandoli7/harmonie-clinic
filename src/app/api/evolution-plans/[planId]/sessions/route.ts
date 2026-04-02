@@ -1,94 +1,74 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 type Ctx = {
-  params: Promise<{ planId: string }>;
+  params: Promise<{ planId: string }>;
 };
 
-export async function PATCH(req: NextRequest, ctx: Ctx) {
-  try {
-    const { planId } = await ctx.params;
-    const body = await req.json();
+export async function POST(req: NextRequest, ctx: Ctx) {
+  // BLOQUEIO DE SEGURANÇA
+  const authSession = await getServerSession(authOptions);
+  if (!authSession) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
 
-    const data: Record<string, unknown> = {};
+  try {
+    const { planId } = await ctx.params;
+    const body = await req.json();
 
-    if (body.treatmentName !== undefined) {
-      data.treatmentName = String(body.treatmentName || "").trim();
-    }
+    const sessionNumber = Number(body.sessionNumber || 1);
+    const sessionDate = body.sessionDate ? new Date(body.sessionDate) : new Date();
+    const performedProcedure = String(body.performedProcedure || "").trim() || null;
+    const bodyMeasurements = String(body.bodyMeasurements || "").trim() || null;
+    const clinicalNotes = String(body.clinicalNotes || "").trim() || null;
+    const patientSignatureName =
+      String(body.patientSignatureName || "").trim() || null;
 
-    if (body.packageName !== undefined) {
-      data.packageName = String(body.packageName || "").trim() || null;
-    }
+    const images = Array.isArray(body.images)
+      ? body.images
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+      : [];
 
-    if (body.totalSessions !== undefined) {
-      const totalSessions = Number(body.totalSessions);
-      if (!Number.isFinite(totalSessions) || totalSessions < 1) {
-        return NextResponse.json(
-          { error: "totalSessions inválido." },
-          { status: 400 }
-        );
-      }
-      data.totalSessions = totalSessions;
-    }
+    const session = await prisma.clinicalEvolutionSession.create({
+      data: {
+        planId,
+        sessionNumber,
+        sessionDate,
+        performedProcedure,
+        bodyMeasurements,
+        clinicalNotes,
+        patientSignatureName,
+        signedAt: patientSignatureName ? new Date() : null,
+        imagesJson: images,
+      },
+    });
 
-    if (body.completedSessions !== undefined) {
-      const completedSessions = Number(body.completedSessions);
-      if (!Number.isFinite(completedSessions) || completedSessions < 0) {
-        return NextResponse.json(
-          { error: "completedSessions inválido." },
-          { status: 400 }
-        );
-      }
-      data.completedSessions = completedSessions;
-    }
+    const plan = await prisma.clinicalEvolutionPlan.findUnique({
+      where: { id: planId },
+      include: { sessions: true },
+    });
 
-    if (body.status !== undefined) {
-      data.status = body.status;
-    }
+    if (plan) {
+      const completedSessions = plan.sessions.length;
+      await prisma.clinicalEvolutionPlan.update({
+        where: { id: planId },
+        data: {
+          completedSessions,
+          status:
+            completedSessions >= plan.totalSessions ? "FINISHED" : plan.status,
+        },
+      });
+    }
 
-    if (body.startDate !== undefined) {
-      data.startDate = body.startDate ? new Date(body.startDate) : null;
-    }
-
-    if (body.endDate !== undefined) {
-      data.endDate = body.endDate ? new Date(body.endDate) : null;
-    }
-
-    if (body.goals !== undefined) {
-      data.goals = String(body.goals || "").trim() || null;
-    }
-
-    if (body.notes !== undefined) {
-      data.notes = String(body.notes || "").trim() || null;
-    }
-
-    const plan = await prisma.clinicalEvolutionPlan.update({
-      where: { id: planId },
-      data,
-    });
-
-    return NextResponse.json(plan);
-  } catch {
-    return NextResponse.json(
-      { error: "Erro ao atualizar plano de evolução." },
-      { status: 500 }
-    );
-  }
-}
-
-export async function DELETE(_req: NextRequest, ctx: Ctx) {
-  try {
-    const { planId } = await ctx.params;
-
-    await prisma.clinicalEvolutionPlan.delete({
-      where: { id: planId },
-    });
-
-    return NextResponse.json({ success: true });
-  } catch {
-    return NextResponse.json(
-      { error: "Erro ao remover plano de evolução." },
-      { status: 500 }
-    );
-  }
+    return NextResponse.json(session, { status: 201 });
+  } catch (error) {
+    console.error("Erro ao criar sessão de evolução:", error);
+    return NextResponse.json(
+      { error: "Erro ao criar sessão de evolução." },
+      { status: 500 }
+    );
+  }
 }

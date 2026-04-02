@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { buildContractHtml } from "@/lib/contracts";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 function paymentMethodLabel(value: string) {
   if (value === "CREDIT_CARD") return "Cartão de Crédito";
@@ -14,6 +16,12 @@ function paymentMethodLabel(value: string) {
 }
 
 export async function POST(req: NextRequest) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const body = await req.json();
 
@@ -34,6 +42,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Itens do contrato são obrigatórios." }, { status: 400 });
     }
 
+    // Busca o paciente para pegar os dados reais para o contrato
     const patient = await prisma.patient.findUnique({
       where: { id: patientId },
     });
@@ -42,6 +51,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Paciente não encontrado." }, { status: 404 });
     }
 
+    // Gera o HTML do contrato usando a sua biblioteca de suporte
     const content = buildContractHtml({
       patient: {
         name: patient.name,
@@ -66,6 +76,7 @@ export async function POST(req: NextRequest) {
       contractDate: new Date(),
     });
 
+    // Gera um token limpo (sem hífens) para a URL de assinatura
     const token = randomUUID().replace(/-/g, "");
 
     const contract = await prisma.patientContract.create({
@@ -84,7 +95,8 @@ export async function POST(req: NextRequest) {
     });
 
     return NextResponse.json(contract, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("Erro ao gerar contrato:", error);
     return NextResponse.json(
       { error: "Erro ao gerar contrato." },
       { status: 500 }

@@ -47,11 +47,13 @@ model Patient {
   // Relacionamentos
   appointments       Appointment[]
   evolutionPlans     ClinicalEvolutionPlan[]
+  evolutions         ClinicalEvolution[]     // Adicionado para o Prontuário Digital
   anamnesis          PatientAnamnesis?
   consentDocuments   PatientConsentDocument[]
   contracts          PatientContract[]
   sales              Sale[]
   medicalRecords     MedicalRecord[] 
+  transactions       FinancialTransaction[]   // Relacionamento com financeiro
 
   @@index([name])
 }
@@ -82,6 +84,20 @@ model Appointment {
 // GESTÃO CLÍNICA E PRONTUÁRIO
 // -----------------------------------------
 
+model ClinicalEvolution {
+  id          String   @id @default(uuid())
+  patientId   String
+  content     String   @db.Text
+  type        String   @default("MANUAL") // MANUAL, SALE_RECORD, SYSTEM
+  important   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+}
+
 model MedicalRecord {
   id          String   @id @default(uuid())
   patientId   String
@@ -96,37 +112,37 @@ model MedicalRecord {
 }
 
 model PatientAnamnesis {
-  id                String   @id @default(uuid())
-  patientId         String   @unique
+  id                 String   @id @default(uuid())
+  patientId          String   @unique
   
-  profession        String?
-  sunExposure       Boolean  @default(false)
-  mainComplaint     String?  // Queixa Principal
+  profession         String?
+  sunExposure        Boolean  @default(false)
+  mainComplaint      String?  // Queixa Principal
   
-  hasAllergies      Boolean  @default(false)
-  allergies         String?
-  hasMedications    Boolean  @default(false)
-  medications       String?
-  hasSurgeries      Boolean  @default(false)
-  surgeries         String?
-  hasDiseases       Boolean  @default(false)
-  diseases          String?
+  hasAllergies       Boolean  @default(false)
+  allergies          String?
+  hasMedications     Boolean  @default(false)
+  medications        String?
+  hasSurgeries       Boolean  @default(false)
+  surgeries          String?
+  hasDiseases        Boolean  @default(false)
+  diseases           String?
   
-  smoker            Boolean  @default(false)
-  cigarettesPerDay  Int?
-  drinksAlcohol     Boolean  @default(false)
-  alcoholFrequency  String?
-  exercises         Boolean  @default(false)
-  exerciseFrequency String?
+  smoker             Boolean  @default(false)
+  cigarettesPerDay   Int?
+  drinksAlcohol      Boolean  @default(false)
+  alcoholFrequency   String?
+  exercises          Boolean  @default(false)
+  exerciseFrequency  String?
   
-  familyDiseases    String?
-  skinCareRoutine   String?
+  familyDiseases     String?
+  skinCareRoutine    String?
   previousTreatments String?
-  treatmentGoals    String?
+  treatmentGoals     String?
   
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-  patient           Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  patient            Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
 }
@@ -214,21 +230,28 @@ model SaleItem {
 }
 
 model FinancialTransaction {
-  id                    String          @id @default(uuid())
-  date                  DateTime
-  description           String
-  category              String
-  amount                Float
-  type                  TransactionType
+  id                String          @id @default(uuid())
+  date              DateTime        @default(now())
+  description       String
+  category          String
+  amount            Float
+  type              TransactionType
+  status            String          @default("COMPLETED")
   
-  clinicProfit          Float?
-  operationalCost       Float?
-  professionalValue     Float?
+  // Campos de lucratividade
+  profit            Float?          // Lucro Real (já descontado o repasse)
+  clinicProfit      Float?          // Alias para compatibilidade
+  operationalCost   Float?
+  professionalValue Float?
   
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @default(now()) @updatedAt
+  patientId         String?         // Relaciona a transação ao paciente
+  patient           Patient?        @relation(fields: [patientId], references: [id])
+
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @default(now()) @updatedAt
 
   @@index([date])
+  @@index([patientId])
 }
 
 // -----------------------------------------

@@ -1,15 +1,28 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+type Ctx = {
+  params: Promise<{ id: string }>;
+};
+
+export async function GET(req: Request, context: Ctx) {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
-    const { id } = params;
+    // No Next.js 15/16, precisamos dar await no params
+    const { id } = await context.params;
 
     const patient = await prisma.patient.findUnique({
       where: { id },
       include: {
         appointments: {
-          // Aqui deve ser COMPLETED conforme seu Enum no Schema
+          // Filtra apenas agendamentos concluídos para gerar insights reais
           where: { status: "COMPLETED" }, 
           orderBy: { date: "desc" },
         },
@@ -23,7 +36,7 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
     const totalVisits = patient.appointments.length;
     const lastProcedure = patient.appointments[0]?.procedureName || "---";
 
-    // Lógica de Score
+    // Lógica de Inteligência (Score de Fidelidade)
     let loyaltyScore = "BAIXO";
     if (totalVisits > 5) loyaltyScore = "ALTO";
     else if (totalVisits >= 2) loyaltyScore = "MÉDIO";
@@ -32,12 +45,11 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
       totalVisits,
       lastProcedure,
       loyaltyScore,
-      // No seu Schema o campo é 'notes'
       criticalObservation: patient.notes || "Nenhuma observação crítica.",
       status: totalVisits > 0 ? "Ativo" : "Novo",
     });
   } catch (error) {
     console.error("Erro na rota insights:", error);
-    return NextResponse.json({ error: "Erro interno" }, { status: 500 });
+    return NextResponse.json({ error: "Erro interno ao gerar insights" }, { status: 500 });
   }
 }

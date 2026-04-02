@@ -32,6 +32,22 @@ export default function PatientForm({ mode, patient }: Props) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  // Função para formatar o telefone em tempo real: (11) 99999-8888
+  const formatPhone = (value: string) => {
+    if (!value) return value;
+    const digits = value.replace(/\D/g, ""); // Remove tudo que não é número
+    
+    if (digits.length <= 2) return digits;
+    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+  };
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const formatted = formatPhone(e.target.value);
+    setPhone(formatted);
+  };
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setSaving(true);
@@ -74,74 +90,86 @@ export default function PatientForm({ mode, patient }: Props) {
         </div>
       )}
 
+      {/* Nome Completo */}
       <div>
-        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">Nome Completo</label>
+        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-gray-400">Nome Completo</label>
         <input
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
+          className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-[#1A1A1A] outline-none focus:border-[#C5A267] focus:ring-1 focus:ring-[#C5A267] transition-all"
+          placeholder="Ex: Maria Silva"
           required
         />
       </div>
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+        {/* E-mail */}
         <div>
-          <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">E-mail</label>
+          <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-gray-400">E-mail</label>
           <input
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
+            className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-[#1A1A1A] outline-none focus:border-[#C5A267] focus:ring-1 focus:ring-[#C5A267] transition-all"
+            placeholder="paciente@exemplo.com"
           />
         </div>
 
+        {/* Telefone com Máscara */}
         <div>
-          <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">Telefone</label>
+          <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-gray-400">Telefone</label>
           <input
+            type="text"
             value={phone}
-            onChange={(e) => setPhone(e.target.value)}
+            onChange={handlePhoneChange}
             placeholder="(11) 99999-8888"
-            className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
+            maxLength={15}
+            className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-[#1A1A1A] outline-none focus:border-[#C5A267] focus:ring-1 focus:ring-[#C5A267] transition-all"
           />
         </div>
       </div>
 
+      {/* Data de Nascimento */}
       <div>
-        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">Data de Nascimento</label>
+        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-gray-400">Data de Nascimento</label>
         <input
           type="date"
           value={birthDate}
           onChange={(e) => setBirthDate(e.target.value)}
-          className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
+          className="w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-[#1A1A1A] outline-none focus:border-[#C5A267] focus:ring-1 focus:ring-[#C5A267] transition-all"
         />
       </div>
 
+      {/* Observações */}
       <div>
-        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-harmonie-muted">Observações</label>
+        <label className="mb-2 block text-[11px] font-medium uppercase tracking-widest text-gray-400">Observações</label>
         <textarea
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
-          className="min-h-24 w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-harmonie-dark outline-none focus:border-harmonie-gold focus:ring-1 focus:ring-harmonie-gold transition-all"
+          placeholder="Alergias, histórico ou preferências..."
+          className="min-h-24 w-full rounded-lg border border-[#EAEAEC] bg-[#FAFAFA] p-3 text-[14px] text-[#1A1A1A] outline-none focus:border-[#C5A267] focus:ring-1 focus:ring-[#C5A267] transition-all"
         />
       </div>
 
+      {/* Checkbox de Ativo (apenas no modo edição) */}
       {mode === "edit" && (
-        <label className="flex items-center gap-3 text-[13px] font-light text-harmonie-dark cursor-pointer">
+        <label className="flex items-center gap-3 text-[13px] font-light text-[#1A1A1A] cursor-pointer">
           <input
             type="checkbox"
             checked={isActive}
             onChange={(e) => setIsActive(e.target.checked)}
-            className="h-4 w-4 rounded border-[#EAEAEC] text-harmonie-gold focus:ring-harmonie-gold"
+            className="h-4 w-4 rounded border-[#EAEAEC] text-[#C5A267] focus:ring-[#C5A267]"
           />
           Paciente ativo no sistema
         </label>
       )}
 
+      {/* Ações do Formulário */}
       <div className="mt-8 flex justify-end gap-4 border-t border-[#F0F0F0] pt-6">
         <button
           type="button"
           onClick={() => router.back()}
-          className="rounded-lg border border-harmonie-goldLight bg-white px-5 py-2.5 text-[11px] font-medium uppercase tracking-widest text-harmonie-dark hover:bg-harmonie-bg transition-colors"
+          className="rounded-lg border border-[#EAEAEC] bg-white px-5 py-2.5 text-[11px] font-medium uppercase tracking-widest text-gray-500 hover:bg-gray-50 transition-colors"
         >
           Cancelar
         </button>
@@ -149,7 +177,7 @@ export default function PatientForm({ mode, patient }: Props) {
         <button
           type="submit"
           disabled={saving}
-          className="rounded-lg bg-harmonie-dark px-6 py-2.5 text-[11px] font-medium uppercase tracking-widest text-white hover:bg-harmonie-gold transition-colors disabled:opacity-60"
+          className="rounded-lg bg-[#1A1A1A] px-8 py-2.5 text-[11px] font-bold uppercase tracking-widest text-white hover:bg-[#C5A267] transition-all shadow-md active:scale-95 disabled:opacity-60"
         >
           {saving ? "Salvando..." : mode === "create" ? "Criar Paciente" : "Salvar Alterações"}
         </button>

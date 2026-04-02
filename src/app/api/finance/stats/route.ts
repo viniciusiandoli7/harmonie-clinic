@@ -1,7 +1,15 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET() {
+  // BLOQUEIO DE SEGURANÇA
+  const session = await getServerSession(authOptions);
+  if (!session) {
+    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  }
+
   try {
     const now = new Date();
     const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -41,6 +49,7 @@ export async function GET() {
       healthScore: netProfit > 0 ? "EXCELENTE" : "ATENÇÃO"
     });
   } catch (error) {
+    console.error("Erro ao buscar estatísticas financeiras:", error);
     return NextResponse.json({ error: "Erro financeiro" }, { status: 500 });
   }
 }

@@ -8,7 +8,7 @@ type Ctx = {
 };
 
 // ==========================================
-// 1. EDITA A SESSÃO (Botão Editar)
+// 1. EDITA A SESSÃO (Botão de Lápis / Salvar Alterações)
 // ==========================================
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   // BLOQUEIO DE SEGURANÇA
@@ -21,6 +21,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     const { id } = await ctx.params;
     const body = await req.json();
 
+    // Atualiza os dados da sessão
     const updatedSession = await prisma.clinicalEvolutionSession.update({
       where: { id: id },
       data: {
@@ -45,7 +46,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 }
 
 // ==========================================
-// 2. DELETA A SESSÃO (Botão Excluir)
+// 2. DELETA A SESSÃO (Botão Excluir Sessão)
 // ==========================================
 export async function DELETE(req: NextRequest, ctx: Ctx) {
   // BLOQUEIO DE SEGURANÇA
@@ -57,30 +58,31 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
 
-    // A. Busca a sessão para saber a qual Plano ela pertence
+    // A. Busca a sessão para saber a qual Plano ela pertence antes de apagar
     const evolutionSession = await prisma.clinicalEvolutionSession.findUnique({
       where: { id: id }
     });
 
     if (evolutionSession) {
-      // B. Deleta a sessão do banco
+      // B. Deleta a sessão do banco de dados
       await prisma.clinicalEvolutionSession.delete({
         where: { id: id },
       });
 
-      // C. Diminui automaticamente a contagem de sessões no Plano
+      // C. Recalcula as sessões concluídas no Plano
       const plan = await prisma.clinicalEvolutionPlan.findUnique({
         where: { id: evolutionSession.planId },
         include: { sessions: true }
       });
 
       if (plan) {
+        const completedSessions = Math.max(0, plan.completedSessions - 1);
         await prisma.clinicalEvolutionPlan.update({
           where: { id: plan.id },
           data: {
-            completedSessions: Math.max(0, plan.completedSessions - 1),
-            // Se as sessões concluídas ficarem menores que o total, volta para ACTIVE
-            status: (plan.completedSessions - 1) < plan.totalSessions ? "ACTIVE" : plan.status
+            completedSessions: completedSessions,
+            // Se o número de sessões realizadas ficou menor que o total, o plano volta a ficar ACTIVE
+            status: completedSessions < plan.totalSessions ? "ACTIVE" : plan.status
           }
         });
       }

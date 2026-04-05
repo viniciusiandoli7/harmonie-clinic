@@ -76,20 +76,14 @@ export async function POST(req: NextRequest) {
       contractDate: new Date(),
     });
 
-    // Gera um token limpo (sem hífens) para a URL de assinatura
     const token = randomUUID().replace(/-/g, "");
 
     const contract = await prisma.patientContract.create({
       data: {
-        token,
         patientId,
         title,
         content,
-        subtotal,
-        discount,
-        total,
-        paymentMethod: paymentMethod as any,
-        paymentDetails,
+        token: token,
         itemsJson: items,
       },
     });

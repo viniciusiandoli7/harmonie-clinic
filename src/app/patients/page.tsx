@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, Suspense } from "react";
 import Link from "next/link";
 import { Bell, Plus, Search } from "lucide-react";
 import PatientCard from "@/components/patients/PatientCard";
 import CreateSaleModal from "@/components/finance/CreateSaleModal";
 
-export default function PatientsPage() {
+// Separamos o conteúdo principal para o Suspense poder protegê-lo
+function PatientsContent() {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -82,5 +83,14 @@ export default function PatientsPage() {
         />
       )}
     </div>
+  );
+}
+
+// A página principal agora exporta o conteúdo envelopado e protegido
+export default function PatientsPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center text-gray-400 italic">Carregando CRM...</div>}>
+      <PatientsContent />
+    </Suspense>
   );
 }

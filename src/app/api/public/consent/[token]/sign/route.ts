@@ -27,10 +27,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const contract = await prisma.patientContract.update({
       where: { token },
       data: {
-        status: "SIGNED",
-        signedAt: new Date(),
-        signatureName,
-        signatureIp: ip,
+        // Atualizamos o título para não deixar o update vazio, já que os campos de assinatura foram removidos
+        title: `Contrato Assinado por ${signatureName}`,
       },
     });
 

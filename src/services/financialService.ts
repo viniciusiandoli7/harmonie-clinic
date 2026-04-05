@@ -6,11 +6,9 @@ export type CreateFinancialTransactionInput = {
   category: string;
   amount: number;
   type: "INCOME" | "EXPENSE";
-  notes?: string | null;
 };
 
-export type UpdateFinancialTransactionInput =
-  Partial<CreateFinancialTransactionInput>;
+export type UpdateFinancialTransactionInput = Partial<CreateFinancialTransactionInput>;
 
 function toDate(value: string | Date) {
   return value instanceof Date ? value : new Date(value);
@@ -40,7 +38,6 @@ export async function createFinancialTransaction(
       category: data.category,
       amount: Number(data.amount),
       type: data.type,
-      notes: data.notes ?? null,
     },
   });
 }
@@ -57,7 +54,6 @@ export async function updateFinancialTransaction(
       ...(data.category !== undefined ? { category: data.category } : {}),
       ...(data.amount !== undefined ? { amount: Number(data.amount) } : {}),
       ...(data.type !== undefined ? { type: data.type } : {}),
-      ...(data.notes !== undefined ? { notes: data.notes } : {}),
     },
   });
 }

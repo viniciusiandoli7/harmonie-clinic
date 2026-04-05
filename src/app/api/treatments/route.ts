@@ -4,7 +4,6 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET() {
-  // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -23,7 +22,6 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
-  // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -31,7 +29,7 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
-    const { name, price, template } = body;
+    const { name, template } = body;
 
     if (!name) {
       return NextResponse.json({ error: "O nome do tratamento é obrigatório" }, { status: 400 });
@@ -40,8 +38,7 @@ export async function POST(req: Request) {
     const treatment = await prisma.treatment.create({
       data: {
         name,
-        price: Number(price) || 0,
-        template: template || "", // O texto do termo de consentimento
+        template: template || "", 
       },
     });
 

@@ -225,17 +225,18 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
     const patientName = updated.patient?.name ?? "Paciente";
     const procedure = updated.procedureName?.trim() || "Consulta";
 
+    // AQUI ESTAVA O BUG: Removemos a busca pela nota que não existe mais
     const existingAutoTransaction = await prisma.financialTransaction.findFirst({
       where: {
         type: "INCOME",
         category: "ATENDIMENTO",
         description: `${procedure} - ${patientName}`,
         amount: updated.price ?? 0,
-        notes: `Lançamento automático gerado pela consulta ${updated.id}`,
       },
     });
 
     if (!existingAutoTransaction) {
+      // AQUI ESTAVA O BUG: Removemos a criação da nota que não existe mais
       await prisma.financialTransaction.create({
         data: {
           date: updated.date,
@@ -243,7 +244,6 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
           category: "ATENDIMENTO",
           amount: updated.price ?? 0,
           type: "INCOME",
-          notes: `Lançamento automático gerado pela consulta ${updated.id}`,
         },
       });
     }

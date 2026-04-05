@@ -112,37 +112,45 @@ model MedicalRecord {
 }
 
 model PatientAnamnesis {
-  id                 String   @id @default(uuid())
-  patientId          String   @unique
+  id                       String   @id @default(uuid())
+  patientId                String   @unique
   
-  profession         String?
-  sunExposure        Boolean  @default(false)
-  mainComplaint      String?  // Queixa Principal
+  profession               String?
+  sunExposure              Boolean  @default(false)
+  mainComplaint            String?
   
-  hasAllergies       Boolean  @default(false)
-  allergies          String?
-  hasMedications     Boolean  @default(false)
-  medications        String?
-  hasSurgeries       Boolean  @default(false)
-  surgeries          String?
-  hasDiseases        Boolean  @default(false)
-  diseases           String?
+  // Novos campos da Anamnese
+  previousFillers          String?
+  previousBotox            String?
+  takingRoacutan           Boolean  @default(false)
+  medications              String?
+  allergicToEgg            Boolean  @default(false)
+  allergicToSeafood        String?
+  dentalAnesthesia         Boolean  @default(false)
+  dentalAnesthesiaReaction Boolean  @default(false)
+  procedureReaction        String?
+  keloidTendency           Boolean  @default(false)
+  degenerativeDisease      String?
+  diseases                 String?
+  allergies                String?
+  hasHerpes                Boolean  @default(false)
+  smoker                   Boolean  @default(false)
+  bloodPressure            String?  // ALTA, NORMAL, BAIXA
+  pregnantOrNursing        Boolean  @default(false)
+  previousPregnancies      Boolean  @default(false)
+  exercises                Boolean  @default(false)
+  skinCareRoutine          String?
+  weightLoss               String?  // +5kg, +10kg, +20kg, +40kg, nao
+  intendsToLoseWeight      String?
+  intendsSurgery           String?
+  surgeries                String?
+  recentTreatmentOrVaccine String?
+  permanentImplants        String?
+  consentSigned            Boolean  @default(false)
   
-  smoker             Boolean  @default(false)
-  cigarettesPerDay   Int?
-  drinksAlcohol      Boolean  @default(false)
-  alcoholFrequency   String?
-  exercises          Boolean  @default(false)
-  exerciseFrequency  String?
-  
-  familyDiseases     String?
-  skinCareRoutine    String?
-  previousTreatments String?
-  treatmentGoals     String?
-  
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
-  patient            Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  patient                  Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
 }

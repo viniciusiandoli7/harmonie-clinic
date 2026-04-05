@@ -4,11 +4,8 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 export async function GET(req: Request) {
-  // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
     const url = new URL(req.url);
@@ -17,6 +14,7 @@ export async function GET(req: Request) {
     const patients = await prisma.patient.findMany({
       where: includeInactive ? {} : { isActive: true },
       orderBy: { name: "asc" },
+      include: { anamnesis: true } 
     });
 
     return NextResponse.json(patients);
@@ -27,11 +25,8 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
     const body = await req.json();
@@ -55,12 +50,50 @@ export async function POST(req: Request) {
         interestProcedure: body.interestProcedure || null,
         notes: body.notes || null,
         isActive: body.isActive ?? true,
+
+        anamnesis: {
+          create: {
+            profession: body.profession || null,
+            sunExposure: Boolean(body.sunExposure),
+            mainComplaint: body.mainComplaint || null,
+            previousFillers: body.previousFillers || null,
+            previousBotox: body.previousBotox || null,
+            takingRoacutan: Boolean(body.takingRoacutan),
+            medications: body.medications || null,
+            allergicToEgg: Boolean(body.allergicToEgg),
+            allergicToSeafood: body.allergicToSeafood || null,
+            dentalAnesthesia: Boolean(body.dentalAnesthesia),
+            dentalAnesthesiaReaction: Boolean(body.dentalAnesthesiaReaction),
+            procedureReaction: body.procedureReaction || null,
+            keloidTendency: Boolean(body.keloidTendency),
+            degenerativeDisease: body.degenerativeDisease || null,
+            diseases: body.diseases || null,
+            allergies: body.allergies || null,
+            hasHerpes: Boolean(body.hasHerpes),
+            smoker: Boolean(body.smoker),
+            bloodPressure: body.bloodPressure || null,
+            pregnantOrNursing: Boolean(body.pregnantOrNursing),
+            previousPregnancies: Boolean(body.previousPregnancies),
+            exercises: Boolean(body.exercises),
+            skinCareRoutine: body.skinCareRoutine || null,
+            weightLoss: body.weightLoss || null,
+            intendsToLoseWeight: body.intendsToLoseWeight || null,
+            intendsSurgery: body.intendsSurgery || null,
+            surgeries: body.surgeries || null,
+            recentTreatmentOrVaccine: body.recentTreatmentOrVaccine || null,
+            permanentImplants: body.permanentImplants || null,
+            consentSigned: Boolean(body.consentSigned),
+          }
+        }
       },
     });
 
     return NextResponse.json(patient, { status: 201 });
-  } catch (error) {
+  } catch (error: any) {
     console.error("POST /api/patients error:", error);
+    if (error.code === 'P2002') {
+      return NextResponse.json({ error: "Já existe um paciente com este E-mail ou CPF." }, { status: 400 });
+    }
     return NextResponse.json({ error: "Erro ao criar paciente." }, { status: 500 });
   }
 }

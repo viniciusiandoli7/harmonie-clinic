@@ -1,22 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 type Ctx = {
   params: Promise<{ id: string }>;
 };
 
-// ==========================================
-// 1. EDITA A SESSÃO (Botão Editar)
-// ==========================================
 export async function PATCH(req: NextRequest, ctx: Ctx) {
-  // BLOQUEIO DE SEGURANÇA
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
-
   try {
     const { id } = await ctx.params;
     const body = await req.json();
@@ -27,7 +16,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         sessionNumber: Number(body.sessionNumber),
         sessionDate: body.sessionDate ? new Date(body.sessionDate) : new Date(),
         performedProcedure: String(body.performedProcedure || "").trim() || null,
-        bodyMeasurements: String(body.bodyMeasurements || "").trim() || null,
+        // Mantemos notes aqui. O frontend já junta, ou joga apenas nas anotações gerais
         clinicalNotes: String(body.clinicalNotes || "").trim() || null,
         patientSignatureName: String(body.patientSignatureName || "").trim() || null,
         imagesJson: Array.isArray(body.images) ? body.images : [],
@@ -37,50 +26,37 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
     return NextResponse.json(updatedSession);
   } catch (error) {
     console.error("Erro ao editar sessão:", error);
-    return NextResponse.json(
-      { error: "Erro ao salvar as edições da sessão." }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao salvar as edições da sessão." }, { status: 500 });
   }
 }
 
-// ==========================================
-// 2. DELETA A SESSÃO (Botão Excluir)
-// ==========================================
 export async function DELETE(req: NextRequest, ctx: Ctx) {
-  // BLOQUEIO DE SEGURANÇA
-  const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
-
   try {
     const { id } = await ctx.params;
 
-    // A. Busca a sessão para saber a qual Plano ela pertence
+    // Busca a sessão antes de deletar
     const evolutionSession = await prisma.clinicalEvolutionSession.findUnique({
       where: { id: id }
     });
 
     if (evolutionSession) {
-      // B. Deleta a sessão do banco
       await prisma.clinicalEvolutionSession.delete({
         where: { id: id },
       });
 
-      // C. Diminui automaticamente a contagem de sessões no Plano
+      // Recalcula o plano
       const plan = await prisma.clinicalEvolutionPlan.findUnique({
         where: { id: evolutionSession.planId },
         include: { sessions: true }
       });
 
       if (plan) {
+        const completedSessions = Math.max(0, plan.completedSessions - 1);
         await prisma.clinicalEvolutionPlan.update({
           where: { id: plan.id },
           data: {
-            completedSessions: Math.max(0, plan.completedSessions - 1),
-            // Se as sessões concluídas ficarem menores que o total, volta para ACTIVE
-            status: (plan.completedSessions - 1) < plan.totalSessions ? "ACTIVE" : plan.status
+            completedSessions: completedSessions,
+            status: completedSessions < plan.totalSessions ? "ACTIVE" : plan.status
           }
         });
       }
@@ -89,9 +65,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error("Erro ao deletar sessão:", error);
-    return NextResponse.json(
-      { error: "Erro ao excluir a sessão." }, 
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao excluir a sessão." }, { status: 500 });
   }
 }

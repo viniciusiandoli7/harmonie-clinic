@@ -3,13 +3,15 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 // Definimos as opções de autenticação de forma tipada e robusta
 export const authOptions: NextAuthOptions = {
-  // 1. Chave de Segurança (O erro [NO_SECRET] morre aqui)
+  // 1. Chave de Segurança
   secret: process.env.NEXTAUTH_SECRET,
 
-  // 2. Estratégia de Sessão
+  // 2. Estratégia de Sessão (SEGURANÇA ATUALIZADA)
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 dias de sessão para a Dra. Mariana
+    // Tempo máximo de sessão definido para 2 horas (2 * 60 * 60).
+    // Assim, se o computador ficar parado ou a pessoa for embora, o sistema desloga sozinho.
+    maxAge: 2 * 60 * 60, 
   },
 
   // 3. Provedor de Credenciais (Login Privado)
@@ -21,7 +23,7 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Senha", type: "password" }
       },
       async authorize(credentials) {
-        // Log de debug para o seu terminal (ajuda a ver se o .env carregou)
+        // Log de debug para o seu terminal
         console.log("--- Tentativa de Acesso Harmonie ---");
         console.log("Usuário digitado:", credentials?.username);
         console.log("Variável ADMIN_USER carregada?", !!process.env.ADMIN_USER);
@@ -66,5 +68,5 @@ export const authOptions: NextAuthOptions = {
 
 const handler = NextAuth(authOptions);
 
-// Exportamos os métodos necessários para o App Router do Next.js 16
+// Exportamos os métodos necessários para o App Router do Next.js
 export { handler as GET, handler as POST };

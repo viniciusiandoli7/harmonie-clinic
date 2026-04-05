@@ -28,7 +28,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         sessionNumber: Number(body.sessionNumber),
         sessionDate: body.sessionDate ? new Date(body.sessionDate) : new Date(),
         performedProcedure: String(body.performedProcedure || "").trim() || null,
-        bodyMeasurements: String(body.bodyMeasurements || "").trim() || null,
         clinicalNotes: String(body.clinicalNotes || "").trim() || null,
         patientSignatureName: String(body.patientSignatureName || "").trim() || null,
         imagesJson: Array.isArray(body.images) ? body.images : [],

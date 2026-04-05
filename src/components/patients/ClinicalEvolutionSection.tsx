@@ -453,7 +453,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                 <textarea
                   value={goals}
                   onChange={(e) => setGoals(e.target.value)}
-                  className="min-h-[100px] w-full border border-[#ECE7DD] bg-white p-3 outline-none"
+                  className="min-h-25 w-full border border-[#ECE7DD] bg-white p-3 outline-none"
                 />
               </div>
 
@@ -462,7 +462,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                 <textarea
                   value={planNotes}
                   onChange={(e) => setPlanNotes(e.target.value)}
-                  className="min-h-[100px] w-full border border-[#ECE7DD] bg-white p-3 outline-none"
+                  className="min-h-25 w-full border border-[#ECE7DD] bg-white p-3 outline-none"
                 />
               </div>
             </div>
@@ -618,7 +618,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                               <textarea
                                 value={bodyMeasurements}
                                 onChange={(e) => setBodyMeasurements(e.target.value)}
-                                className="min-h-[110px] w-full border border-[#ECE7DD] bg-white p-3 outline-none"
+                                className="min-h-27.5 w-full border border-[#ECE7DD] bg-white p-3 outline-none"
                                 placeholder="Ex.: abdômen 82cm, coxa 54cm..."
                               />
                             </div>
@@ -628,7 +628,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                               <textarea
                                 value={clinicalNotes}
                                 onChange={(e) => setClinicalNotes(e.target.value)}
-                                className="min-h-[110px] w-full border border-[#ECE7DD] bg-white p-3 outline-none"
+                                className="min-h-27.5 w-full border border-[#ECE7DD] bg-white p-3 outline-none"
                                 placeholder="Ex.: edema reduzido, melhora de textura..."
                               />
                             </div>
@@ -679,7 +679,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                                 <textarea
                                   value={imagesText}
                                   onChange={(e) => setImagesText(e.target.value)}
-                                  className="min-h-[110px] w-full border border-[#ECE7DD] bg-white p-3 outline-none"
+                                  className="min-h-27.5 w-full border border-[#ECE7DD] bg-white p-3 outline-none"
                                   placeholder="Uma URL por linha"
                                 />
                               </div>
@@ -842,7 +842,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
       </section>
 
       {editingSession ? (
-        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40 p-4">
+        <div className="fixed inset-0 z-90 flex items-center justify-center bg-black/40 p-4">
           <div className="w-full max-w-3xl border border-[#ECE7DD] bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-[#ECE7DD] bg-[#FCFAF6] px-6 py-4">
               <div>
@@ -904,7 +904,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                   <textarea
                     value={editBodyMeasurements}
                     onChange={(e) => setEditBodyMeasurements(e.target.value)}
-                    className="min-h-[110px] w-full border border-[#ECE7DD] p-3 outline-none"
+                    className="min-h-27.5 w-full border border-[#ECE7DD] p-3 outline-none"
                   />
                 </div>
 
@@ -913,7 +913,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                   <textarea
                     value={editClinicalNotes}
                     onChange={(e) => setEditClinicalNotes(e.target.value)}
-                    className="min-h-[110px] w-full border border-[#ECE7DD] p-3 outline-none"
+                    className="min-h-27.5 w-full border border-[#ECE7DD] p-3 outline-none"
                   />
                 </div>
               </div>
@@ -974,7 +974,7 @@ export default function ClinicalEvolutionSection({ patient }: Props) {
                 <textarea
                   value={editImagesText}
                   onChange={(e) => setEditImagesText(e.target.value)}
-                  className="min-h-[110px] w-full border border-[#ECE7DD] p-3 outline-none"
+                  className="min-h-27.5 w-full border border-[#ECE7DD] p-3 outline-none"
                   placeholder="Uma URL por linha"
                 />
               </div>

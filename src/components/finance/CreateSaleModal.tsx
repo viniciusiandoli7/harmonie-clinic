@@ -124,7 +124,7 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="w-full max-w-6xl bg-white shadow-2xl rounded-xl flex flex-col h-[90vh] overflow-hidden font-sans">
         
         {/* CABEÇALHO ATUALIZADO: Usando estilo inline para garantir o branco */}

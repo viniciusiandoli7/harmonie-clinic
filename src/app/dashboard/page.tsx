@@ -62,8 +62,8 @@ export default function DashboardPage() {
       <header className="flex flex-col md:flex-row md:items-end justify-between border-b border-[#EEECE7] pb-10 gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2">
-             <span className="h-[1px] w-8 bg-[#C5A059]"></span>
-             <span className="micro-label !mb-0 text-[#C5A059]">Bem-Vinda, Dra. Mariana</span>
+             <span className="h-px w-8 bg-[#C5A059]"></span> {/* CORRIGIDO: h-[1px] -> h-px */}
+             <span className="micro-label mb-0! text-[#C5A059]">Bem-Vinda, Dra. Mariana</span> {/* CORRIGIDO: !mb-0 -> mb-0! */}
           </div>
           <h1 className="text-5xl font-serif leading-none tracking-tight">Dashboard</h1>
         </div>
@@ -162,7 +162,8 @@ export default function DashboardPage() {
 
 function FinanceCard({ label, value, icon, trend, subtext }: any) {
   return (
-    <div className="p-8 flex flex-col justify-between min-h-[180px] bg-white border border-[#EEECE7] rounded-xl shadow-sm">
+    // CORRIGIDO: min-h-[180px] -> min-h-45
+    <div className="p-8 flex flex-col justify-between min-h-45 bg-white border border-[#EEECE7] rounded-xl shadow-sm">
       <div className="flex justify-between items-start">
         <p className="text-[10px] font-bold text-[#94A3B8] uppercase tracking-widest leading-relaxed max-w-[70%]">{label}</p>
         <div className="text-[#C5A059] p-2 bg-[#FAF8F3] border border-[#E9DEC9] rounded-md">

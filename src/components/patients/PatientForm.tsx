@@ -169,7 +169,7 @@ export default function PatientForm({ mode, patient }: Props) {
             </div>
             <div>
               <label className="mb-2 block text-[13px] text-gray-600">Alerta Crítico (Insight Clínico)</label>
-              <textarea value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#C8A35F] bg-white text-gray-800 min-h-[60px]" />
+              <textarea value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#C8A35F] bg-white text-gray-800 min-h-15" />
             </div>
           </div>
         )}

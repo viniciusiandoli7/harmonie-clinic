@@ -42,29 +42,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const {
-      patientId,
-      hasAllergies,
-      allergies,
-      hasMedications,
-      medications,
-      hasSurgeries,
-      surgeries,
-      hasDiseases,
-      diseases,
-      smoker,
-      cigarettesPerDay,
-      drinksAlcohol,
-      alcoholFrequency,
-      exercises,
-      exerciseFrequency,
-      familyDiseases,
-      skinCareRoutine,
-      previousTreatments,
-      skinConcerns,
-      treatmentGoals,
-      concerns,
-    } = body;
+    const { patientId, ...anamnesisData } = body;
 
     if (!patientId) {
       return NextResponse.json({ error: 'Patient ID is required' }, { status: 400 });
@@ -79,70 +57,52 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    // Check if anamnesis already exists
-    const existingAnamnesis = await prisma.patientAnamnesis.findUnique({
-      where: { patientId },
+    // Prepara o objeto com todos os campos atualizados do novo banco
+    const dataObj = {
+      profession: anamnesisData.profession || null,
+      sunExposure: Boolean(anamnesisData.sunExposure),
+      mainComplaint: anamnesisData.mainComplaint || null,
+      previousFillers: anamnesisData.previousFillers || null,
+      previousBotox: anamnesisData.previousBotox || null,
+      takingRoacutan: Boolean(anamnesisData.takingRoacutan),
+      medications: anamnesisData.medications || null,
+      allergicToEgg: Boolean(anamnesisData.allergicToEgg),
+      allergicToSeafood: anamnesisData.allergicToSeafood || null,
+      dentalAnesthesia: Boolean(anamnesisData.dentalAnesthesia),
+      dentalAnesthesiaReaction: Boolean(anamnesisData.dentalAnesthesiaReaction),
+      procedureReaction: anamnesisData.procedureReaction || null,
+      keloidTendency: Boolean(anamnesisData.keloidTendency),
+      degenerativeDisease: anamnesisData.degenerativeDisease || null,
+      diseases: anamnesisData.diseases || null,
+      allergies: anamnesisData.allergies || null,
+      hasHerpes: Boolean(anamnesisData.hasHerpes),
+      smoker: Boolean(anamnesisData.smoker),
+      bloodPressure: anamnesisData.bloodPressure || null,
+      pregnantOrNursing: Boolean(anamnesisData.pregnantOrNursing),
+      previousPregnancies: Boolean(anamnesisData.previousPregnancies),
+      exercises: Boolean(anamnesisData.exercises),
+      skinCareRoutine: anamnesisData.skinCareRoutine || null,
+      weightLoss: anamnesisData.weightLoss || null,
+      intendsToLoseWeight: anamnesisData.intendsToLoseWeight || null,
+      intendsSurgery: anamnesisData.intendsSurgery || null,
+      surgeries: anamnesisData.surgeries || null,
+      recentTreatmentOrVaccine: anamnesisData.recentTreatmentOrVaccine || null,
+      permanentImplants: anamnesisData.permanentImplants || null,
+      consentSigned: Boolean(anamnesisData.consentSigned),
+    };
+
+    // Upsert: se não existir, cria. Se existir, atualiza. (Muito mais limpo!)
+    const anamnesis = await prisma.patientAnamnesis.upsert({
+      where: { patientId: patientId },
+      update: dataObj,
+      create: {
+        patientId: patientId,
+        ...dataObj
+      }
     });
 
-    if (existingAnamnesis) {
-      // Update existing anamnesis
-      const updatedAnamnesis = await prisma.patientAnamnesis.update({
-        where: { patientId },
-        data: {
-          hasAllergies: hasAllergies ?? false,
-          allergies,
-          hasMedications: hasMedications ?? false,
-          medications,
-          hasSurgeries: hasSurgeries ?? false,
-          surgeries,
-          hasDiseases: hasDiseases ?? false,
-          diseases,
-          smoker: smoker ?? false,
-          cigarettesPerDay,
-          drinksAlcohol: drinksAlcohol ?? false,
-          alcoholFrequency,
-          exercises: exercises ?? false,
-          exerciseFrequency,
-          familyDiseases,
-          skinCareRoutine,
-          previousTreatments,
-          skinConcerns,
-          treatmentGoals,
-          concerns,
-        },
-      });
+    return NextResponse.json(anamnesis, { status: 200 });
 
-      return NextResponse.json(updatedAnamnesis);
-    } else {
-      // Create new anamnesis
-      const newAnamnesis = await prisma.patientAnamnesis.create({
-        data: {
-          patientId,
-          hasAllergies: hasAllergies ?? false,
-          allergies,
-          hasMedications: hasMedications ?? false,
-          medications,
-          hasSurgeries: hasSurgeries ?? false,
-          surgeries,
-          hasDiseases: hasDiseases ?? false,
-          diseases,
-          smoker: smoker ?? false,
-          cigarettesPerDay,
-          drinksAlcohol: drinksAlcohol ?? false,
-          alcoholFrequency,
-          exercises: exercises ?? false,
-          exerciseFrequency,
-          familyDiseases,
-          skinCareRoutine,
-          previousTreatments,
-          skinConcerns,
-          treatmentGoals,
-          concerns,
-        },
-      });
-
-      return NextResponse.json(newAnamnesis);
-    }
   } catch (error) {
     console.error('Error creating/updating anamnesis:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

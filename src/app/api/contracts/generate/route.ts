@@ -51,25 +51,22 @@ Valor: R$ ${finalPrice.toFixed(2)}
 Profissional: ${professionalName}
 `.trim();
 
-    // 3. Criação do contrato com "as any" para ignorar o erro de tipagem temporariamente
+    // 3. Criação do contrato tipado corretamente (Sem 'as any' e sem campos inválidos)
     const contract = await prisma.patientContract.create({
       data: {
         patientId: sale.patientId,
         title: `Contrato - ${serviceName}`,
         content,
-        subtotal: subtotal,
-        discount: discount,
         total: finalPrice,
-        paymentMethod: sale.paymentMethod,
         itemsJson: {
           service: serviceName,
-          // @ts-ignore - Caso o campo quantity ainda não esteja mapeado
-          quantity: sale.quantity || 1,
+          quantity: 1,
           price: subtotal,
           discount: discount,
         },
         status: "PENDING",
-      } as any, 
+        token: `CTR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+      }, 
     });
 
     return NextResponse.json(contract, { status: 201 });

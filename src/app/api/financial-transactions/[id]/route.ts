@@ -14,7 +14,7 @@ const updateSchema = z.object({
   category: z.string().min(2).optional(),
   amount: z.number().positive().optional(),
   type: z.enum(["INCOME", "EXPENSE"]).optional(),
-  notes: z.string().nullable().optional(),
+  // O campo notes foi removido daqui para não quebrar com o novo banco de dados!
 });
 
 type Context = {

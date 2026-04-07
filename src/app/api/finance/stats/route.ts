@@ -3,6 +3,9 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
+// A MÁGICA: Isso desativa o cache e força o Next.js a sempre pegar o valor real do caixa
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
   // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);
@@ -35,9 +38,9 @@ export async function GET() {
       _sum: { price: true }
     });
 
-    // 4. Movimentações Recentes
+    // 4. Movimentações Recentes (Aumentei para 15 para aparecer mais na tela)
     const recentMovements = await prisma.financialTransaction.findMany({
-      take: 5,
+      take: 15,
       orderBy: { date: 'desc' }
     });
 

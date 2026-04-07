@@ -3,7 +3,7 @@
 import { useState, useEffect, useMemo } from "react";
 import { 
   Search, Plus, TrendingUp, Filter, 
-  Activity, Download, X, Check
+  Activity, Download, X, Check, Trash2 // IMPORT DA LIXEIRA ADICIONADO AQUI
 } from "lucide-react";
 
 export default function FinancePage() {
@@ -55,6 +55,19 @@ export default function FinancePage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // --- FUNÇÃO DE DELETAR TRANSAÇÃO ADICIONADA AQUI ---
+  const handleDeleteTransaction = async (id: string) => {
+    const confirmDelete = window.confirm("Tem certeza que deseja excluir esta transação? O saldo do caixa será recalculado imediatamente.");
+    if (!confirmDelete) return;
+
+    try {
+      await fetch(`/api/financial-transactions/${id}`, { method: "DELETE" });
+      loadFinance(); // Recarrega os dados do painel automaticamente após excluir
+    } catch (error) {
+      console.error("Erro ao excluir", error);
+    }
   };
 
   if (loading) return <div className="min-h-screen bg-[#FAF8F3] flex items-center justify-center font-serif italic text-[#C5A059]">Sincronizando inteligência...</div>;
@@ -139,7 +152,7 @@ export default function FinancePage() {
           </thead>
           <tbody className="divide-y divide-[#F9F9F9]">
              {filteredMovements.map((t: any) => (
-               <TransactionRow key={t.id} t={t} />
+               <TransactionRow key={t.id} t={t} onDelete={handleDeleteTransaction} /> // FUNÇÃO PASSADA AQUI
              ))}
           </tbody>
         </table>
@@ -158,7 +171,8 @@ function NewTransactionModal({ onClose, onSave }: any) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await fetch("/api/finance/transactions", { 
+    // AQUI TAMBÉM AJUSTEI A ROTA PARA A ROTA CORRETA
+    await fetch("/api/financial-transactions", { 
       method: "POST", 
       body: JSON.stringify({ ...form, amount: parseFloat(form.amount), date: new Date() }) 
     });
@@ -208,7 +222,8 @@ function FinanceCard({ label, value, trend, icon, color }: any) {
   );
 }
 
-function TransactionRow({ t }: any) {
+// O COMPONENTE DE LINHA ATUALIZADO COM A LIXEIRA
+function TransactionRow({ t, onDelete }: any) {
   return (
     <tr className="hover:bg-[#FCFAF9] transition-colors group">
       <td className="px-10 py-5 text-[11px] text-[#94A3B8]">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
@@ -217,7 +232,18 @@ function TransactionRow({ t }: any) {
       <td className={`px-10 py-5 text-right font-serif text-[16px] font-bold ${t.type === 'EXPENSE' ? 'text-red-400' : 'text-[#1A1A1A]'}`}>
         {t.type === 'EXPENSE' ? '- ' : ''} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
       </td>
-      <td className="px-10 py-5 text-right"><div className={`inline-block w-2.5 h-2.5 rounded-full ${t.type === 'INCOME' ? 'bg-emerald-500' : 'bg-red-400'}`} /></td>
+      <td className="px-10 py-5 text-right flex items-center justify-end gap-4">
+        <div className={`inline-block w-2.5 h-2.5 rounded-full ${t.type === 'INCOME' ? 'bg-emerald-500' : 'bg-red-400'}`} />
+        
+        {/* BOTÃO DE LIXEIRA MÁGICO */}
+        <button 
+          onClick={() => onDelete(t.id)} 
+          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+          title="Excluir Transação"
+        >
+          <Trash2 size={15} />
+        </button>
+      </td>
     </tr>
   );
 }

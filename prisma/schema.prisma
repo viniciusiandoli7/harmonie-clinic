@@ -85,28 +85,28 @@ model Appointment {
 // -----------------------------------------
 
 model ClinicalEvolution {
-  id          String   @id @default(uuid())
-  patientId   String
-  content     String   @db.Text
-  type        String   @default("MANUAL") // MANUAL, SALE_RECORD, SYSTEM
-  important   Boolean  @default(false)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  patientId String
+  content   String   @db.Text
+  type      String   @default("MANUAL") // MANUAL, SALE_RECORD, SYSTEM
+  important Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
 }
 
 model MedicalRecord {
-  id          String   @id @default(uuid())
-  patientId   String
-  type        String   // Ex: "TERMO ULTRASSOM", "AVALIAÇÃO FACIAL"
-  content     Json     // Salva o texto editado ou estrutura do termo
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id        String   @id @default(uuid())
+  patientId String
+  type      String   // Ex: "TERMO ULTRASSOM", "AVALIAÇÃO FACIAL"
+  content   Json     // Salva o texto editado ou estrutura do termo
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
   
-  patient     Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
 }
@@ -187,6 +187,9 @@ model ClinicalEvolutionSession {
   patientSignatureName String?
   signedAt             DateTime?
   
+  // 👈 ADICIONADO PARA RECEBER O DESENHO DA ASSINATURA NA EVOLUÇÃO
+  signatureImage       String?               @db.Text 
+  
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @default(now()) @updatedAt
   plan                 ClinicalEvolutionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
@@ -199,26 +202,43 @@ model ClinicalEvolutionSession {
 // -----------------------------------------
 
 model Sale {
-  id             String                @id @default(uuid())
+  id             String        @id @default(uuid())
   patientId      String
   professionalId String
   serviceId      String
   
   price          Float
-  discount       Float                 @default(0)
-  finalPrice     Float                 @default(0)
-  paymentMethod  ContractPaymentMethod
+  discount       Float         @default(0)
+  finalPrice     Float         @default(0)
   
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @default(now()) @updatedAt
+  payments       SalePayment[] 
   
-  patient        Patient               @relation(fields: [patientId], references: [id])
-  professional   Professional          @relation(fields: [professionalId], references: [id])
-  service        Treatment             @relation(fields: [serviceId], references: [id])
+  // AQUI É A MÁGICA: A venda agora "puxa" as transações financeiras dela!
+  transactions   FinancialTransaction[]
+  
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @default(now()) @updatedAt
+  
+  patient        Patient       @relation(fields: [patientId], references: [id])
+  professional   Professional  @relation(fields: [professionalId], references: [id])
+  service        Treatment     @relation(fields: [serviceId], references: [id])
   saleItems      SaleItem[]
 
   @@index([patientId])
   @@index([professionalId])
+}
+
+model SalePayment {
+  id            String                @id @default(uuid())
+  saleId        String
+  amount        Float                 // O valor pago (Ex: 30)
+  method        ContractPaymentMethod // A forma de pagamento (Ex: PIX)
+  
+  createdAt     DateTime              @default(now())
+  
+  sale          Sale                  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  @@index([saleId])
 }
 
 model SaleItem {
@@ -255,11 +275,16 @@ model FinancialTransaction {
   patientId         String?         // Relaciona a transação ao paciente
   patient           Patient?        @relation(fields: [patientId], references: [id])
 
+  // A MÁGICA 2: O elo que liga a transação à venda (Com exclusão em Cascata)
+  saleId            String?
+  sale              Sale?           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @default(now()) @updatedAt
 
   @@index([date])
   @@index([patientId])
+  @@index([saleId]) // Adicionei um índice para a busca ficar ultra-rápida!
 }
 
 // -----------------------------------------
@@ -289,18 +314,22 @@ model PatientConsentDocument {
 }
 
 model PatientContract {
-  id            String                @id @default(uuid())
-  token         String                @unique
-  patientId     String
-  title         String
-  content       String
-  total         Float                 @default(0)
-  status        ContractStatus        @default(PENDING)
-  itemsJson     Json
+  id             String         @id @default(uuid())
+  token          String         @unique
+  patientId      String
+  title          String
+  content        String
+  total          Float          @default(0)
+  status         ContractStatus @default(PENDING)
+  itemsJson      Json
   
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @default(now()) @updatedAt
-  patient       Patient               @relation(fields: [patientId], references: [id])
+  // 👈 ADICIONADO PARA RECEBER O DESENHO DA ASSINATURA NO CONTRATO
+  signatureName  String?        // Nome de quem assinou
+  signatureImage String?        @db.Text 
+  
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @default(now()) @updatedAt
+  patient        Patient        @relation(fields: [patientId], references: [id])
 
   @@index([patientId])
 }

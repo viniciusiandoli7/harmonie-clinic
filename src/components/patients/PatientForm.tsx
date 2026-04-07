@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, MapPin, Stethoscope, Megaphone, CheckCircle } from "lucide-react";
 
@@ -29,6 +29,70 @@ type Props = {
   mode: "create" | "edit";
   patient?: any;
 };
+
+// ==========================================
+// COMPONENTES E FUNÇÕES EXTRAÍDOS PARA FORA
+// (Isso resolve o bug de perder o foco ao digitar)
+// ==========================================
+
+const formatPhone = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length <= 2) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
+  if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
+  return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
+};
+
+const formatCPF = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
+  if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
+  return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
+};
+
+const formatCEP = (value: string) => {
+  const digits = value.replace(/\D/g, "");
+  if (digits.length <= 5) return digits;
+  return `${digits.slice(0, 5)}-${digits.slice(5, 8)}`;
+};
+
+const TabButton = ({ id, icon: Icon, label, activeTab, setActiveTab }: any) => (
+  <button type="button" onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-5 py-3 text-[11px] font-bold uppercase tracking-widest transition-all border-b-2 ${activeTab === id ? "border-[#C8A35F] text-[#C8A35F] bg-[#FCFAF6]" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
+    <Icon size={14} /> {label}
+  </button>
+);
+
+const CustomInput = ({ label, field, type = "text", placeholder = "", mask, formData, handleChange }: any) => (
+  <div className="w-full">
+    <label className="mb-2 block text-[13px] text-gray-600">{label}</label>
+    <input type={type} value={formData[field as keyof PatientFormData] as string} onChange={(e) => {
+        let val = e.target.value;
+        if (mask === "phone") val = formatPhone(val);
+        if (mask === "cpf") val = formatCPF(val);
+        if (mask === "cep") val = formatCEP(val);
+        handleChange(field, val);
+      }} placeholder={placeholder} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#C8A35F] bg-white text-gray-800" />
+  </div>
+);
+
+const RadioSimNao = ({ label, field, formData, handleChange }: any) => (
+  <div className="w-full">
+    <label className="mb-2 block text-[13px] text-gray-600">{label}</label>
+    <div className="flex gap-4">
+      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+        <input type="radio" checked={formData[field] === true} onChange={() => handleChange(field, true)} className="accent-[#C8A35F]" /> Sim
+      </label>
+      <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
+        <input type="radio" checked={formData[field] === false} onChange={() => handleChange(field, false)} className="accent-[#C8A35F]" /> Não
+      </label>
+    </div>
+  </div>
+);
+
+// ==========================================
+// COMPONENTE PRINCIPAL DO FORMULÁRIO
+// ==========================================
 
 export default function PatientForm({ mode, patient }: Props) {
   const router = useRouter();
@@ -67,21 +131,27 @@ export default function PatientForm({ mode, patient }: Props) {
     setFormData((prev) => ({ ...prev, [field]: value }));
   };
 
-  const formatPhone = (value: string) => {
-    const digits = value.replace(/\D/g, "");
-    if (digits.length <= 2) return digits;
-    if (digits.length <= 6) return `(${digits.slice(0, 2)}) ${digits.slice(2)}`;
-    if (digits.length <= 10) return `(${digits.slice(0, 2)}) ${digits.slice(2, 6)}-${digits.slice(6)}`;
-    return `(${digits.slice(0, 2)}) ${digits.slice(2, 7)}-${digits.slice(7, 11)}`;
-  };
-
-  const formatCPF = (value: string) => {
-    const digits = value.replace(/\D/g, "");
-    if (digits.length <= 3) return digits;
-    if (digits.length <= 6) return `${digits.slice(0, 3)}.${digits.slice(3)}`;
-    if (digits.length <= 9) return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6)}`;
-    return `${digits.slice(0, 3)}.${digits.slice(3, 6)}.${digits.slice(6, 9)}-${digits.slice(9, 11)}`;
-  };
+  // --- EFEITO MÁGICO: BUSCA DE CEP AUTOMÁTICA ---
+  useEffect(() => {
+    const cepNumeros = formData.zipCode.replace(/\D/g, "");
+    
+    if (cepNumeros.length === 8) {
+      fetch(`https://viacep.com.br/ws/${cepNumeros}/json/`)
+        .then((res) => res.json())
+        .then((data) => {
+          if (!data.erro) {
+            setFormData((prev) => ({
+              ...prev,
+              address: data.logradouro || prev.address,
+              neighborhood: data.bairro || prev.neighborhood,
+              city: data.localidade || prev.city,
+              state: data.uf || prev.state,
+            }));
+          }
+        })
+        .catch((err) => console.error("Erro ao buscar CEP:", err));
+    }
+  }, [formData.zipCode]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -110,46 +180,13 @@ export default function PatientForm({ mode, patient }: Props) {
     }
   }
 
-  // --- SUB-COMPONENTES DE UI ---
-  const TabButton = ({ id, icon: Icon, label }: { id: any, icon: any, label: string }) => (
-    <button type="button" onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-5 py-3 text-[11px] font-bold uppercase tracking-widest transition-all border-b-2 ${activeTab === id ? "border-[#C8A35F] text-[#C8A35F] bg-[#FCFAF6]" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
-      <Icon size={14} /> {label}
-    </button>
-  );
-
-  const Input = ({ label, field, type = "text", placeholder = "", mask }: any) => (
-    <div className="w-full">
-      <label className="mb-2 block text-[13px] text-gray-600">{label}</label>
-      <input type={type} value={formData[field as keyof PatientFormData] as string} onChange={(e) => {
-          let val = e.target.value;
-          if (mask === "phone") val = formatPhone(val);
-          if (mask === "cpf") val = formatCPF(val);
-          handleChange(field, val);
-        }} placeholder={placeholder} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#C8A35F] bg-white text-gray-800" />
-    </div>
-  );
-
-  const RadioSimNao = ({ label, field }: { label: string, field: keyof PatientFormData }) => (
-    <div className="w-full">
-      <label className="mb-2 block text-[13px] text-gray-600">{label}</label>
-      <div className="flex gap-4">
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-          <input type="radio" checked={formData[field] === true} onChange={() => handleChange(field, true)} className="accent-[#C8A35F]" /> Sim
-        </label>
-        <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-          <input type="radio" checked={formData[field] === false} onChange={() => handleChange(field, false)} className="accent-[#C8A35F]" /> Não
-        </label>
-      </div>
-    </div>
-  );
-
   return (
     <form onSubmit={handleSubmit} className="bg-white border border-[#E9DEC9] shadow-sm rounded-xl overflow-hidden font-sans">
       <div className="flex border-b border-[#E9DEC9] bg-[#FAFAFA] overflow-x-auto">
-        <TabButton id="GERAL" icon={User} label="Dados Pessoais" />
-        <TabButton id="ENDERECO" icon={MapPin} label="Endereço" />
-        <TabButton id="CRM" icon={Megaphone} label="Marketing / CRM" />
-        <TabButton id="ANAMNESE" icon={Stethoscope} label="Ficha de Anamnese" />
+        <TabButton id="GERAL" icon={User} label="Dados Pessoais" activeTab={activeTab} setActiveTab={setActiveTab} />
+        <TabButton id="ENDERECO" icon={MapPin} label="Endereço" activeTab={activeTab} setActiveTab={setActiveTab} />
+        <TabButton id="CRM" icon={Megaphone} label="Marketing / CRM" activeTab={activeTab} setActiveTab={setActiveTab} />
+        <TabButton id="ANAMNESE" icon={Stethoscope} label="Ficha de Anamnese" activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
       <div className="p-8 max-h-[70vh] overflow-y-auto">
@@ -158,14 +195,14 @@ export default function PatientForm({ mode, patient }: Props) {
         {activeTab === "GERAL" && (
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Input label="Nome Completo *" field="name" placeholder="Ex: Maria Silva" />
-              <Input label="E-mail" field="email" type="email" placeholder="paciente@exemplo.com" />
+              <CustomInput label="Nome Completo *" field="name" placeholder="Ex: Maria Silva" formData={formData} handleChange={handleChange} />
+              <CustomInput label="E-mail" field="email" type="email" placeholder="paciente@exemplo.com" formData={formData} handleChange={handleChange} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Input label="Telefone / WhatsApp" field="phone" mask="phone" placeholder="(11) 99999-8888" />
-              <Input label="Data de Nascimento" field="birthDate" type="date" />
-              <Input label="CPF" field="cpf" mask="cpf" placeholder="000.000.000-00" />
-              <Input label="RG" field="rg" placeholder="00.000.000-0" />
+              <CustomInput label="Telefone / WhatsApp" field="phone" mask="phone" placeholder="(11) 99999-8888" formData={formData} handleChange={handleChange} />
+              <CustomInput label="Data de Nascimento" field="birthDate" type="date" formData={formData} handleChange={handleChange} />
+              <CustomInput label="CPF" field="cpf" mask="cpf" placeholder="000.000.000-00" formData={formData} handleChange={handleChange} />
+              <CustomInput label="RG" field="rg" placeholder="00.000.000-0" formData={formData} handleChange={handleChange} />
             </div>
             <div>
               <label className="mb-2 block text-[13px] text-gray-600">Alerta Crítico (Insight Clínico)</label>
@@ -177,16 +214,16 @@ export default function PatientForm({ mode, patient }: Props) {
         {activeTab === "ENDERECO" && (
           <div className="space-y-6">
              <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <Input label="CEP" field="zipCode" placeholder="00000-000" />
-              <div className="md:col-span-2"><Input label="Endereço / Rua" field="address" /></div>
-              <Input label="Número" field="addressNumber" />
+              <CustomInput label="CEP" field="zipCode" mask="cep" placeholder="00000-000" formData={formData} handleChange={handleChange} />
+              <div className="md:col-span-2"><CustomInput label="Endereço / Rua" field="address" formData={formData} handleChange={handleChange} /></div>
+              <CustomInput label="Número" field="addressNumber" formData={formData} handleChange={handleChange} />
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-              <Input label="Complemento" field="addressComplement" />
-              <Input label="Bairro" field="neighborhood" />
+              <CustomInput label="Complemento" field="addressComplement" formData={formData} handleChange={handleChange} />
+              <CustomInput label="Bairro" field="neighborhood" formData={formData} handleChange={handleChange} />
               <div className="grid grid-cols-2 gap-4">
-                <Input label="Cidade" field="city" />
-                <Input label="Estado" field="state" />
+                <CustomInput label="Cidade" field="city" formData={formData} handleChange={handleChange} />
+                <CustomInput label="Estado" field="state" formData={formData} handleChange={handleChange} />
               </div>
             </div>
           </div>
@@ -205,36 +242,35 @@ export default function PatientForm({ mode, patient }: Props) {
                   <option value="Fachada">Fachada</option>
                 </select>
               </div>
-              <Input label="Procedimento de Maior Interesse" field="interestProcedure" />
+              <CustomInput label="Procedimento de Maior Interesse" field="interestProcedure" formData={formData} handleChange={handleChange} />
             </div>
           </div>
         )}
 
-        {/* ABA DE ANAMNESE IDÊNTICA AOS PRINTS */}
         {activeTab === "ANAMNESE" && (
           <div className="space-y-5 animate-in fade-in duration-300 pb-10">
-            <Input label="Qual sua profissão?" field="profession" placeholder="Qual sua profissão?..." />
-            <RadioSimNao label="Se expõe ao sol frequentemente?" field="sunExposure" />
-            <Input label="Queixa Principal" field="mainComplaint" placeholder="Queixa Principal..." />
-            <Input label="Já fez preenchimento? Quais regiões e a quanto tempo?" field="previousFillers" placeholder="Já fez preenchimento?..." />
-            <Input label="Já aplicou toxina botulínica? Há quanto tempo e quais regiões?" field="previousBotox" placeholder="Já aplicou toxina botulínica?..." />
-            <RadioSimNao label="Está tomando roacutan?" field="takingRoacutan" />
-            <Input label="Está tomando algum medicamento? Vitaminas ou suplementos? Quais?" field="medications" placeholder="Está tomando algum medicamento?..." />
-            <RadioSimNao label="Tem alergia do ovo (albumina)?" field="allergicToEgg" />
-            <Input label="Tem alergias a fruto do mar (camarão/lagosta)?" field="allergicToSeafood" placeholder="Tem alergias a fruto do mar?..." />
+            <CustomInput label="Qual sua profissão?" field="profession" placeholder="Qual sua profissão?..." formData={formData} handleChange={handleChange} />
+            <RadioSimNao label="Se expõe ao sol frequentemente?" field="sunExposure" formData={formData} handleChange={handleChange} />
+            <CustomInput label="Queixa Principal" field="mainComplaint" placeholder="Queixa Principal..." formData={formData} handleChange={handleChange} />
+            <CustomInput label="Já fez preenchimento? Quais regiões e a quanto tempo?" field="previousFillers" placeholder="Já fez preenchimento?..." formData={formData} handleChange={handleChange} />
+            <CustomInput label="Já aplicou toxina botulínica? Há quanto tempo e quais regiões?" field="previousBotox" placeholder="Já aplicou toxina botulínica?..." formData={formData} handleChange={handleChange} />
+            <RadioSimNao label="Está tomando roacutan?" field="takingRoacutan" formData={formData} handleChange={handleChange} />
+            <CustomInput label="Está tomando algum medicamento? Vitaminas ou suplementos? Quais?" field="medications" placeholder="Está tomando algum medicamento?..." formData={formData} handleChange={handleChange} />
+            <RadioSimNao label="Tem alergia do ovo (albumina)?" field="allergicToEgg" formData={formData} handleChange={handleChange} />
+            <CustomInput label="Tem alergias a fruto do mar (camarão/lagosta)?" field="allergicToSeafood" placeholder="Tem alergias a fruto do mar?..." formData={formData} handleChange={handleChange} />
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <RadioSimNao label="Já levou anestesia de dentista?" field="dentalAnesthesia" />
-              <RadioSimNao label="Teve alguma reação a anesteia de dentista?" field="dentalAnesthesiaReaction" />
+              <RadioSimNao label="Já levou anestesia de dentista?" field="dentalAnesthesia" formData={formData} handleChange={handleChange} />
+              <RadioSimNao label="Teve alguma reação a anesteia de dentista?" field="dentalAnesthesiaReaction" formData={formData} handleChange={handleChange} />
             </div>
 
-            <Input label="Já teve alguma reação indesejada a algum procedimento?" field="procedureReaction" placeholder="Já teve alguma reação indesejada?..." />
-            <RadioSimNao label="Tem tendência a cicatriz ou quelóide?" field="keloidTendency" />
-            <Input label="Tem alguma doença degenerativa?" field="degenerativeDisease" placeholder="Tem alguma doença degenerativa?..." />
-            <Input label="Tem alguma doença?" field="diseases" placeholder="Tem alguma doença?..." />
-            <Input label="Possui alergia a algum produto, comida, medicamento ou outros?" field="allergies" placeholder="Possui alergia a algum produto?..." />
-            <RadioSimNao label="Possui herpes?" field="hasHerpes" />
-            <RadioSimNao label="Fumante?" field="smoker" />
+            <CustomInput label="Já teve alguma reação indesejada a algum procedimento?" field="procedureReaction" placeholder="Já teve alguma reação indesejada?..." formData={formData} handleChange={handleChange} />
+            <RadioSimNao label="Tem tendência a cicatriz ou quelóide?" field="keloidTendency" formData={formData} handleChange={handleChange} />
+            <CustomInput label="Tem alguma doença degenerativa?" field="degenerativeDisease" placeholder="Tem alguma doença degenerativa?..." formData={formData} handleChange={handleChange} />
+            <CustomInput label="Tem alguma doença?" field="diseases" placeholder="Tem alguma doença?..." formData={formData} handleChange={handleChange} />
+            <CustomInput label="Possui alergia a algum produto, comida, medicamento ou outros?" field="allergies" placeholder="Possui alergia a algum produto?..." formData={formData} handleChange={handleChange} />
+            <RadioSimNao label="Possui herpes?" field="hasHerpes" formData={formData} handleChange={handleChange} />
+            <RadioSimNao label="Fumante?" field="smoker" formData={formData} handleChange={handleChange} />
 
             {/* Pressão */}
             <div>
@@ -246,10 +282,10 @@ export default function PatientForm({ mode, patient }: Props) {
               </div>
             </div>
 
-            <RadioSimNao label="Está grávida ou amamentando?" field="pregnantOrNursing" />
-            <RadioSimNao label="Já passou por alguma gestação?" field="previousPregnancies" />
-            <RadioSimNao label="Faz exercícios físicos intensos?" field="exercises" />
-            <Input label="Tem cuidados de skincare (cuidados com a pele) em casa? O que usa?" field="skinCareRoutine" placeholder="Tem cuidados de skincare?..." />
+            <RadioSimNao label="Está grávida ou amamentando?" field="pregnantOrNursing" formData={formData} handleChange={handleChange} />
+            <RadioSimNao label="Já passou por alguma gestação?" field="previousPregnancies" formData={formData} handleChange={handleChange} />
+            <RadioSimNao label="Faz exercícios físicos intensos?" field="exercises" formData={formData} handleChange={handleChange} />
+            <CustomInput label="Tem cuidados de skincare (cuidados com a pele) em casa? O que usa?" field="skinCareRoutine" placeholder="Tem cuidados de skincare?..." formData={formData} handleChange={handleChange} />
             
             {/* Peso */}
             <div>
@@ -263,11 +299,11 @@ export default function PatientForm({ mode, patient }: Props) {
               </div>
             </div>
 
-            <Input label="Pretende emagrecer?" field="intendsToLoseWeight" placeholder="Pretende emagrecer?..." />
-            <Input label="Pretende passar por alguma cirurgia?" field="intendsSurgery" placeholder="Pretende passar por alguma cirurgia?..." />
-            <Input label="Já fez alguma cirurgia? Há quanto tempo?" field="surgeries" placeholder="Já fez alguma cirurgia?..." />
-            <Input label="Está em tratamento medicamentoso ou tomou vacina nos últimos 30 dias?" field="recentTreatmentOrVaccine" placeholder="Está em tratamento medicamentoso?..." />
-            <Input label="Possui implantes permanentes (PMMA, Silicone, Hidrogel)" field="permanentImplants" placeholder="Possui implantes permanentes?..." />
+            <CustomInput label="Pretende emagrecer?" field="intendsToLoseWeight" placeholder="Pretende emagrecer?..." formData={formData} handleChange={handleChange} />
+            <CustomInput label="Pretende passar por alguma cirurgia?" field="intendsSurgery" placeholder="Pretende passar por alguma cirurgia?..." formData={formData} handleChange={handleChange} />
+            <CustomInput label="Já fez alguma cirurgia? Há quanto tempo?" field="surgeries" placeholder="Já fez alguma cirurgia?..." formData={formData} handleChange={handleChange} />
+            <CustomInput label="Está em tratamento medicamentoso ou tomou vacina nos últimos 30 dias?" field="recentTreatmentOrVaccine" placeholder="Está em tratamento medicamentoso?..." formData={formData} handleChange={handleChange} />
+            <CustomInput label="Possui implantes permanentes (PMMA, Silicone, Hidrogel)" field="permanentImplants" placeholder="Possui implantes permanentes?..." formData={formData} handleChange={handleChange} />
             
             <div className="pt-4 mt-4 border-t border-gray-200">
               <p className="text-[12px] text-gray-600 mb-3 leading-relaxed">

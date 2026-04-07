@@ -13,7 +13,6 @@ const createSchema = z.object({
   category: z.string().min(2, "Categoria obrigatória"),
   amount: z.number().positive("Valor deve ser maior que zero"),
   type: z.enum(["INCOME", "EXPENSE"]),
-  notes: z.string().nullable().optional(),
 });
 
 export async function GET() {

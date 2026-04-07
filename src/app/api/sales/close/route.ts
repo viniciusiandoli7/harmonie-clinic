@@ -9,7 +9,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    const { patientId, items, subtotal, discount, total, paymentMethod } = body;
+    
+    const { patientId, patientName, items, subtotal, discount, total, payments, signatureImage } = body;
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "Carrinho vazio." }, { status: 400 });
@@ -42,7 +43,11 @@ export async function POST(request: NextRequest) {
           price: subtotal,
           discount: discount || 0,
           finalPrice: total,
-          paymentMethod,
+          payments: {
+            create: payments && payments.length > 0 
+              ? payments.map((p: any) => ({ amount: p.amount, method: p.method }))
+              : []
+          }
         },
       });
 
@@ -61,25 +66,30 @@ export async function POST(request: NextRequest) {
         )
       );
 
-      // Limpamos profit e patientId que não pertencem mais a essa tabela isolada
       await tx.financialTransaction.create({
         data: {
           type: "INCOME",
           category: "PROCEDIMENTO",
           description: `Venda Multi: ${generalTreatmentName}`,
           amount: total,
+          profit: lucroReal,
+          patientId,
+          saleId: sale.id,
           date: new Date(),
         }
       });
 
-      // Limpamos status e total e aplicamos o connect no paciente
       await tx.patientContract.create({
         data: {
-          patient: { connect: { id: patientId } },
+          patientId,
           title: `Contrato Múltiplo - ${dataAtual()}`,
           content: `Contrato de prestação de serviços estéticos gerado via PDV.`,
+          total: total,
           token: `CTR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
           itemsJson: items,
+          status: "SIGNED",
+          signatureName: signatureImage ? patientName : null,
+          signatureImage: signatureImage || null,
         }
       });
 
@@ -120,15 +130,4 @@ export async function POST(request: NextRequest) {
 function dataAtual() {
   const d = new Date();
   return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getFullYear()}`;
-}
-
-export async function GET(request: NextRequest) {
-    const { searchParams } = new URL(request.url);
-    const patientId = searchParams.get('patientId');
-    const sales = await prisma.sale.findMany({
-      where: patientId ? { patientId } : undefined,
-      include: { service: true },
-      orderBy: { createdAt: 'desc' }
-    });
-    return NextResponse.json(sales);
 }

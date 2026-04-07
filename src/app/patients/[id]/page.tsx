@@ -9,8 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-// Componentes internos
-import MedicalRecordSystem from "@/components/patients/MedicalRecordSystem";
+// Componentes internos (Removi a importação do MedicalRecordSystem antigo)
 import ClinicalEvolutionSection from "@/components/patients/ClinicalEvolutionSection";
 
 export default function PatientDetailPage() {
@@ -68,6 +67,25 @@ export default function PatientDetailPage() {
     if (id) load();
   }, [id]);
 
+  // --- DELETAR VENDA (E TRANSAÇÃO FINANCEIRA) MÁGICA ---
+  const handleDeleteSale = async (saleId: string) => {
+    const confirmDelete = window.confirm("ATENÇÃO: Excluir esta venda também apagará os registros dela do Financeiro da clínica. Deseja continuar?");
+    if (!confirmDelete) return;
+
+    try {
+      const res = await fetch(`/api/sales/${saleId}`, { method: "DELETE" });
+      if (res.ok) {
+        // Remove a venda da tela instantaneamente
+        setSales(sales.filter(s => s.id !== saleId));
+        alert("Venda e transações financeiras excluídas com sucesso!");
+      } else {
+          alert("Falha ao excluir a venda.")
+      }
+    } catch (error) {
+      console.error("Erro ao deletar", error);
+    }
+  };
+
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen bg-[#FAF8F3]">
       <div className="text-center font-serif italic text-[#C8A35F] animate-pulse">Sincronizando prontuário...</div>
@@ -122,7 +140,7 @@ export default function PatientDetailPage() {
         <div className="flex gap-12">
           {[
             { id: "GERAL", label: "Informações", icon: <User size={14}/> },
-            { id: "PRONTUARIO", label: "Prontuário & Termos", icon: <FileText size={14}/> },
+            { id: "PRONTUARIO", label: "Prontuário & Evolução", icon: <FileText size={14}/> },
             { id: "PLANO", label: "Protocolo Clínico", icon: <Layout size={14}/> },
             { id: "FINANCEIRO", label: "Financeiro", icon: <DollarSign size={14}/> },
           ].map(tab => (
@@ -175,13 +193,10 @@ export default function PatientDetailPage() {
               </div>
           )}
 
-          {/* ABA PRONTUÁRIO */}
+          {/* ABA PRONTUÁRIO (AGORA LIMPA, SÓ COM A EVOLUÇÃO) */}
           {activeTab === "PRONTUARIO" && (
               <div className="animate-in fade-in duration-500">
-                <MedicalRecordSystem patientId={patient.id} patientName={patient.name} />
-                <div className="mt-12 pt-12 border-t border-[#EEE]">
-                  <ClinicalEvolutionSection patient={{ id: patient.id, name: patient.name }} />
-                </div>
+                <ClinicalEvolutionSection patient={{ id: patient.id, name: patient.name }} />
               </div>
           )}
           
@@ -208,20 +223,30 @@ export default function PatientDetailPage() {
             </div>
           )}
 
-          {/* ABA FINANCEIRO (COM DADOS DE VENDAS) */}
+          {/* ABA FINANCEIRO (COM DADOS DE VENDAS E A LIXEIRA) */}
           {activeTab === "FINANCEIRO" && (
             <div className="bg-white border border-[#EEF1F5] p-10 rounded-sm shadow-sm animate-in fade-in duration-500 font-sans">
                <h3 className="font-serif text-xl uppercase tracking-widest mb-8">Fluxo Financeiro do Paciente</h3>
                <div className="space-y-4">
                  {sales.length > 0 ? sales.map(s => (
-                   <div key={s.id} className="flex justify-between items-center border-b pb-4">
+                   <div key={s.id} className="flex justify-between items-center border-b pb-4 group">
                      <div>
                        <p className="text-[10px] font-bold text-gray-400 uppercase">{new Date(s.createdAt).toLocaleDateString()}</p>
                        <p className="text-sm font-bold text-[#111]">{s.service?.name || "Venda Registrada"}</p>
                      </div>
-                     <div className="text-right">
-                        <p className="font-serif text-lg text-[#111]">R$ {s.finalPrice?.toLocaleString('pt-BR')}</p>
-                        <p className="text-[8px] font-bold text-[#C8A35F] uppercase">{s.paymentMethod}</p>
+                     <div className="flex items-center gap-6 text-right">
+                        <div>
+                          <p className="font-serif text-lg text-[#111]">R$ {s.finalPrice?.toLocaleString('pt-BR')}</p>
+                          <p className="text-[8px] font-bold text-[#C8A35F] uppercase">Venda Concluída</p>
+                        </div>
+                        {/* LIXEIRINHA MÁGICA */}
+                        <button 
+                          onClick={() => handleDeleteSale(s.id)}
+                          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+                          title="Excluir Venda e Financeiro"
+                        >
+                          <Trash2 size={16} />
+                        </button>
                      </div>
                    </div>
                  )) : (
@@ -256,7 +281,7 @@ export default function PatientDetailPage() {
                 onClick={() => setActiveTab("PRONTUARIO")}
                 className="w-full mt-10 py-3 border border-[#EEE] text-[9px] font-bold uppercase tracking-widest hover:bg-[#111] hover:text-white transition-all flex items-center justify-center gap-2"
               >
-                  Ver Histórico Completo <ArrowRight size={12}/>
+                 Ver Histórico Completo <ArrowRight size={12}/>
               </button>
            </div>
         </aside>

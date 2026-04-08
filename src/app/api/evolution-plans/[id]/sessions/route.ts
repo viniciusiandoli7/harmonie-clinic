@@ -24,6 +24,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         performedProcedure: String(body.performedProcedure || "").trim() || null,
         clinicalNotes: finalNotes, 
         patientSignatureName: String(body.patientSignatureName || "").trim() || null,
+        signatureImage: body.signatureImage || null, // 👈 A ASSINATURA SENDO SALVA AQUI!
         imagesJson: Array.isArray(body.images) ? body.images : [],
       },
     });

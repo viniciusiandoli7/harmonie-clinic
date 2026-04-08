@@ -32,7 +32,6 @@ type Props = {
 
 // ==========================================
 // COMPONENTES E FUNÇÕES EXTRAÍDOS PARA FORA
-// (Isso resolve o bug de perder o foco ao digitar)
 // ==========================================
 
 const formatPhone = (value: string) => {
@@ -96,7 +95,9 @@ const RadioSimNao = ({ label, field, formData, handleChange }: any) => (
 
 export default function PatientForm({ mode, patient }: Props) {
   const router = useRouter();
-  const [activeTab, setActiveTab] = useState<"GERAL" | "ENDERECO" | "CRM" | "ANAMNESE">("ANAMNESE");
+  
+  // 👈 CORREÇÃO: Começa na aba GERAL
+  const [activeTab, setActiveTab] = useState<"GERAL" | "ENDERECO" | "CRM" | "ANAMNESE">("GERAL");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 

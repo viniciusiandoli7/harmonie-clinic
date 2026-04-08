@@ -16,46 +16,49 @@ datasource db {
 // -----------------------------------------
 
 model Patient {
-  id                 String    @id @default(uuid())
-  name               String
-  email              String?   @unique
-  phone              String?
-  createdAt          DateTime  @default(now())
-  birthDate          DateTime?
+  id                String    @id @default(uuid())
+  name              String
+  email             String?   @unique
+  phone             String?
+  createdAt         DateTime  @default(now())
+  birthDate         DateTime?
   
   // 'notes' armazena a "Observação Crítica" que aparece no Insight Clínico
-  notes              String?   
+  notes             String?   
   
-  updatedAt          DateTime  @default(now()) @updatedAt
-  isActive           Boolean   @default(true)
+  updatedAt         DateTime  @default(now()) @updatedAt
+  isActive          Boolean   @default(true)
   
   // Endereço e Documentos
-  address            String?
-  addressComplement  String?
-  addressNumber      String?
-  neighborhood       String?
-  city               String?
-  state              String?
-  zipCode            String?
-  cpf                String?   @unique
-  rg                 String?
+  address           String?
+  addressComplement String?
+  addressNumber     String?
+  neighborhood      String?
+  city              String?
+  state             String?
+  zipCode           String?
+  cpf               String?   @unique
+  rg                String?
   
   // Marketing e CRM
-  crmSource          String?   // Ex: Instagram, Indicação, Google
-  interestProcedure  String?   // Procedimento de maior interesse
+  crmSource         String?   // Ex: Instagram, Indicação, Google
+  interestProcedure String?   // Procedimento de maior interesse
   
-  // Relacionamentos
-  appointments       Appointment[]
-  evolutionPlans     ClinicalEvolutionPlan[]
-  evolutions         ClinicalEvolution[]     // Adicionado para o Prontuário Digital
-  anamnesis          PatientAnamnesis?
-  consentDocuments   PatientConsentDocument[]
-  contracts          PatientContract[]
-  sales              Sale[]
-  medicalRecords     MedicalRecord[] 
-  transactions       FinancialTransaction[]   // Relacionamento com financeiro
+  // Relacionamentos (Lado Inverso)
+  appointments      Appointment[]
+  evolutionPlans    ClinicalEvolutionPlan[]
+  evolutions        ClinicalEvolution[]
+  anamnesis         PatientAnamnesis?
+  consentDocuments  PatientConsentDocument[]
+  contracts         PatientContract[]
+  sales             Sale[]
+  medicalRecords    MedicalRecord[] 
+  transactions      FinancialTransaction[]
 
+  // ÍNDICES: Para buscas instantâneas por nome, CPF ou Telefone
   @@index([name])
+  @@index([cpf])
+  @@index([phone])
 }
 
 model Appointment {
@@ -76,6 +79,7 @@ model Appointment {
   
   patient         Patient           @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
+  // ÍNDICES: Para carregar a agenda e o histórico do paciente rapidamente
   @@index([date])
   @@index([patientId])
 }
@@ -119,7 +123,7 @@ model PatientAnamnesis {
   sunExposure              Boolean  @default(false)
   mainComplaint            String?
   
-  // Novos campos da Anamnese
+  // Campos da Anamnese
   previousFillers          String?
   previousBotox            String?
   takingRoacutan           Boolean  @default(false)
@@ -182,12 +186,16 @@ model ClinicalEvolutionSession {
   sessionNumber        Int
   sessionDate          DateTime              @default(now())
   performedProcedure   String?
+  
+  // 👈 CAMPO ADICIONADO PARA EVITAR O ERRO NO TSC
+  bodyMeasurements     String?               @db.Text 
+  
   clinicalNotes        String?
   imagesJson           Json?                 // Fotos de antes e depois
   patientSignatureName String?
   signedAt             DateTime?
   
-  // 👈 ADICIONADO PARA RECEBER O DESENHO DA ASSINATURA NA EVOLUÇÃO
+  // Desenho da assinatura na evolução
   signatureImage       String?               @db.Text 
   
   createdAt            DateTime              @default(now())
@@ -212,8 +220,6 @@ model Sale {
   finalPrice     Float         @default(0)
   
   payments       SalePayment[] 
-  
-  // AQUI É A MÁGICA: A venda agora "puxa" as transações financeiras dela!
   transactions   FinancialTransaction[]
   
   createdAt      DateTime      @default(now())
@@ -224,19 +230,21 @@ model Sale {
   service        Treatment     @relation(fields: [serviceId], references: [id])
   saleItems      SaleItem[]
 
+  // ÍNDICES: Para gerar relatórios financeiros por paciente ou data
   @@index([patientId])
+  @@index([createdAt])
   @@index([professionalId])
 }
 
 model SalePayment {
-  id            String                @id @default(uuid())
-  saleId        String
-  amount        Float                 // O valor pago (Ex: 30)
-  method        ContractPaymentMethod // A forma de pagamento (Ex: PIX)
+  id        String                @id @default(uuid())
+  saleId    String
+  amount    Float                 // O valor pago
+  method    ContractPaymentMethod // Forma de pagamento
   
-  createdAt     DateTime              @default(now())
+  createdAt DateTime              @default(now())
   
-  sale          Sale                  @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  sale      Sale                  @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
 }
@@ -266,16 +274,14 @@ model FinancialTransaction {
   type              TransactionType
   status            String          @default("COMPLETED")
   
-  // Campos de lucratividade
-  profit            Float?          // Lucro Real (já descontado o repasse)
-  clinicProfit      Float?          // Alias para compatibilidade
+  profit            Float?          // Lucro Real
+  clinicProfit      Float?          // Alias
   operationalCost   Float?
   professionalValue Float?
   
-  patientId         String?         // Relaciona a transação ao paciente
+  patientId         String?         // Relaciona ao paciente
   patient           Patient?        @relation(fields: [patientId], references: [id])
 
-  // A MÁGICA 2: O elo que liga a transação à venda (Com exclusão em Cascata)
   saleId            String?
   sale              Sale?           @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
@@ -284,7 +290,7 @@ model FinancialTransaction {
 
   @@index([date])
   @@index([patientId])
-  @@index([saleId]) // Adicionei um índice para a busca ficar ultra-rápida!
+  @@index([saleId])
 }
 
 // -----------------------------------------
@@ -323,7 +329,6 @@ model PatientContract {
   status         ContractStatus @default(PENDING)
   itemsJson      Json
   
-  // 👈 ADICIONADO PARA RECEBER O DESENHO DA ASSINATURA NO CONTRATO
   signatureName  String?        // Nome de quem assinou
   signatureImage String?        @db.Text 
   
@@ -335,11 +340,11 @@ model PatientContract {
 }
 
 model Treatment {
-  id        String                   @id @default(uuid())
-  name      String                   @unique
-  template  String                   // Template base do termo de consentimento
-  createdAt DateTime                 @default(now())
-  updatedAt DateTime                 @default(now()) @updatedAt
+  id        String   @id @default(uuid())
+  name      String   @unique
+  template  String   // Template base do termo de consentimento
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
   
   documents PatientConsentDocument[]
   sales     Sale[]

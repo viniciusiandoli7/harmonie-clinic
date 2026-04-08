@@ -5,11 +5,11 @@ import { useParams, useRouter } from "next/navigation";
 import { 
   ChevronLeft, User, FileText, Layout, DollarSign, 
   Calendar, ShieldCheck, MoreHorizontal, Trash2, Edit3,
-  ClipboardList, ArrowRight
+  ClipboardList, ArrowRight, PenTool
 } from "lucide-react";
 import Link from "next/link";
 
-// Componentes internos (Removi a importação do MedicalRecordSystem antigo)
+// Componentes internos
 import ClinicalEvolutionSection from "@/components/patients/ClinicalEvolutionSection";
 
 export default function PatientDetailPage() {
@@ -22,6 +22,7 @@ export default function PatientDetailPage() {
   const [patient, setPatient] = useState<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
+  const [contracts, setContracts] = useState<any[]>([]); // 👈 Estado dos contratos
   const [insights, setInsights] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -32,19 +33,20 @@ export default function PatientDetailPage() {
       try {
         setLoading(true);
         
-        const [pRes, aRes, iRes, planRes, salesRes] = await Promise.all([
+        const [pRes, aRes, iRes, planRes, salesRes, contractsRes] = await Promise.all([
           fetch(`/api/patients/${id}`),
           fetch(`/api/appointments?patientId=${id}`),
           fetch(`/api/patients/${id}/insights`),
-          fetch(`/api/evolution-plans?patientId=${id}`),
-          fetch(`/api/sales?patientId=${id}`)
+          fetch(`/api/patients/${id}/evolution`), 
+          fetch(`/api/sales?patientId=${id}`),
+          fetch(`/api/patients/${id}/contracts`) // 👈 Busca os contratos
         ]);
         
-        // Verificações defensivas (evita erro de JSON se a rota der 404)
         const patientData = pRes.ok ? await pRes.json() : null;
         const appointmentsData = aRes.ok ? await aRes.json() : [];
         const insightsData = iRes.ok ? await iRes.json() : null;
         const salesData = salesRes.ok ? await salesRes.json() : [];
+        const contractsData = contractsRes.ok ? await contractsRes.json() : [];
         
         let planData = [];
         if (planRes.ok) {
@@ -56,6 +58,7 @@ export default function PatientDetailPage() {
         setAppointments(appointmentsData);
         setInsights(insightsData);
         setSales(salesData);
+        setContracts(contractsData);
         setPlan(planData[0] || null);
 
       } catch (error) {
@@ -67,7 +70,6 @@ export default function PatientDetailPage() {
     if (id) load();
   }, [id]);
 
-  // --- DELETAR VENDA (E TRANSAÇÃO FINANCEIRA) MÁGICA ---
   const handleDeleteSale = async (saleId: string) => {
     const confirmDelete = window.confirm("ATENÇÃO: Excluir esta venda também apagará os registros dela do Financeiro da clínica. Deseja continuar?");
     if (!confirmDelete) return;
@@ -75,7 +77,6 @@ export default function PatientDetailPage() {
     try {
       const res = await fetch(`/api/sales/${saleId}`, { method: "DELETE" });
       if (res.ok) {
-        // Remove a venda da tela instantaneamente
         setSales(sales.filter(s => s.id !== saleId));
         alert("Venda e transações financeiras excluídas com sucesso!");
       } else {
@@ -83,6 +84,20 @@ export default function PatientDetailPage() {
       }
     } catch (error) {
       console.error("Erro ao deletar", error);
+    }
+  };
+
+  // --- WHATSAPP CONTRATOS ---
+  const sendWhatsAppContract = (contract: any) => {
+    const baseUrl = window.location.origin;
+    const link = `${baseUrl}/assinar-contrato/${contract.token}`;
+    const phone = patient?.phone ? patient.phone.replace(/\D/g, '') : '';
+    const message = `Olá, ${patient?.name}! 🌟\n\nAqui é da *Harmonie Clinic*.\nSegue o link seguro para você assinar digitalmente o seu contrato:\n\n${link}`;
+
+    if (phone) {
+      window.open(`https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}`, '_blank');
+    } else {
+      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank');
     }
   };
 
@@ -95,13 +110,10 @@ export default function PatientDetailPage() {
   return (
     <div className="min-h-screen bg-[#FAF8F3] font-sans antialiased text-[#111]">
       
-      {/* HEADER FIXO - NAVEGAÇÃO PUSH PARA BASE */}
+      {/* HEADER FIXO */}
       <div className="bg-white/90 backdrop-blur-md border-b border-[#EEE] px-10 py-5 sticky top-0 z-40 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-6">
-          <button 
-            onClick={() => router.push('/patients')} 
-            className="p-2 hover:bg-[#FAF8F3] rounded-full transition-all text-[#96A4C1] hover:text-[#111]"
-          >
+          <button onClick={() => router.push('/patients')} className="p-2 hover:bg-[#FAF8F3] rounded-full transition-all text-[#96A4C1] hover:text-[#111]">
             <ChevronLeft size={22} />
           </button>
           <div className="h-10 w-px bg-[#EEE]" />
@@ -117,9 +129,6 @@ export default function PatientDetailPage() {
                     <button onClick={() => router.push(`/patients/${id}/edit`)} className="flex items-center gap-3 w-full px-4 py-3 text-[10px] font-bold uppercase hover:bg-[#FAF8F3]">
                       <Edit3 size={14} /> Editar Dados
                     </button>
-                    <button className="flex items-center gap-3 w-full px-4 py-3 text-[10px] font-bold uppercase text-red-500 hover:bg-red-50">
-                      <Trash2 size={14} /> Excluir Registro
-                    </button>
                   </div>
                 )}
               </div>
@@ -128,10 +137,6 @@ export default function PatientDetailPage() {
               {insights?.status || "Novo Paciente • Em Avaliação"}
             </p>
           </div>
-        </div>
-        <div className="flex gap-3">
-           <button onClick={() => router.push(`/patients/${id}/edit`)} className="px-5 py-2 border border-[#EEE] text-[10px] font-bold uppercase tracking-widest hover:border-[#111]">Editar Dados</button>
-           <button className="px-5 py-2 bg-[#111] text-white text-[10px] font-bold uppercase tracking-widest hover:bg-[#C8A35F]">Novo Agendamento</button>
         </div>
       </div>
 
@@ -142,6 +147,7 @@ export default function PatientDetailPage() {
             { id: "GERAL", label: "Informações", icon: <User size={14}/> },
             { id: "PRONTUARIO", label: "Prontuário & Evolução", icon: <FileText size={14}/> },
             { id: "PLANO", label: "Protocolo Clínico", icon: <Layout size={14}/> },
+            { id: "CONTRATOS", label: "Contratos", icon: <PenTool size={14}/> },
             { id: "FINANCEIRO", label: "Financeiro", icon: <DollarSign size={14}/> },
           ].map(tab => (
             <button
@@ -193,10 +199,13 @@ export default function PatientDetailPage() {
               </div>
           )}
 
-          {/* ABA PRONTUÁRIO (AGORA LIMPA, SÓ COM A EVOLUÇÃO) */}
+          {/* ABA PRONTUÁRIO COM ASSINATURA AUTOMÁTICA */}
           {activeTab === "PRONTUARIO" && (
               <div className="animate-in fade-in duration-500">
-                <ClinicalEvolutionSection patient={{ id: patient.id, name: patient.name }} />
+                <ClinicalEvolutionSection 
+                  patient={{ id: patient.id, name: patient.name, phone: patient.phone }} 
+                  contractSignature={contracts.find(c => c.status === "SIGNED")?.signatureImage}
+                />
               </div>
           )}
           
@@ -223,7 +232,48 @@ export default function PatientDetailPage() {
             </div>
           )}
 
-          {/* ABA FINANCEIRO (COM DADOS DE VENDAS E A LIXEIRA) */}
+          {/* ABA CONTRATOS */}
+          {activeTab === "CONTRATOS" && (
+            <div className="bg-white border border-[#EEF1F5] p-10 rounded-sm shadow-sm animate-in fade-in duration-500 font-sans">
+               <h3 className="font-serif text-xl uppercase tracking-widest mb-8">Contratos Gerados</h3>
+               <div className="space-y-4">
+                 {contracts.length > 0 ? contracts.map(c => (
+                   <div key={c.id} className="flex justify-between items-center border-b pb-4 group">
+                     <div>
+                       <p className="text-[10px] font-bold text-gray-400 uppercase">{new Date(c.createdAt).toLocaleDateString()}</p>
+                       <p className="text-sm font-bold text-[#111]">{c.title}</p>
+                     </div>
+                     <div className="flex items-center gap-6 text-right">
+                        <div>
+                          <p className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded">
+                             {c.status === "SIGNED" ? (
+                               <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded">✅ Assinado</span>
+                             ) : (
+                               <span className="text-amber-600 bg-amber-50 px-3 py-1 rounded">⏳ Pendente</span>
+                             )}
+                          </p>
+                        </div>
+                        {c.status !== "SIGNED" && (
+                          <button
+                            onClick={() => sendWhatsAppContract(c)}
+                            className="text-[9px] border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-2 rounded font-bold uppercase tracking-widest hover:bg-emerald-100 transition-colors flex items-center gap-2 shadow-sm"
+                          >
+                             <FileText size={12}/> Enviar WhatsApp
+                          </button>
+                        )}
+                        {c.status === "SIGNED" && c.signatureImage && (
+                          <img src={c.signatureImage} alt="Visto" className="h-8 object-contain" />
+                        )}
+                     </div>
+                   </div>
+                 )) : (
+                   <p className="text-sm text-gray-400 italic">Nenhum contrato encontrado.</p>
+                 )}
+               </div>
+            </div>
+          )}
+
+          {/* ABA FINANCEIRO */}
           {activeTab === "FINANCEIRO" && (
             <div className="bg-white border border-[#EEF1F5] p-10 rounded-sm shadow-sm animate-in fade-in duration-500 font-sans">
                <h3 className="font-serif text-xl uppercase tracking-widest mb-8">Fluxo Financeiro do Paciente</h3>
@@ -239,11 +289,9 @@ export default function PatientDetailPage() {
                           <p className="font-serif text-lg text-[#111]">R$ {s.finalPrice?.toLocaleString('pt-BR')}</p>
                           <p className="text-[8px] font-bold text-[#C8A35F] uppercase">Venda Concluída</p>
                         </div>
-                        {/* LIXEIRINHA MÁGICA */}
                         <button 
                           onClick={() => handleDeleteSale(s.id)}
                           className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-                          title="Excluir Venda e Financeiro"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -276,13 +324,6 @@ export default function PatientDetailPage() {
                     </p>
                  </div>
               </div>
-              
-              <button 
-                onClick={() => setActiveTab("PRONTUARIO")}
-                className="w-full mt-10 py-3 border border-[#EEE] text-[9px] font-bold uppercase tracking-widest hover:bg-[#111] hover:text-white transition-all flex items-center justify-center gap-2"
-              >
-                 Ver Histórico Completo <ArrowRight size={12}/>
-              </button>
            </div>
         </aside>
 
@@ -291,7 +332,7 @@ export default function PatientDetailPage() {
   );
 }
 
-// SUB-COMPONENTES AUXILIARES
+// COMPONENTES AUXILIARES
 function DataField({ label, value, highlight }: any) {
   return (
     <div>

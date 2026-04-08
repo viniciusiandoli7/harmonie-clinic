@@ -10,7 +10,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
-    const { patientId, patientName, items, subtotal, discount, total, payments, signatureImage } = body;
+    // 👈 NOVIDADE: Recebendo o contractToken do frontend
+    const { patientId, patientName, items, subtotal, discount, total, payments, contractToken } = body;
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "Carrinho vazio." }, { status: 400 });
@@ -18,7 +19,6 @@ export async function POST(request: NextRequest) {
 
     const repasse = total * 0.25; 
     const lucroReal = total - repasse;
-
     const generalTreatmentName = items.map((i: any) => i.description).join(" + ").substring(0, 100);
 
     const result = await prisma.$transaction(async (tx) => {
@@ -37,16 +37,10 @@ export async function POST(request: NextRequest) {
 
       const sale = await tx.sale.create({
         data: {
-          patientId,
-          serviceId: treat.id,
-          professionalId: prof.id,
-          price: subtotal,
-          discount: discount || 0,
-          finalPrice: total,
+          patientId, serviceId: treat.id, professionalId: prof.id, price: subtotal,
+          discount: discount || 0, finalPrice: total,
           payments: {
-            create: payments && payments.length > 0 
-              ? payments.map((p: any) => ({ amount: p.amount, method: p.method }))
-              : []
+            create: payments && payments.length > 0 ? payments.map((p: any) => ({ amount: p.amount, method: p.method })) : []
           }
         },
       });
@@ -55,11 +49,8 @@ export async function POST(request: NextRequest) {
         items.map((item: any) => 
           tx.saleItem.create({
             data: {
-              saleId: sale.id,
-              productName: `${item.description} ${item.observation ? `(${item.observation})` : ''}`,
-              quantity: item.quantity,
-              unitPrice: item.price,
-              totalPrice: item.price * item.quantity,
+              saleId: sale.id, productName: `${item.description} ${item.observation ? `(${item.observation})` : ''}`,
+              quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity,
               commission: (item.price * item.quantity) * 0.25, 
             }
           })
@@ -68,14 +59,8 @@ export async function POST(request: NextRequest) {
 
       await tx.financialTransaction.create({
         data: {
-          type: "INCOME",
-          category: "PROCEDIMENTO",
-          description: `Venda Multi: ${generalTreatmentName}`,
-          amount: total,
-          profit: lucroReal,
-          patientId,
-          saleId: sale.id,
-          date: new Date(),
+          type: "INCOME", category: "PROCEDIMENTO", description: `Venda Multi: ${generalTreatmentName}`,
+          amount: total, profit: lucroReal, patientId, saleId: sale.id, date: new Date(),
         }
       });
 
@@ -85,11 +70,11 @@ export async function POST(request: NextRequest) {
           title: `Contrato Múltiplo - ${dataAtual()}`,
           content: `Contrato de prestação de serviços estéticos gerado via PDV.`,
           total: total,
-          token: `CTR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+          token: contractToken || `CTR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`, // 👈 Salva o Token do Frontend
           itemsJson: items,
-          status: "SIGNED",
-          signatureName: signatureImage ? patientName : null,
-          signatureImage: signatureImage || null,
+          status: "PENDING",
+          signatureName: null,
+          signatureImage: null,
         }
       });
 
@@ -97,12 +82,8 @@ export async function POST(request: NextRequest) {
         items.map((item: any) => 
           tx.clinicalEvolutionPlan.create({
             data: {
-              patientId,
-              treatmentName: item.description,
-              packageName: item.observation || "Sessão Avulsa",
-              totalSessions: item.quantity, 
-              completedSessions: 0,
-              status: "ACTIVE",
+              patientId, treatmentName: item.description, packageName: item.observation || "Sessão Avulsa",
+              totalSessions: item.quantity, completedSessions: 0, status: "ACTIVE",
               goals: "Definido no fechamento da venda (PDV)."
             }
           })
@@ -110,11 +91,7 @@ export async function POST(request: NextRequest) {
       );
 
       await tx.clinicalEvolution.create({
-        data: {
-          patientId,
-          content: `CONTRATO FECHADO: ${generalTreatmentName}. Valor: R$ ${total.toLocaleString('pt-BR')}. Protocolos iniciados.`,
-          type: "SALE_RECORD",
-        }
+        data: { patientId, content: `CONTRATO FECHADO: ${generalTreatmentName}. Valor: R$ ${total.toLocaleString('pt-BR')}. Protocolos iniciados.`, type: "SALE_RECORD", }
       });
 
       return sale;
@@ -122,7 +99,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error: any) {
-    console.error('Erro na integração master:', error);
+    console.error('Erro:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

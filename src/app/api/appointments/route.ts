@@ -12,7 +12,6 @@ import { z } from "zod";
 const statusSchema = z.enum(["SCHEDULED", "COMPLETED", "CANCELED"]);
 
 export async function GET(req: Request) {
-  // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -50,7 +49,6 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -59,7 +57,9 @@ export async function POST(req: Request) {
   try {
     const body = await req.json();
 
-    // 👇 adiciona suporte a "room" sem quebrar validator base
+    // 🛡️ REFINAMENTO: Log para debugar o que o frontend está enviando
+    console.log("Recebido no POST /appointments:", body);
+
     const parsed = createAppointmentSchema
       .extend({
         room: z.enum(["A", "B"]).optional(),
@@ -68,22 +68,21 @@ export async function POST(req: Request) {
 
     const appointment = await createAppointment({
       patientId: parsed.patientId,
-      date: parsed.date,
+      date: parsed.date, // O validator deve garantir que é uma data válida ISO-8601
       status: parsed.status,
       durationMinutes: parsed.durationMinutes,
       notes: parsed.notes ?? null,
       procedureName: parsed.procedureName ?? null,
       price: parsed.price ?? null,
       paymentStatus: parsed.paymentStatus,
-
-      // 👇 NOVO (com fallback seguro)
       room: parsed.room ?? "A",
     });
 
     return NextResponse.json(appointment, { status: 201 });
   } catch (error: any) {
     if (error?.name === "ZodError") {
-      return NextResponse.json({ error: error.errors }, { status: 400 });
+      console.error("Erro de Validação (Zod):", error.errors);
+      return NextResponse.json({ error: "Dados inválidos", details: error.errors }, { status: 400 });
     }
 
     if (error instanceof AppointmentConflictError) {
@@ -91,6 +90,6 @@ export async function POST(req: Request) {
     }
 
     console.error("ERRO POST /api/appointments:", error);
-    return NextResponse.json({ error: "Erro ao criar" }, { status: 500 });
+    return NextResponse.json({ error: "Erro interno ao criar agendamento" }, { status: 500 });
   }
 }

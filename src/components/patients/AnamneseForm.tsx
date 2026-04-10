@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Save, X, ClipboardCheck } from "lucide-react";
+import { Save, X, ClipboardCheck, Pill, Activity, Wine } from "lucide-react";
 
 interface AnamneseFormProps {
   patientId: string;
@@ -20,6 +20,12 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
     botoxHistory: "",
     roacutan: "não",
     medications: "",
+    // 👇 NOVOS ESTADOS DA ANAMNESE
+    usesAspirin: "não",
+    usesCorticosteroids: "não",
+    smoker: "não",
+    drinksAlcohol: "não",
+    
     eggAllergy: "não",
     seafoodAllergy: "",
     dentistAnesthesia: "não",
@@ -30,7 +36,6 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
     otherDiseases: "",
     generalAllergies: "",
     herpes: "não",
-    smoker: "não",
     bloodPressure: "NORMAL",
     pregnant: "não",
     previousPregnancy: "não",
@@ -59,18 +64,62 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
     }
 
     setIsSaving(true);
+    
+    // 🛡️ REFINAMENTO: Transforma a ficha "Crua" no objeto perfeito que a API espera
+    const mappedPayload = {
+      patientId: patientId,
+      profession: formData.profession,
+      sunExposure: formData.sunExposure === "sim",
+      mainComplaint: formData.mainComplaint,
+      previousFillers: formData.fillersHistory,
+      previousBotox: formData.botoxHistory,
+      takingRoacutan: formData.roacutan === "sim",
+      medications: formData.medications,
+      
+      // Novos campos convertidos para Booleanos
+      usesAspirin: formData.usesAspirin === "sim",
+      usesCorticosteroids: formData.usesCorticosteroids === "sim",
+      smoker: formData.smoker === "sim",
+      drinksAlcohol: formData.drinksAlcohol === "sim",
+      
+      allergicToEgg: formData.eggAllergy === "sim",
+      allergicToSeafood: formData.seafoodAllergy,
+      dentalAnesthesia: formData.dentistAnesthesia === "sim",
+      dentalAnesthesiaReaction: formData.anesthesiaReaction === "sim",
+      procedureReaction: formData.procedureReaction,
+      keloidTendency: formData.keloidHistory === "sim",
+      degenerativeDisease: formData.degenerativeDisease,
+      diseases: formData.otherDiseases,
+      allergies: formData.generalAllergies,
+      hasHerpes: formData.herpes === "sim",
+      bloodPressure: formData.bloodPressure,
+      pregnantOrNursing: formData.pregnant === "sim",
+      previousPregnancies: formData.previousPregnancy === "sim",
+      exercises: formData.intenseExercise === "sim",
+      skinCareRoutine: formData.skincareRoutine,
+      weightLoss: formData.weightLossAmount,
+      intendsToLoseWeight: formData.weightGoal,
+      intendsSurgery: formData.surgeryGoal,
+      surgeries: formData.previousSurgeries,
+      recentTreatmentOrVaccine: formData.recentMedVaccine,
+      permanentImplants: formData.permanentImplants,
+      consentSigned: formData.agreement,
+    };
+
     try {
-      // Chama a função onSave que vem do componente pai
-      await onSave(formData);
+      await onSave(mappedPayload);
     } finally {
       setIsSaving(false);
     }
   };
 
-  const SectionTitle = ({ title }: { title: string }) => (
-    <h4 className="mt-12 mb-6 border-b border-[#E9DEC9] pb-2 text-[11px] font-black uppercase tracking-[0.3em] text-[#C8A35F]">
-      {title}
-    </h4>
+  const SectionTitle = ({ title, icon: Icon }: { title: string, icon?: any }) => (
+    <div className="flex items-center gap-3 mt-12 mb-6 border-b border-[#E9DEC9] pb-2">
+      {Icon && <Icon size={16} className="text-[#C8A35F]" />}
+      <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-[#C8A35F]">
+        {title}
+      </h4>
+    </div>
   );
 
   const RadioGroup = ({ label, name, options = ["Sim", "não"] }: { label: string, name: string, options?: string[] }) => (
@@ -96,7 +145,6 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
   return (
     <div className="bg-white rounded-xl shadow-2xl max-w-5xl mx-auto overflow-hidden border border-[#E9DEC9]">
       
-      {/* CABEÇALHO CLARO - ADEUS PARTE PRETA */}
       <header className="bg-[#FAF8F3] border-b border-[#E9DEC9] px-10 py-8 flex justify-between items-center">
         <div className="flex items-center gap-5">
           <div className="h-12 w-[2px] bg-[#C8A35F]" />
@@ -145,7 +193,7 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
         </div>
 
         {/* BLOCO 2: HISTÓRICO */}
-        <SectionTitle title="Histórico de Procedimentos" />
+        <SectionTitle title="Histórico de Procedimentos" icon={Activity} />
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-widest text-[#96A4C1] mb-2">Preenchimentos anteriores (região/tempo)?</label>
@@ -157,19 +205,29 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
           </div>
         </div>
 
-        {/* BLOCO 3: SAÚDE */}
-        <SectionTitle title="Saúde e Medicamentos" />
+        {/* BLOCO 3: SAÚDE (COM ASPIRINA E CORTICOIDE) */}
+        <SectionTitle title="Saúde e Medicamentos" icon={Pill} />
         <div className="grid grid-cols-1 md:grid-cols-3 gap-10">
           <RadioGroup label="Usa Roacutan?" name="roacutan" />
-          <div className="md:col-span-2">
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-[#96A4C1] mb-2">Medicamentos ou Vitaminas em uso?</label>
-            <input name="medications" value={formData.medications} onChange={handleInputChange} type="text" className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#C8A35F]" />
-          </div>
+          <RadioGroup label="Toma Aspirina (AAS)?" name="usesAspirin" />
+          <RadioGroup label="Usa Corticoides?" name="usesCorticosteroids" />
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
-          <RadioGroup label="Tem tendência a cicatriz ou queloide?" name="keloidHistory" />
+          <RadioGroup label="Tem tendência a cicatriz/queloide?" name="keloidHistory" />
           <RadioGroup label="Possui Herpes?" name="herpes" />
+        </div>
+
+        <div>
+          <label className="block text-[10px] font-bold uppercase tracking-widest text-[#96A4C1] mb-2">Outros Medicamentos ou Vitaminas em uso?</label>
+          <input name="medications" value={formData.medications} onChange={handleInputChange} type="text" className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#C8A35F]" />
+        </div>
+
+        {/* BLOCO 4: ESTILO DE VIDA (COM ÁLCOOL E FUMO) */}
+        <SectionTitle title="Estilo de Vida e Hábitos" icon={Wine} />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
+          <RadioGroup label="Fuma habitualmente?" name="smoker" />
+          <RadioGroup label="Consome bebida alcoólica?" name="drinksAlcohol" />
         </div>
 
         {/* TERMO DE RESPONSABILIDADE */}

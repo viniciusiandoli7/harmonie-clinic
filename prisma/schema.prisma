@@ -138,7 +138,6 @@ model PatientAnamnesis {
   diseases                 String?
   allergies                String?
   hasHerpes                Boolean  @default(false)
-  smoker                   Boolean  @default(false)
   bloodPressure            String?  // ALTA, NORMAL, BAIXA
   pregnantOrNursing        Boolean  @default(false)
   previousPregnancies      Boolean  @default(false)
@@ -151,6 +150,12 @@ model PatientAnamnesis {
   recentTreatmentOrVaccine String?
   permanentImplants        String?
   consentSigned            Boolean  @default(false)
+  
+  // 👇 NOVOS CAMPOS ADICIONADOS AQUI 👇
+  usesAspirin              Boolean  @default(false)
+  usesCorticosteroids      Boolean  @default(false)
+  smoker                   Boolean  @default(false)
+  drinksAlcohol            Boolean  @default(false)
   
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
@@ -187,7 +192,6 @@ model ClinicalEvolutionSession {
   sessionDate          DateTime              @default(now())
   performedProcedure   String?
   
-  // 👈 CAMPO ADICIONADO PARA EVITAR O ERRO NO TSC
   bodyMeasurements     String?               @db.Text 
   
   clinicalNotes        String?
@@ -210,24 +214,24 @@ model ClinicalEvolutionSession {
 // -----------------------------------------
 
 model Sale {
-  id             String        @id @default(uuid())
+  id             String                @id @default(uuid())
   patientId      String
   professionalId String
   serviceId      String
   
   price          Float
-  discount       Float         @default(0)
-  finalPrice     Float         @default(0)
+  discount       Float                 @default(0)
+  finalPrice     Float                 @default(0)
   
   payments       SalePayment[] 
   transactions   FinancialTransaction[]
   
-  createdAt      DateTime      @default(now())
-  updatedAt      DateTime      @default(now()) @updatedAt
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @default(now()) @updatedAt
   
-  patient        Patient       @relation(fields: [patientId], references: [id])
-  professional   Professional  @relation(fields: [professionalId], references: [id])
-  service        Treatment     @relation(fields: [serviceId], references: [id])
+  patient        Patient               @relation(fields: [patientId], references: [id])
+  professional   Professional          @relation(fields: [professionalId], references: [id])
+  service        Treatment             @relation(fields: [serviceId], references: [id])
   saleItems      SaleItem[]
 
   // ÍNDICES: Para gerar relatórios financeiros por paciente ou data
@@ -340,11 +344,11 @@ model PatientContract {
 }
 
 model Treatment {
-  id        String   @id @default(uuid())
-  name      String   @unique
-  template  String   // Template base do termo de consentimento
-  createdAt DateTime @default(now())
-  updatedAt DateTime @default(now()) @updatedAt
+  id        String                   @id @default(uuid())
+  name      String                   @unique
+  template  String                   // Template base do termo de consentimento
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @default(now()) @updatedAt
   
   documents PatientConsentDocument[]
   sales     Sale[]

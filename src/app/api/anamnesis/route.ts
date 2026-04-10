@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Patient not found' }, { status: 404 });
     }
 
-    // Prepara o objeto com todos os campos atualizados do novo banco
+    // 🛡️ REFINAMENTO: O objeto agora contém os 4 campos novos (aspirina, corticoide, fumo, bebida)
     const dataObj = {
       profession: anamnesisData.profession || null,
       sunExposure: Boolean(anamnesisData.sunExposure),
@@ -76,7 +76,6 @@ export async function POST(request: NextRequest) {
       diseases: anamnesisData.diseases || null,
       allergies: anamnesisData.allergies || null,
       hasHerpes: Boolean(anamnesisData.hasHerpes),
-      smoker: Boolean(anamnesisData.smoker),
       bloodPressure: anamnesisData.bloodPressure || null,
       pregnantOrNursing: Boolean(anamnesisData.pregnantOrNursing),
       previousPregnancies: Boolean(anamnesisData.previousPregnancies),
@@ -89,9 +88,14 @@ export async function POST(request: NextRequest) {
       recentTreatmentOrVaccine: anamnesisData.recentTreatmentOrVaccine || null,
       permanentImplants: anamnesisData.permanentImplants || null,
       consentSigned: Boolean(anamnesisData.consentSigned),
+      // NOVOS CAMPOS
+      usesAspirin: Boolean(anamnesisData.usesAspirin),
+      usesCorticosteroids: Boolean(anamnesisData.usesCorticosteroids),
+      smoker: Boolean(anamnesisData.smoker),
+      drinksAlcohol: Boolean(anamnesisData.drinksAlcohol),
     };
 
-    // Upsert: se não existir, cria. Se existir, atualiza. (Muito mais limpo!)
+    // Upsert: se não existir, cria. Se existir, atualiza.
     const anamnesis = await prisma.patientAnamnesis.upsert({
       where: { patientId: patientId },
       update: dataObj,

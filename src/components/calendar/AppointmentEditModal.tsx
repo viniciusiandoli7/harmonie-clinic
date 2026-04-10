@@ -33,6 +33,28 @@ type Props = {
   onSaved: () => void | Promise<void>;
 };
 
+// 🛡️ REFINAMENTO: Lista de Procedimentos Atualizada (Igual ao QuickCreate)
+const PROCEDURES = [
+  "Consulta",
+  "Retorno",
+  "Ultrassom Micro e Macrofocado",
+  "Toxina Botulínica",
+  "Skinbooster",
+  "Preenchimento",
+  "PEIM",
+  "Peeling",
+  "PDRN",
+  "Microagulhamento",
+  "Mesoterapia",
+  "Limpeza de Pele Profunda",
+  "Lavieen",
+  "Jato de Plasma",
+  "Fios de PDO",
+  "Bioestimulador",
+  "Intradermoterapia local",
+  "Intradermoterapia IM"
+];
+
 function toLocalInputValue(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");
   const yyyy = date.getFullYear();
@@ -127,11 +149,10 @@ export default function AppointmentEditModal({
     try {
       const res = await fetch(`/api/appointments/${appointment.id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientId,
+          // 🛡️ REFINAMENTO: Corrige problema de fuso ao salvar a edição
           date: new Date(date).toISOString(),
           durationMinutes: Number(durationMinutes),
           procedureName: procedureName || null,
@@ -194,22 +215,13 @@ export default function AppointmentEditModal({
       <div className="w-full max-w-2xl border border-[#F0ECE4] bg-white shadow-[0_20px_60px_rgba(17,17,17,0.18)]">
         <div className="flex items-center justify-between border-b border-[#F0ECE4] bg-[#FCFAF6] px-6 py-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.34em] text-[#C8A35F]">
-              Agenda
-            </p>
-            <h2
-              className="mt-2 text-[28px] text-[#111111]"
-              style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
-            >
+            <p className="text-[10px] uppercase tracking-[0.34em] text-[#C8A35F]">Agenda</p>
+            <h2 className="mt-2 text-[28px] text-[#111111]" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
               {title}
             </h2>
           </div>
 
-          <button
-            type="button"
-            onClick={onClose}
-            className="inline-flex h-10 w-10 items-center justify-center border border-[#ECE7DD] text-[#64748B] transition hover:text-[#111111]"
-          >
+          <button onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center border border-[#ECE7DD] text-[#64748B] transition hover:text-[#111111]">
             <X size={16} />
           </button>
         </div>
@@ -226,10 +238,10 @@ export default function AppointmentEditModal({
             <select
               value={patientId}
               onChange={(e) => setPatientId(e.target.value)}
-              className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
+              className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
               required
             >
-              <option value="">Selecione</option>
+              <option value="">Selecione...</option>
               {patients.map((patient) => (
                 <option key={patient.id} value={patient.id}>
                   {patient.name}
@@ -255,7 +267,7 @@ export default function AppointmentEditModal({
               <select
                 value={room}
                 onChange={(e) => setRoom(e.target.value as Room)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
               >
                 <option value="A">Sala A</option>
                 <option value="B">Sala B</option>
@@ -263,52 +275,71 @@ export default function AppointmentEditModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div>
+              <FieldLabel>Procedimento</FieldLabel>
+              {/* 🛡️ REFINAMENTO: O input de texto foi trocado pelo Select oficial */}
+              <select
+                value={procedureName}
+                onChange={(e) => setProcedureName(e.target.value)}
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
+                required
+              >
+                <option value="">Selecione...</option>
+                {PROCEDURES.map((proc) => (
+                  <option key={proc} value={proc}>{proc}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <FieldLabel>Status Inicial</FieldLabel>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as AppointmentStatus)}
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
+              >
+                <option value="SCHEDULED">Agendada / Remarcada</option>
+                <option value="COMPLETED">Compareceu / Concluída</option>
+                <option value="CANCELED">Desmarcada / Faltou</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             <div>
               <FieldLabel>Duração</FieldLabel>
               <select
                 value={durationMinutes}
                 onChange={(e) => setDurationMinutes(e.target.value)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
               >
                 <option value="30">30 min</option>
-                <option value="60">60 min</option>
-                <option value="90">90 min</option>
-                <option value="120">120 min</option>
+                <option value="60">1 Hora</option>
+                <option value="90">1h 30min</option>
+                <option value="120">2 Horas</option>
               </select>
             </div>
 
             <div>
-              <FieldLabel>Valor</FieldLabel>
+              <FieldLabel>Valor (Opcional)</FieldLabel>
               <input
                 type="number"
                 min="0"
                 step="0.01"
+                placeholder="R$ 0,00"
                 value={price}
                 onChange={(e) => setPrice(e.target.value)}
                 className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
               />
             </div>
-
-            <div>
-              <FieldLabel>Status</FieldLabel>
-              <select
-                value={status}
-                onChange={(e) => setStatus(e.target.value as AppointmentStatus)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
-              >
-                <option value="SCHEDULED">Agendada</option>
-                <option value="COMPLETED">Concluída</option>
-                <option value="CANCELED">Cancelada</option>
-              </select>
-            </div>
-
+            
             <div>
               <FieldLabel>Pagamento</FieldLabel>
               <select
                 value={paymentStatus}
                 onChange={(e) => setPaymentStatus(e.target.value as PaymentStatus)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
+                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
               >
                 <option value="PENDING">Pendente</option>
                 <option value="PAID">Pago</option>
@@ -318,20 +349,11 @@ export default function AppointmentEditModal({
           </div>
 
           <div>
-            <FieldLabel>Procedimento</FieldLabel>
-            <input
-              value={procedureName}
-              onChange={(e) => setProcedureName(e.target.value)}
-              className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
-            />
-          </div>
-
-          <div>
             <FieldLabel>Observações</FieldLabel>
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[96px] w-full border border-[#ECE7DD] p-3 text-sm outline-none"
+              className="min-h-[70px] w-full border border-[#ECE7DD] p-3 text-sm outline-none resize-none"
             />
           </div>
 
@@ -340,16 +362,16 @@ export default function AppointmentEditModal({
               type="button"
               onClick={handleDelete}
               disabled={deleting || saving}
-              className="h-11 border border-red-200 px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-red-700 disabled:opacity-60"
+              className="h-11 border border-red-200 px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-red-700 disabled:opacity-60 hover:bg-red-50 transition-colors"
             >
-              {deleting ? "Excluindo..." : "Excluir"}
+              {deleting ? "Excluindo..." : "Excluir Agendamento"}
             </button>
 
             <div className="flex gap-3">
               <button
                 type="button"
                 onClick={onClose}
-                className="h-11 border border-[#ECE7DD] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#111827]"
+                className="h-11 border border-[#ECE7DD] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#111827] hover:bg-gray-50 transition-colors"
               >
                 Cancelar
               </button>
@@ -357,7 +379,7 @@ export default function AppointmentEditModal({
               <button
                 type="submit"
                 disabled={saving}
-                className="h-11 bg-[#111111] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
+                className="h-11 bg-[#111111] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60 hover:bg-[#C8A35F] transition-colors"
               >
                 {saving ? "Salvando..." : "Salvar alterações"}
               </button>

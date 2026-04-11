@@ -155,7 +155,8 @@ export default function CalendarQuickCreateModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/45 p-4">
+    // CORREÇÃO TAILWIND: z-[80] virou z-80
+    <div className="fixed inset-0 z-80 flex items-center justify-center bg-black/45 p-4">
       <div className="w-full max-w-2xl border border-[#F0ECE4] bg-white shadow-[0_20px_60px_rgba(17,17,17,0.18)]">
         <div className="flex items-center justify-between border-b border-[#F0ECE4] bg-[#FCFAF6] px-6 py-4">
           <div>
@@ -222,7 +223,6 @@ export default function CalendarQuickCreateModal({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <FieldLabel>Procedimento</FieldLabel>
-              {/* 🛡️ REFINAMENTO: Trocado input de texto por um Select com a lista correta */}
               <select
                 value={procedureName}
                 onChange={(e) => setProcedureName(e.target.value)}
@@ -250,41 +250,13 @@ export default function CalendarQuickCreateModal({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-            <div>
-              <FieldLabel>Duração</FieldLabel>
-              <select
-                value={durationMinutes}
-                onChange={(e) => setDurationMinutes(e.target.value)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
-              >
-                <option value="30">30 min</option>
-                <option value="60">1 Hora</option>
-                <option value="90">1h 30min</option>
-                <option value="120">2 Horas</option>
-              </select>
-            </div>
-
-            <div>
-              <FieldLabel>Valor (Opcional)</FieldLabel>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="R$ 0,00"
-                value={price}
-                onChange={(e) => setPrice(e.target.value)}
-                className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
-              />
-            </div>
-          </div>
-
           <div>
             <FieldLabel>Observações</FieldLabel>
+            {/* CORREÇÃO TAILWIND: min-h-[70px] virou min-h-17.5 */}
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[70px] w-full border border-[#ECE7DD] p-3 text-sm outline-none resize-none"
+              className="min-h-17.5 w-full border border-[#ECE7DD] p-3 text-sm outline-none resize-none"
             />
           </div>
 

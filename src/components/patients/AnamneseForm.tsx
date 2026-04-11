@@ -147,7 +147,7 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
       
       <header className="bg-[#FAF8F3] border-b border-[#E9DEC9] px-10 py-8 flex justify-between items-center">
         <div className="flex items-center gap-5">
-          <div className="h-12 w-[2px] bg-[#C8A35F]" />
+          <div className="h-12 w-0.5 bg-[#C8A35F]" />
           <div>
             <h2 className="text-[10px] font-bold uppercase tracking-[0.4em] text-[#C8A35F] mb-1">Harmonie Clinical System</h2>
             <h3 className="text-2xl font-serif text-[#111] uppercase tracking-widest leading-none">

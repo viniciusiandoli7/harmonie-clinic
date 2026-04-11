@@ -10,7 +10,7 @@ interface Props { open: boolean; onClose: () => void; patient: any; }
 const TREATMENTS = [
   "ULTRASSOM MICRO E MACROFOCADO", "TOXINA BOTULÍNICA", "SKINBOOSTER", "PREENCHIMENTO",
   "PEIM", "PEELING", "PDRN", "MICROAGULHAMENTO", "MESOTERAPIA", "LIMPEZA DE PELE PROFUNDA",
-  "LAVIEEN", "JATO DE PLASMA", "FIOS DE PDO BIOESTIMULADOR"
+  "LAVIEEN", "JATO DE PLASMA", "FIOS DE PDO", "BIOESTIMULADOR", "INTRADERMOTERAPIA LOCAL", "INTRADERMOTERAPIA IM"
 ];
 const PROFESSIONALS = ["Dra. Mariana Carmona"];
 
@@ -117,9 +117,15 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
 
       const link = `${window.location.origin}/assinar-contrato/${contractToken}`;
       const phone = patient.phone ? patient.phone.replace(/\D/g, '') : '';
-      const message = `Olá, ${patient.name}! 🌟\n\nSeu procedimento na *Harmonie Clinic* foi registrado com sucesso.\n\nPor favor, utilize o link abaixo para assinar o seu contrato digital de forma segura:\n\n${link}`;
       
-      window.open(`https://api.whatsapp.com/send?${phone ? `phone=55${phone}&` : ''}text=${encodeURIComponent(message)}`, '_blank');
+      // 🛡️ REFINAMENTO: Mensagem de WhatsApp atualizada e dinâmica
+      const message = `Olá, ${patient.name.split(' ')[0]}! 🌟\n\nSeu procedimento com a *Dra. Mariana Carmona* foi registrado com sucesso.\n\nPor favor, utilize o link abaixo para assinar o seu contrato digital de forma segura:\n\n${link}`;
+      
+      if (phone) {
+        window.open(`https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}`, '_blank');
+      } else {
+        alert("Contrato gerado. O paciente não possui telefone cadastrado.");
+      }
 
       onClose();
       router.refresh();
@@ -135,7 +141,7 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans">
+    <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans">
       <div className="w-full max-w-6xl bg-white shadow-2xl rounded-sm flex flex-col h-[90vh] overflow-hidden">
         
         <div className="bg-[#111] px-8 py-6 flex justify-between items-center border-b border-[#C8A35F]/30">

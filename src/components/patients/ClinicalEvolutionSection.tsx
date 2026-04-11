@@ -188,7 +188,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
         </div>
         <button 
           onClick={() => setShowManualForm(!showManualForm)}
-          className="h-10 bg-[#111] text-white px-6 text-[10px] font-bold uppercase tracking-[0.1em] flex items-center justify-center gap-2 hover:bg-[#C8A35F] transition-all whitespace-nowrap"
+          className="h-10 bg-[#111] text-white px-6 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[#C8A35F] transition-all whitespace-nowrap"
         >
           {showManualForm ? <X size={14} /> : <Plus size={14} />}
           {showManualForm ? "Cancelar" : "Iniciar Prontuário"}

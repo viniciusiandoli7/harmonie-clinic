@@ -211,7 +211,8 @@ export default function AppointmentEditModal({
   }
 
   return (
-    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/45 p-4">
+    // CORREÇÃO TAILWIND: z-[90] virou z-90
+    <div className="fixed inset-0 z-90 flex items-center justify-center bg-black/45 p-4">
       <div className="w-full max-w-2xl border border-[#F0ECE4] bg-white shadow-[0_20px_60px_rgba(17,17,17,0.18)]">
         <div className="flex items-center justify-between border-b border-[#F0ECE4] bg-[#FCFAF6] px-6 py-4">
           <div>
@@ -350,10 +351,11 @@ export default function AppointmentEditModal({
 
           <div>
             <FieldLabel>Observações</FieldLabel>
+            {/* CORREÇÃO TAILWIND: min-h-[70px] virou min-h-17.5 */}
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
-              className="min-h-[70px] w-full border border-[#ECE7DD] p-3 text-sm outline-none resize-none"
+              className="min-h-17.5 w-full border border-[#ECE7DD] p-3 text-sm outline-none resize-none"
             />
           </div>
 

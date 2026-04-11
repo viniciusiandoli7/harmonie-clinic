@@ -111,7 +111,7 @@ export default function DashboardPage() {
       <div className="mt-12 grid grid-cols-1 gap-8 xl:grid-cols-[1.6fr_1fr]">
         <div className="space-y-8">
           {/* 🟢 CARD DE ANIVERSARIANTES (NOVO) */}
-          <section className="card p-6 bg-gradient-to-br from-[#FAF8F3] to-white border border-[#E9DEC9] rounded-xl shadow-sm">
+          <section className="card p-6 bg-linear-to-br from-[#FAF8F3] to-white border border-[#E9DEC9] rounded-xl shadow-sm">
             <div className="flex items-center gap-3 mb-4">
               <div className="p-2 bg-[#C5A059] rounded-lg text-white">
                 <Gift size={16} /> 
@@ -124,7 +124,7 @@ export default function DashboardPage() {
                 <p className="text-[11px] text-gray-400 uppercase tracking-widest italic px-2">Nenhum aniversariante este mês.</p>
               ) : (
                 birthdaysOfMonth.map(p => (
-                  <div key={p.id} className="min-w-[140px] p-3 border border-[#EEECE7] rounded-lg bg-white text-center shadow-sm shrink-0">
+                  <div key={p.id} className="min-w-35 p-3 border border-[#EEECE7] rounded-lg bg-white text-center shadow-sm shrink-0">
                     <p className="text-[11px] font-bold uppercase text-[#1A1A1A] truncate" title={p.name}>{p.name}</p>
                     <p className="text-[10px] text-[#C5A059] font-black mt-1">
                       {new Date(p.birthDate).toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}

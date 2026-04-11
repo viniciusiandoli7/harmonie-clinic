@@ -70,7 +70,7 @@ export default function FinanceChart({ items }: Props) {
   }, [items]);
 
   if (!mounted) {
-    return <div className="mt-8 h-[320px] border border-[#ECE7DD] bg-white p-8 shadow-sm" />;
+    return <div className="mt-8 h-80 border border-[#ECE7DD] bg-white p-8 shadow-sm" />;
   }
 
   return (
@@ -81,7 +81,7 @@ export default function FinanceChart({ items }: Props) {
         </h3>
       </div>
 
-      <div className="h-[320px] min-h-[320px] w-full min-w-0">
+      <div className="h-80 min-h-80 w-full min-w-0">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart data={data}>
             <CartesianGrid stroke="#F3EFE7" vertical={false} />

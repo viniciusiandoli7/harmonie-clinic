@@ -62,18 +62,20 @@ export default function GenerateContractButton(props: Props) {
       }
 
       const contractLink = `${window.location.origin}/contracts/${data.token}`;
-      const message = buildWhatsappContractMessage({
-        patientName: props.patient.name,
-        contractLink,
-      });
+      
+      // 🛡️ REFINAMENTO: Mensagem de WhatsApp personalizada para a Dra. Mariana
+      const message = `Olá, ${props.patient.name.split(' ')[0]}! 🌟\n\nSeu procedimento com a *Dra. Mariana Carmona* foi registrado com sucesso.\n\nPor favor, utilize o link abaixo para assinar seu contrato digital de forma segura:\n\n${contractLink}`;
 
-      const whatsappLink = getWhatsappLink(props.patient.phone, message);
+      const phoneOnlyNumbers = props.patient.phone?.replace(/\D/g, '');
+      const whatsappLink = phoneOnlyNumbers 
+        ? `https://api.whatsapp.com/send?phone=55${phoneOnlyNumbers}&text=${encodeURIComponent(message)}`
+        : null;
 
       if (whatsappLink) {
         window.open(whatsappLink, "_blank");
       } else {
         await navigator.clipboard.writeText(contractLink);
-        alert("Contrato gerado. O link foi copiado.");
+        alert("Contrato gerado. Como o telefone não foi preenchido, o link foi copiado para sua área de transferência.");
       }
     } finally {
       setLoading(false);

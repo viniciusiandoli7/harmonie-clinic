@@ -1,17 +1,18 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { 
   ChevronLeft, ChevronRight, Search, Clock, Plus, 
   MoreHorizontal, Trash2, Edit3, Bell, MapPin, X 
 } from "lucide-react";
+import AppointmentEditModal from "@/components/calendar/AppointmentEditModal";
 
 // --- CONFIGURAÇÕES ---
 const PROCEDIMENTOS = [
-  "ULTRASSOM MICRO E MACROFOCADO", "TOXINA BOTULÍNICA", "SKINBOOSTER",
-  "PREENCHIMENTO", "PEIM", "PEELING", "PDRN", "MICROAGULHAMENTO",
-  "MESOTERAPIA", "LIMPEZA DE PELE PROFUNDA", "LAVIEEN", "JATO DE PLASMA",
-  "FIOS DE PDO", "BIOESTIMULADOR"
+  "Consulta", "Retorno", "Ultrassom Micro e Macrofocado", "Toxina Botulínica",
+  "Skinbooster", "Preenchimento", "PEIM", "Peeling", "PDRN", "Microagulhamento",
+  "Mesoterapia", "Limpeza de Pele Profunda", "Lavieen", "Jato de Plasma",
+  "Fios de PDO", "Bioestimulador", "Intradermoterapia local", "Intradermoterapia IM"
 ];
 
 const HOURS = Array.from({ length: 25 }, (_, i) => {
@@ -22,42 +23,62 @@ const HOURS = Array.from({ length: 25 }, (_, i) => {
 
 const DIAS_SEMANA_NOMES = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 
-interface Appointment {
-  id: string;
-  patient: string;
-  procedure: string;
-  date: string; // formato YYYY-MM-DD
-  time: string;
-  room: "SALA A" | "SALA B";
-  duration: string;
-}
-
 export default function AgendaPage() {
   const [view, setView] = useState<"DIA" | "SEMANA" | "MES">("DIA");
   const [currentDate, setCurrentDate] = useState(new Date());
   
-  // --- AUXILIARES DE DATA ---
-  const formatDate = (date: Date) => {
-    const yyyy = date.getFullYear();
-    const mm = String(date.getMonth() + 1).padStart(2, '0');
-    const dd = String(date.getDate()).padStart(2, '0');
-    return `${yyyy}-${mm}-${dd}`;
-  };
-
-  // --- ESTADO DE AGENDAMENTOS (Exemplos) ---
-  const [appointments, setAppointments] = useState<Appointment[]>([
-    { id: "1", patient: "MARIA SILVA", procedure: "TOXINA BOTULÍNICA", date: "2026-04-01", time: "10:00", room: "SALA A", duration: "60 MIN" },
-    { id: "2", patient: "VINICIUS TESTE", procedure: "LAVIEEN", date: "2026-04-02", time: "14:30", room: "SALA B", duration: "30 MIN" }
-  ]);
-
-  // 🛡️ REFINAMENTO: O formData agora suporta Data e múltiplos procedimentos
+  // --- ESTADOS DO BANCO DE DADOS ---
+  const [dbPatients, setDbPatients] = useState<any[]>([]);
+  const [dbAppointments, setDbAppointments] = useState<any[]>([]);
+  const [editingAppointment, setEditingAppointment] = useState<any | null>(null);
+  
+  // --- ESTADO DO FORMULÁRIO LATERAL ---
+  const [searchPatient, setSearchPatient] = useState("");
   const [formData, setFormData] = useState({ 
-    patient: "", 
+    patientId: "", 
     procedures: [] as string[], 
     date: formatDate(new Date()), 
     time: "08:00", 
     room: "SALA A" as "SALA A" | "SALA B" 
   });
+
+  // --- CARREGAR DADOS DA API ---
+  const loadData = async () => {
+    try {
+      const [pRes, aRes] = await Promise.all([
+        fetch("/api/patients"),
+        fetch("/api/appointments")
+      ]);
+      setDbPatients(await pRes.json());
+      setDbAppointments(await aRes.json());
+    } catch (err) {
+      console.error("Erro ao carregar dados", err);
+    }
+  };
+
+  useEffect(() => { loadData(); }, []);
+
+  // --- TRATAMENTO DOS DADOS PARA A TELA ---
+  const parsedAppointments = useMemo(() => {
+    return dbAppointments.filter(app => app.status !== "CANCELED").map(app => {
+      const d = new Date(app.date);
+      return {
+        ...app,
+        patientName: app.patient?.name || "Paciente Removido",
+        localDate: formatDate(d),
+        localTime: `${String(d.getHours()).padStart(2, '0')}:${d.getMinutes() < 30 ? '00' : '30'}`,
+        uiRoom: app.room === "B" ? "SALA B" : "SALA A"
+      };
+    });
+  }, [dbAppointments]);
+
+  // --- AUXILIARES DE DATA ---
+  function formatDate(date: Date) {
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();
@@ -94,26 +115,82 @@ export default function AgendaPage() {
     if (view === "MES") newDate.setMonth(newDate.getMonth() + amount);
     setCurrentDate(newDate);
     
-    // Atualiza o formulário lateral se estiver na visão de dia
     if (view === "DIA") setFormData(prev => ({ ...prev, date: formatDate(newDate) }));
   };
 
-  // --- DRAG & DROP UNIFICADO ---
+  // --- SALVAR NOVO AGENDAMENTO (API) ---
+  const handleCreateAppointment = async () => {
+    if (!formData.patientId || formData.procedures.length === 0 || !formData.date) {
+      return alert("Preencha o paciente, a data e adicione pelo menos um procedimento.");
+    }
+
+    const [y, m, d] = formData.date.split('-');
+    const [h, min] = formData.time.split(':');
+    const dateObj = new Date(Number(y), Number(m)-1, Number(d), Number(h), Number(min), 0);
+
+    try {
+      const res = await fetch("/api/appointments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          patientId: formData.patientId,
+          date: dateObj.toISOString(),
+          durationMinutes: 60,
+          procedureName: formData.procedures.join(" + "),
+          room: formData.room === "SALA B" ? "B" : "A",
+          status: "SCHEDULED",
+          paymentStatus: "PENDING"
+        })
+      });
+
+      if (!res.ok) throw new Error("Erro ao salvar");
+      
+      setSearchPatient("");
+      setFormData(prev => ({ ...prev, patientId: "", procedures: [] }));
+      loadData();
+    } catch (err) {
+      alert("Ocorreu um erro ao agendar.");
+    }
+  };
+
+  // --- ARRASTAR E SOLTAR (API) ---
   const onDragStart = (e: React.DragEvent, id: string) => {
     e.dataTransfer.setData("appointmentId", id);
   };
 
-  const updateAppointment = (id: string, updates: Partial<Appointment>) => {
-    setAppointments(prev => prev.map(app => app.id === id ? { ...app, ...updates } : app));
-  };
-
-  const handleDrop = (e: React.DragEvent, targetDate: string, targetTime?: string, targetRoom?: "SALA A" | "SALA B") => {
+  const handleDrop = async (e: React.DragEvent, targetDate: string, targetTime?: string, targetRoom?: "SALA A" | "SALA B") => {
     e.preventDefault();
     const id = e.dataTransfer.getData("appointmentId");
-    const updates: Partial<Appointment> = { date: targetDate };
-    if (targetTime) updates.time = targetTime;
-    if (targetRoom) updates.room = targetRoom;
-    updateAppointment(id, updates);
+    const app = dbAppointments.find(a => a.id === id);
+    if(!app) return;
+
+    const [y, m, d] = targetDate.split('-');
+    let h = 8, min = 0;
+    if (targetTime) {
+      const parts = targetTime.split(':');
+      h = parseInt(parts[0]);
+      min = parseInt(parts[1]);
+    } else {
+      const oldD = new Date(app.date);
+      h = oldD.getHours();
+      min = oldD.getMinutes();
+    }
+
+    const newDate = new Date(Number(y), Number(m)-1, Number(d), h, min, 0);
+
+    try {
+      await fetch(`/api/appointments/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          date: newDate.toISOString(),
+          room: targetRoom ? (targetRoom === "SALA B" ? "B" : "A") : app.room
+        })
+      });
+      loadData();
+    } catch(err) {
+      console.error(err);
+    }
   };
 
   return (
@@ -131,14 +208,22 @@ export default function AgendaPage() {
           <div className="space-y-1">
             <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Paciente</label>
             <input 
-              value={formData.patient} 
-              onChange={e => setFormData({...formData, patient: e.target.value})} 
+              list="patients-list"
+              value={searchPatient} 
+              onChange={e => {
+                setSearchPatient(e.target.value);
+                const found = dbPatients.find(p => p.name.toLowerCase() === e.target.value.toLowerCase());
+                if(found) setFormData({...formData, patientId: found.id});
+                else setFormData({...formData, patientId: ""});
+              }} 
               placeholder="BUSCAR NOME..." 
               className="w-full py-1.5 border-b border-[#EEE] outline-none bg-transparent focus:border-[#C5A059] transition-colors" 
             />
+            <datalist id="patients-list">
+              {dbPatients.map(p => <option key={p.id} value={p.name} />)}
+            </datalist>
           </div>
 
-          {/* 🛡️ REFINAMENTO: Múltiplos procedimentos */}
           <div className="space-y-2">
             <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Procedimentos</label>
             <select 
@@ -155,16 +240,11 @@ export default function AgendaPage() {
               {PROCEDIMENTOS.map(p => <option key={p} value={p}>{p}</option>)}
             </select>
             
-            {/* Badges de procedimentos selecionados */}
             <div className="flex flex-wrap gap-1.5 mt-2">
               {formData.procedures.map(proc => (
                 <span key={proc} className="inline-flex items-center gap-1.5 bg-[#FAF8F3] border border-[#E9DEC9] text-[#C8A35F] text-[8px] font-bold px-2 py-1 rounded uppercase">
                   {proc}
-                  <button 
-                    type="button" 
-                    onClick={() => setFormData({...formData, procedures: formData.procedures.filter(p => p !== proc)})} 
-                    className="hover:text-red-500 transition-colors"
-                  >
+                  <button type="button" onClick={() => setFormData({...formData, procedures: formData.procedures.filter(p => p !== proc)})} className="hover:text-red-500 transition-colors">
                     <X size={10} strokeWidth={3} />
                   </button>
                 </span>
@@ -182,7 +262,6 @@ export default function AgendaPage() {
                value={formData.date} 
                onChange={e => {
                  setFormData({...formData, date: e.target.value});
-                 // Opcional: muda o calendário principal para o dia selecionado
                  if(e.target.value) {
                    const [y, m, d] = e.target.value.split('-');
                    setCurrentDate(new Date(Number(y), Number(m)-1, Number(d)));
@@ -217,24 +296,7 @@ export default function AgendaPage() {
           </div>
 
           <button 
-            onClick={() => {
-              if (!formData.patient || formData.procedures.length === 0 || !formData.date) {
-                return alert("Preencha o paciente, a data e adicione pelo menos um procedimento.");
-              }
-              const newApp = { 
-                id: Math.random().toString(), 
-                patient: formData.patient,
-                procedure: formData.procedures.join(" + "), // Junta os procedimentos com "+"
-                date: formData.date,
-                time: formData.time,
-                room: formData.room,
-                duration: "60 MIN"
-              };
-              setAppointments([...appointments, newApp]);
-              
-              // Limpa o formulário
-              setFormData(prev => ({ ...prev, patient: "", procedures: [] }));
-            }} 
+            onClick={handleCreateAppointment} 
             className="w-full mt-6 bg-[#1A1A1A] hover:bg-[#C5A059] text-white py-3.5 rounded-sm text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-md active:scale-95"
           >
             Confirmar Registro
@@ -244,7 +306,6 @@ export default function AgendaPage() {
 
       {/* ÁREA DA AGENDA */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        
         <header className="bg-white border-b border-[#EEECE7] px-8 py-4 flex justify-between items-center z-40">
           <div>
             <p className="text-[9px] font-bold uppercase tracking-[0.4em] text-[#C5A059] mb-0.5">Harmonie Concierge</p>
@@ -289,13 +350,13 @@ export default function AgendaPage() {
                     <div key={hour} className="flex min-h-15 group/row">
                       <div className="w-16 py-4 border-r border-[#EEECE7] flex justify-center items-start bg-[#FAFAFA] font-sans text-[11px] text-[#94A3B8] font-medium">{hour}</div>
                       <div className="flex-1 border-r border-[#F9F9F9] relative p-1 transition-colors hover:bg-gray-50/50" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(currentDate), hour, "SALA A")}>
-                        {appointments.filter(a => a.time === hour && a.room === "SALA A" && a.date === formatDate(currentDate)).map(app => (
-                          <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} />
+                        {parsedAppointments.filter(a => a.localTime === hour && a.uiRoom === "SALA A" && a.localDate === formatDate(currentDate)).map(app => (
+                          <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} onClick={() => setEditingAppointment(app)} />
                         ))}
                       </div>
                       <div className="flex-1 relative p-1 transition-colors hover:bg-gray-50/50" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(currentDate), hour, "SALA B")}>
-                        {appointments.filter(a => a.time === hour && a.room === "SALA B" && a.date === formatDate(currentDate)).map(app => (
-                          <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} />
+                        {parsedAppointments.filter(a => a.localTime === hour && a.uiRoom === "SALA B" && a.localDate === formatDate(currentDate)).map(app => (
+                          <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} onClick={() => setEditingAppointment(app)} />
                         ))}
                       </div>
                     </div>
@@ -321,8 +382,8 @@ export default function AgendaPage() {
                       <div className="w-16 flex justify-center items-center border-r border-[#EEECE7] bg-[#FAFAFA] font-sans text-[10px] text-[#94A3B8] font-medium">{hour}</div>
                       {currentWeekDays.map(day => (
                         <div key={day.toString()} className="flex-1 border-r border-[#F9F9F9] last:border-0 relative p-0.5 transition-colors hover:bg-gray-50/50" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(day), hour)}>
-                          {appointments.filter(a => a.time === hour && a.date === formatDate(day)).map(app => (
-                            <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} compact />
+                          {parsedAppointments.filter(a => a.localTime === hour && a.localDate === formatDate(day)).map(app => (
+                            <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} compact onClick={() => setEditingAppointment(app)} />
                           ))}
                         </div>
                       ))}
@@ -344,7 +405,6 @@ export default function AgendaPage() {
                     className={`min-h-27.5 p-2 border-b border-r border-[#F5F5F5] transition-colors relative group/day ${day ? 'cursor-pointer hover:bg-[#FAFAFA]' : ''}`}
                     onDragOver={e => e.preventDefault()} 
                     onDrop={e => day && handleDrop(e, formatDate(day))}
-                    // 🛡️ REFINAMENTO: Ao clicar no dia, navega para a visão "DIA"
                     onClick={() => {
                       if (day) {
                         setCurrentDate(day);
@@ -359,19 +419,16 @@ export default function AgendaPage() {
                           {day.getDate()}
                         </span>
                         <div className="mt-1 space-y-1">
-                          {appointments.filter(a => a.date === formatDate(day)).map(app => (
+                          {parsedAppointments.filter(a => a.localDate === formatDate(day)).map(app => (
                             <div 
                               key={app.id} 
                               draggable 
-                              onDragStart={e => {
-                                e.stopPropagation(); // Evita o clique do dia ao arrastar
-                                onDragStart(e, app.id);
-                              }} 
-                              onClick={(e) => e.stopPropagation()} // Evita pular de dia ao tentar clicar no agendamento (caso decida colocar edição futura)
+                              onDragStart={e => { e.stopPropagation(); onDragStart(e, app.id); }} 
+                              onClick={(e) => { e.stopPropagation(); setEditingAppointment(app); }} 
                               className="bg-white border border-[#EEECE7] text-[#1A1A1A] p-1.5 text-[8px] font-bold uppercase truncate cursor-move shadow-sm border-l-2 border-l-[#C5A059] hover:bg-[#FAF8F3] transition-colors"
                             >
-                              <span className="text-[#C5A059] mr-1">{app.time}</span> 
-                              {app.patient.split(' ')[0]}
+                              <span className="text-[#C5A059] mr-1">{app.localTime}</span> 
+                              {app.patientName.split(' ')[0]}
                             </div>
                           ))}
                         </div>
@@ -381,24 +438,32 @@ export default function AgendaPage() {
                 ))}
               </div>
             )}
-
           </div>
         </main>
       </div>
+
+      {/* 🛡️ MODAL PARA EXCLUIR / EDITAR */}
+      <AppointmentEditModal
+        open={!!editingAppointment}
+        appointment={editingAppointment}
+        onClose={() => setEditingAppointment(null)}
+        onSaved={loadData}
+      />
     </div>
   );
 }
 
 // --- CARD REFINADO ---
-function AppointmentCard({ app, onDragStart, compact }: any) {
+function AppointmentCard({ app, onDragStart, compact, onClick }: any) {
   return (
     <div 
       draggable 
       onDragStart={e => onDragStart(e, app.id)} 
+      onClick={onClick}
       className="absolute inset-x-1 top-0.5 bottom-0.5 bg-white border border-[#EEECE7] p-2 flex flex-col justify-center shadow-sm cursor-move border-l-4 border-l-[#C5A059] z-20 transition-all hover:shadow-md hover:border-[#C5A059] group/card rounded-sm"
     >
-      <p className="text-[#1A1A1A] text-[9px] font-extrabold uppercase tracking-wide truncate">{app.patient}</p>
-      {!compact && <p className="text-[#94A3B8] text-[8px] font-semibold truncate uppercase mt-0.5 leading-tight">{app.procedure}</p>}
+      <p className="text-[#1A1A1A] text-[9px] font-extrabold uppercase tracking-wide truncate">{app.patientName}</p>
+      {!compact && <p className="text-[#94A3B8] text-[8px] font-semibold truncate uppercase mt-0.5 leading-tight">{app.procedureName}</p>}
     </div>
   );
 }

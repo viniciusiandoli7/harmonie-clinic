@@ -49,8 +49,11 @@ export default function AgendaPage() {
         fetch("/api/patients"),
         fetch("/api/appointments")
       ]);
-      setDbPatients(await pRes.json());
-      setDbAppointments(await aRes.json());
+      const pData = await pRes.json();
+      const aData = await aRes.json();
+      
+      setDbPatients(Array.isArray(pData) ? pData : (pData.data || []));
+      setDbAppointments(Array.isArray(aData) ? aData : (aData.data || []));
     } catch (err) {
       console.error("Erro ao carregar dados", err);
     }
@@ -139,17 +142,24 @@ export default function AgendaPage() {
           procedureName: formData.procedures.join(" + "),
           room: formData.room === "SALA B" ? "B" : "A",
           status: "SCHEDULED",
-          paymentStatus: "PENDING"
+          paymentStatus: "PENDING",
+          price: null,
+          notes: null
         })
       });
 
-      if (!res.ok) throw new Error("Erro ao salvar");
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        const errMsg = data?.error?.formErrors?.[0] ?? data?.error ?? data?.message ?? "Erro desconhecido na API";
+        throw new Error(errMsg);
+      }
       
       setSearchPatient("");
       setFormData(prev => ({ ...prev, patientId: "", procedures: [] }));
       loadData();
-    } catch (err) {
-      alert("Ocorreu um erro ao agendar.");
+    } catch (err: any) {
+      alert(`Ocorreu um erro ao agendar:\n${err.message}`);
     }
   };
 

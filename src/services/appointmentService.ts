@@ -63,9 +63,11 @@ function normalizeDuration(d?: number): DurationMinutes {
   return 30;
 }
 
+// 🛡️ REFINAMENTO: Agora a função exige a Sala (room) para verificar o conflito corretamente
 async function assertNoConflictRange(
   start: Date,
   durationMinutes: DurationMinutes,
+  room: Room,
   excludeId?: string
 ) {
   const end = addMinutes(start, durationMinutes);
@@ -75,6 +77,7 @@ async function assertNoConflictRange(
     where: {
       id: excludeId ? { not: excludeId } : undefined,
       status: { not: "CANCELED" },
+      room: room, // 🛡️ AQUI ESTÁ A MÁGICA: Filtra os conflitos apenas na mesma sala!
       date: {
         gte: windowStart,
         lt: end,
@@ -99,7 +102,7 @@ async function assertNoConflictRange(
 
   if (conflict) {
     throw new AppointmentConflictError(
-      "Já existe uma consulta nesse horário. Escolha outro."
+      `Já existe uma consulta nesse horário na Sala ${room}. Escolha outro horário ou sala.`
     );
   }
 }
@@ -108,9 +111,12 @@ export async function createAppointment(data: CreateAppointmentInput) {
   const date = toDate(data.date);
   const durationMinutes = normalizeDuration(data.durationMinutes);
   const end = addMinutes(date, durationMinutes);
+  const room = data.room ?? "A"; // 🛡️ Define a sala
 
   await assertNotBlocked(date, end);
-  await assertNoConflictRange(date, durationMinutes);
+  
+  // 🛡️ Passa a sala para a verificação de conflito
+  await assertNoConflictRange(date, durationMinutes, room);
 
   const appointment = await prisma.appointment.create({
     data: {
@@ -122,7 +128,7 @@ export async function createAppointment(data: CreateAppointmentInput) {
       procedureName: data.procedureName ?? null,
       price: data.price ?? null,
       paymentStatus: data.paymentStatus ?? "PENDING",
-      room: data.room ?? "A",
+      room: room,
     },
     include: { patient: true },
   });
@@ -184,11 +190,16 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
   const nextDuration = normalizeDuration(
     data.durationMinutes ?? current.durationMinutes
   );
+  
+  // 🛡️ Identifica qual será a sala após a atualização
+  const nextRoom: Room = (data.room ?? current.room ?? "A") as Room;
 
   if (nextStatus !== "CANCELED") {
     const nextEnd = addMinutes(nextDate, nextDuration);
     await assertNotBlocked(nextDate, nextEnd);
-    await assertNoConflictRange(nextDate, nextDuration, id);
+    
+    // 🛡️ Passa a sala para a verificação de conflito na edição
+    await assertNoConflictRange(nextDate, nextDuration, nextRoom, id);
   }
 
   const durationMinutes =

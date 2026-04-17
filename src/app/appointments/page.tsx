@@ -222,7 +222,8 @@ export default function AgendaPage() {
               value={searchPatient} 
               onChange={e => {
                 setSearchPatient(e.target.value);
-                const found = dbPatients.find(p => p.name.toLowerCase() === e.target.value.toLowerCase());
+                const searchVal = e.target.value.trim().toLowerCase();
+                const found = dbPatients.find(p => p.name.toLowerCase() === searchVal);
                 if(found) setFormData({...formData, patientId: found.id});
                 else setFormData({...formData, patientId: ""});
               }} 

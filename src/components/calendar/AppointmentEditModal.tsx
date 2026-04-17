@@ -33,7 +33,7 @@ type Props = {
   onSaved: () => void | Promise<void>;
 };
 
-// 🛡️ REFINAMENTO: Lista de Procedimentos Atualizada (Igual ao QuickCreate)
+// 🛡️ REFINAMENTO: Lista de Procedimentos Atualizada
 const PROCEDURES = [
   "Consulta",
   "Retorno",
@@ -152,7 +152,6 @@ export default function AppointmentEditModal({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           patientId,
-          // 🛡️ REFINAMENTO: Corrige problema de fuso ao salvar a edição
           date: new Date(date).toISOString(),
           durationMinutes: Number(durationMinutes),
           procedureName: procedureName || null,
@@ -211,7 +210,6 @@ export default function AppointmentEditModal({
   }
 
   return (
-    // CORREÇÃO TAILWIND: z-[90] virou z-90
     <div className="fixed inset-0 z-90 flex items-center justify-center bg-black/45 p-4">
       <div className="w-full max-w-2xl border border-[#F0ECE4] bg-white shadow-[0_20px_60px_rgba(17,17,17,0.18)]">
         <div className="flex items-center justify-between border-b border-[#F0ECE4] bg-[#FCFAF6] px-6 py-4">
@@ -279,7 +277,6 @@ export default function AppointmentEditModal({
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <FieldLabel>Procedimento</FieldLabel>
-              {/* 🛡️ REFINAMENTO: O input de texto foi trocado pelo Select oficial */}
               <select
                 value={procedureName}
                 onChange={(e) => setProcedureName(e.target.value)}
@@ -351,7 +348,6 @@ export default function AppointmentEditModal({
 
           <div>
             <FieldLabel>Observações</FieldLabel>
-            {/* CORREÇÃO TAILWIND: min-h-[70px] virou min-h-17.5 */}
             <textarea
               value={notes}
               onChange={(e) => setNotes(e.target.value)}

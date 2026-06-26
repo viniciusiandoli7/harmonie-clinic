@@ -29,8 +29,8 @@ export default function PatientPostCareSection({ patient }: Props) {
     load();
   }
 
-  function send(message: string) {
-    window.open(buildWhatsAppLink(patient.phone, applyTemplate(message, patient)), "_blank");
+  function send(message: string, extra: Record<string, string | number | null | undefined> = {}) {
+    window.open(buildWhatsAppLink(patient.phone, applyTemplate(message, patient, extra)), "_blank");
   }
 
   return (
@@ -46,10 +46,10 @@ export default function PatientPostCareSection({ patient }: Props) {
                 <div>
                   <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#5A1F2B]">{new Date(task.dueDate).toLocaleDateString("pt-BR")} • {task.status}</p>
                   <p className="mt-1 text-sm font-bold text-[#1E1A18]">{task.title}</p>
-                  {task.message && <p className="mt-2 text-[12px] leading-6 text-[#5B3A2E]/68">{applyTemplate(task.message, patient)}</p>}
+                  {task.message && <p className="mt-2 text-[12px] leading-6 text-[#5B3A2E]/68">{applyTemplate(task.message, patient, { data: new Date(task.dueDate).toLocaleDateString("pt-BR"), horario: new Date(task.dueDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) })}</p>}
                 </div>
                 <div className="flex gap-2">
-                  {task.message && <button onClick={() => send(task.message)} className="btn-secondary h-10"><Send size={13}/> WhatsApp</button>}
+                  {task.message && <button onClick={() => send(task.message, { data: new Date(task.dueDate).toLocaleDateString("pt-BR"), horario: new Date(task.dueDate).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }) })} className="btn-secondary h-10"><Send size={13}/> WhatsApp</button>}
                   {task.status !== "DONE" && <button onClick={() => markDone(task.id)} className="btn-primary h-10"><CheckCircle2 size={13}/> Feito</button>}
                 </div>
               </div>
@@ -75,8 +75,9 @@ export default function PatientPostCareSection({ patient }: Props) {
             <div key={template.id} className="rounded-3xl border border-[rgba(90,31,43,.10)] bg-[#F7F2EA]/60 p-5">
               <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#5A1F2B]">{template.category}</p>
               <p className="mt-1 text-sm font-bold text-[#1E1A18]">{template.title}</p>
-              <p className="mt-2 text-[12px] leading-6 text-[#5B3A2E]/68">{applyTemplate(template.content, patient)}</p>
-              <button onClick={() => send(template.content)} className="btn-secondary mt-4 h-10"><MessageCircle size={13}/> Enviar</button>
+              {template.defaultTime && <p className="mt-2 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5A1F2B]/70">Horário padrão: {template.defaultTime}</p>}
+              <p className="mt-2 text-[12px] leading-6 text-[#5B3A2E]/68">{applyTemplate(template.content, patient, { horario: template.defaultTime })}</p>
+              <button onClick={() => send(template.content, { horario: template.defaultTime })} className="btn-secondary mt-4 h-10"><MessageCircle size={13}/> Enviar</button>
             </div>
           ))}
         </div>

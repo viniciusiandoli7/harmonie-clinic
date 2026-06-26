@@ -3,6 +3,13 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import {
+  buildPatientCreateData,
+  patientErrorMessage,
+  patientErrorStatus,
+  toAuditJson,
+  validatePatientPayload,
+} from "@/lib/patient-data";
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -15,7 +22,7 @@ export async function GET(req: Request) {
     const patients = await prisma.patient.findMany({
       where: includeInactive ? {} : { isActive: true },
       orderBy: { name: "asc" },
-      include: { anamnesis: true } 
+      include: { anamnesis: true },
     });
 
     return NextResponse.json(patients);
@@ -31,81 +38,15 @@ export async function POST(req: Request) {
 
   try {
     const body = await req.json();
+    const validationError = validatePatientPayload(body);
+
+    if (validationError) {
+      return NextResponse.json({ error: validationError }, { status: 400 });
+    }
 
     const patient = await prisma.patient.create({
-      data: {
-        name: body.name,
-        email: body.email || null,
-        phone: body.phone || null,
-        birthDate: body.birthDate ? new Date(body.birthDate) : null,
-        cpf: body.cpf || null,
-        rg: body.rg || null,
-        address: body.address || null,
-        addressNumber: body.addressNumber || null,
-        addressComplement: body.addressComplement || null,
-        neighborhood: body.neighborhood || null,
-        city: body.city || null,
-        state: body.state || null,
-        zipCode: body.zipCode || null,
-        crmSource: body.crmSource || null,
-        referralName: body.referralName || null,
-        crmStatus: body.crmStatus || "Novo Lead",
-        imageAuthorized: Boolean(body.imageAuthorized),
-        interestProcedure: body.interestProcedure || null,
-        patientProfile: body.patientProfile || null,
-        commercialNotes: body.commercialNotes || null,
-        conversionStatus: body.conversionStatus || null,
-        proposedValue: body.proposedValue ? Number(body.proposedValue) : null,
-        closedValue: body.closedValue ? Number(body.closedValue) : null,
-        lostReason: body.lostReason || null,
-        firstEvaluationAt: body.firstEvaluationAt ? new Date(body.firstEvaluationAt) : null,
-        nextSuggestedAt: body.nextSuggestedAt ? new Date(body.nextSuggestedAt) : null,
-        notes: body.notes || null,
-        isActive: body.isActive ?? true,
-
-        anamnesis: {
-          create: {
-            profession: body.profession || null,
-            sunExposure: Boolean(body.sunExposure),
-            mainComplaint: body.mainComplaint || null,
-            previousFillers: body.previousFillers || null,
-            previousBotox: body.previousBotox || null,
-            takingRoacutan: Boolean(body.takingRoacutan),
-            medications: body.medications || null,
-            allergicToEgg: Boolean(body.allergicToEgg),
-            allergicToSeafood: body.allergicToSeafood || null,
-            dentalAnesthesia: Boolean(body.dentalAnesthesia),
-            dentalAnesthesiaReaction: Boolean(body.dentalAnesthesiaReaction),
-            procedureReaction: body.procedureReaction || null,
-            keloidTendency: Boolean(body.keloidTendency),
-            degenerativeDisease: body.degenerativeDisease || null,
-            diseases: body.diseases || null,
-            allergies: body.allergies || null,
-            hasHerpes: Boolean(body.hasHerpes),
-            smoker: Boolean(body.smoker),
-            bloodPressure: body.bloodPressure || null,
-            pregnantOrNursing: Boolean(body.pregnantOrNursing),
-            previousPregnancies: Boolean(body.previousPregnancies),
-            exercises: Boolean(body.exercises),
-            skinCareRoutine: body.skinCareRoutine || null,
-            weightLoss: body.weightLoss || null,
-            intendsToLoseWeight: body.intendsToLoseWeight || null,
-            intendsSurgery: body.intendsSurgery || null,
-            surgeries: body.surgeries || null,
-            recentTreatmentOrVaccine: body.recentTreatmentOrVaccine || null,
-            permanentImplants: body.permanentImplants || null,
-            consentSigned: Boolean(body.consentSigned),
-            usesAnticoagulant: Boolean(body.usesAnticoagulant),
-            hasAutoimmuneDisease: Boolean(body.hasAutoimmuneDisease),
-            hasDiabetes: Boolean(body.hasDiabetes),
-            hasEpilepsy: Boolean(body.hasEpilepsy),
-            activeInfection: Boolean(body.activeInfection),
-            recentDentalProcedure: Boolean(body.recentDentalProcedure),
-            fillerComplicationHistory: body.fillerComplicationHistory || null,
-            clinicalRiskNotes: body.clinicalRiskNotes || null,
-          }
-        }
-      },
+      data: buildPatientCreateData(body),
+      include: { anamnesis: true },
     });
 
     await createAuditLog({
@@ -113,15 +54,12 @@ export async function POST(req: Request) {
       entity: "Patient",
       entityId: patient.id,
       description: `Paciente cadastrada: ${patient.name}`,
-      afterJson: patient,
+      afterJson: toAuditJson(patient),
     });
 
     return NextResponse.json(patient, { status: 201 });
-  } catch (error: any) {
+  } catch (error) {
     console.error("POST /api/patients error:", error);
-    if (error.code === 'P2002') {
-      return NextResponse.json({ error: "Já existe um paciente com este E-mail ou CPF." }, { status: 400 });
-    }
-    return NextResponse.json({ error: "Erro ao criar paciente." }, { status: 500 });
+    return NextResponse.json({ error: patientErrorMessage(error) }, { status: patientErrorStatus(error) });
   }
 }

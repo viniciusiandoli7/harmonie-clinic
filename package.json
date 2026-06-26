@@ -6,12 +6,12 @@
     "dev": "next dev",
     "build": "prisma generate && next build",
     "start": "next start",
-    "lint": "eslint .",
+    "lint": "eslint . --max-warnings=0",
     "typecheck": "tsc --noEmit",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
-    "postinstall": "prisma generate"
+    "qa": "node scripts/qa-check.mjs"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",
@@ -51,8 +51,5 @@
     "prisma": "^6.19.2",
     "tailwindcss": "^4.2.1",
     "typescript": "^5.7.0"
-  },
-  "prisma": {
-    "engineType": "library"
   }
 }

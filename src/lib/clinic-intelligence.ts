@@ -44,6 +44,10 @@ export function applyTemplate(template: string, patient: any, extra: Record<stri
     data: String(extra.data || ""),
     valor: String(extra.valor || ""),
     retorno: String(extra.retorno || ""),
+    horario: String(extra.horario || extra.hora || extra.defaultTime || ""),
   };
-  return template.replace(/\[(nome|primeiroNome|procedimento|data|valor|retorno)\]/g, (_, key) => replacements[key] || "");
+  return template.replace(/\[(nome|primeiroNome|procedimento|data|horario|hora|valor|retorno)\]/g, (_, key) => {
+    const normalizedKey = key === "hora" ? "horario" : key;
+    return replacements[normalizedKey] || "";
+  });
 }

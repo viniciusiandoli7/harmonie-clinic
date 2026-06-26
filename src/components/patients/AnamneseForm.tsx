@@ -115,8 +115,8 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
 
   const SectionTitle = ({ title, icon: Icon }: { title: string, icon?: any }) => (
     <div className="flex items-center gap-3 mt-12 mb-6 border-b border-[#E9DEC9] pb-2">
-      {Icon && <Icon size={16} className="text-[#C8A35F]" />}
-      <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-[#C8A35F]">
+      {Icon && <Icon size={16} className="text-[#5A1F2B]" />}
+      <h4 className="text-[11px] font-black uppercase tracking-[0.3em] text-[#5A1F2B]">
         {title}
       </h4>
     </div>
@@ -127,14 +127,14 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
       <label className="text-[10px] font-bold uppercase tracking-widest text-[#96A4C1]">{label}</label>
       <div className="flex gap-8 mt-1">
         {options.map(opt => (
-          <label key={opt} className="flex items-center gap-2 text-[13px] font-medium text-[#111] cursor-pointer group">
+          <label key={opt} className="flex items-center gap-2 text-[13px] font-medium text-[#1E1A18] cursor-pointer group">
             <input 
               type="radio" 
               name={name} 
               value={opt.toLowerCase()} 
               checked={formData[name as keyof typeof formData] === opt.toLowerCase()}
               onChange={handleInputChange}
-              className="accent-[#C8A35F] h-4 w-4 transition-transform group-hover:scale-110"
+              className="accent-[#5A1F2B] h-4 w-4 transition-transform group-hover:scale-110"
             /> {opt}
           </label>
         ))}
@@ -147,10 +147,10 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
       
       <header className="bg-[#FAF8F3] border-b border-[#E9DEC9] px-10 py-8 flex justify-between items-center">
         <div className="flex items-center gap-5">
-          <div className="h-12 w-0.5 bg-[#C8A35F]" />
+          <div className="h-12 w-0.5 bg-[#5A1F2B]" />
           <div>
-            <h2 className="text-[10px] font-bold uppercase tracking-[0.4em] text-[#C8A35F] mb-1">Harmonie Clinical System</h2>
-            <h3 className="text-2xl font-serif text-[#111] uppercase tracking-widest leading-none">
+            <h2 className="text-[10px] font-bold uppercase tracking-[0.4em] text-[#5A1F2B] mb-1">Mariana Thomaz Carmonaal System</h2>
+            <h3 className="text-2xl font-serif text-[#1E1A18] uppercase tracking-widest leading-none">
               Anamnese: <span className="text-gray-400">{patientName || "Paciente"}</span>
             </h3>
           </div>
@@ -168,14 +168,14 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
         {/* BLOCO 1: PERFIL */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div className="group">
-            <label className="block text-[10px] font-bold uppercase tracking-widest text-[#96A4C1] mb-2 group-focus-within:text-[#C8A35F]">Qual sua profissão?</label>
+            <label className="block text-[10px] font-bold uppercase tracking-widest text-[#96A4C1] mb-2 group-focus-within:text-[#5A1F2B]">Qual sua profissão?</label>
             <input 
               name="profession"
               value={formData.profession}
               onChange={handleInputChange}
               type="text" 
               placeholder="Ex: Arquiteta, Empresária..."
-              className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#C8A35F] text-[15px] font-medium text-[#111]" 
+              className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#5A1F2B] text-[15px] font-medium text-[#1E1A18]" 
             />
           </div>
           <RadioGroup label="Se expõe ao sol frequentemente?" name="sunExposure" />
@@ -188,7 +188,7 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
             value={formData.mainComplaint}
             onChange={handleInputChange}
             placeholder="Descreva aqui o motivo da sua consulta..."
-            className="w-full border border-[#D9DEEA] bg-[#FCFCFC] p-4 outline-none focus:border-[#C8A35F] h-28 rounded-lg text-[15px] transition-all" 
+            className="w-full border border-[#D9DEEA] bg-[#FCFCFC] p-4 outline-none focus:border-[#5A1F2B] h-28 rounded-lg text-[15px] transition-all" 
           />
         </div>
 
@@ -197,11 +197,11 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-10">
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-widest text-[#96A4C1] mb-2">Preenchimentos anteriores (região/tempo)?</label>
-            <input name="fillersHistory" value={formData.fillersHistory} onChange={handleInputChange} type="text" className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#C8A35F]" />
+            <input name="fillersHistory" value={formData.fillersHistory} onChange={handleInputChange} type="text" className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#5A1F2B]" />
           </div>
           <div>
             <label className="block text-[10px] font-bold uppercase tracking-widest text-[#96A4C1] mb-2">Toxina Botulínica anterior (região/tempo)?</label>
-            <input name="botoxHistory" value={formData.botoxHistory} onChange={handleInputChange} type="text" className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#C8A35F]" />
+            <input name="botoxHistory" value={formData.botoxHistory} onChange={handleInputChange} type="text" className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#5A1F2B]" />
           </div>
         </div>
 
@@ -220,7 +220,7 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
 
         <div>
           <label className="block text-[10px] font-bold uppercase tracking-widest text-[#96A4C1] mb-2">Outros Medicamentos ou Vitaminas em uso?</label>
-          <input name="medications" value={formData.medications} onChange={handleInputChange} type="text" className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#C8A35F]" />
+          <input name="medications" value={formData.medications} onChange={handleInputChange} type="text" className="w-full border-b border-[#D9DEEA] bg-transparent py-2 outline-none focus:border-[#5A1F2B]" />
         </div>
 
         {/* BLOCO 4: ESTILO DE VIDA (COM ÁLCOOL E FUMO) */}
@@ -232,7 +232,7 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
 
         {/* TERMO DE RESPONSABILIDADE */}
         <div className="mt-16 bg-[#FAF8F3] p-8 border border-[#E9DEC9] rounded-xl relative">
-          <div className="absolute -top-3 left-6 bg-[#C8A35F] text-white px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-full">Termo de Ciência</div>
+          <div className="absolute -top-3 left-6 bg-[#5A1F2B] text-white px-3 py-1 text-[8px] font-black uppercase tracking-widest rounded-full">Termo de Ciência</div>
           <label className="flex items-start gap-4 cursor-pointer">
             <input 
               type="checkbox" 
@@ -240,7 +240,7 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
               onChange={(e) => setFormData(prev => ({ ...prev, agreement: e.target.checked }))}
               className="mt-1 h-5 w-5 accent-[#4A9B68] shrink-0" 
             />
-            <span className="text-[12px] font-bold text-[#111] leading-relaxed uppercase tracking-wide">
+            <span className="text-[12px] font-bold text-[#1E1A18] leading-relaxed uppercase tracking-wide">
               Confirmo que as informações acima são verdadeiras. Autorizo a avaliação estética, 
               ciente de que a omissão de dados pode comprometer minha segurança e o resultado do tratamento.
             </span>
@@ -252,7 +252,7 @@ export default function AnamneseForm({ patientId, onSave, onCancel, patientName 
           <button 
             type="button"
             onClick={onCancel}
-            className="text-[11px] font-bold uppercase tracking-widest text-[#96A4C1] hover:text-[#111] transition-all"
+            className="text-[11px] font-bold uppercase tracking-widest text-[#96A4C1] hover:text-[#1E1A18] transition-all"
           >
             Descartar Alterações
           </button>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 
-type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
+type AppointmentStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "RESCHEDULED" | "CANCELED" | "RETURN" | "FIT_IN";
 type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
 
 type Appointment = {

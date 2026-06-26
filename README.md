@@ -1,45 +1,89 @@
-# 🏛️ Harmonie Clinic - Sistema de Gestão de Luxo
+# Mariana Thomaz Carmona — Sistema de Gestão Clínica
 
-O **Harmonie Clinic** é um ecossistema completo de gestão para clínicas de estética de alto padrão. Desenvolvido com uma estética "Mesa de Luz" minimalista e sofisticada, o sistema une gestão de pacientes (CRM), controle financeiro inteligente e um estúdio de criação de marketing impulsionado por IA.
+Sistema privado de gestão para a clínica da Dra. Mariana Thomaz Carmona, com foco em pacientes, agenda, financeiro, prontuário, estoque, documentos, backup e indicadores de captação/conversão.
 
-## 🚀 Funcionalidades Principais
+## Funcionalidades principais
 
-* **CRM de Pacientes:** Gestão completa de fichas, histórico de visitas, evolução clínica e prontuários digitais.
-* **Inteligência Financeira (PDV):** Dashboard em tempo real com cálculo de lucro líquido, saldo em caixa, previsão de recebíveis e fechamento de vendas com divisão de comissões.
-* **Marketing IA (Creative Studio):** Estúdio estilo "Canva" para criação de artes para redes sociais com suporte a geração de imagens por IA e editor drag-and-drop.
-* **Contratos & Prontuários:** Sistema de geração de contratos HTML/PDF automáticos a partir de vendas, com suporte a assinatura digital via token.
-* **Agenda Inteligente:** Controle de agendamentos com bloqueio de conflitos de horário e status de atendimento sincronizado com o financeiro.
+- Login privado com NextAuth.
+- Dashboard financeiro e operacional.
+- Agenda de atendimentos e bloqueios.
+- CRM de pacientes com origem, indicação, status e autorização de imagem.
+- Prontuário, anamnese, evolução clínica e timeline da paciente.
+- Financeiro com transações, status, anexos, taxas, valor líquido e parcelas.
+- Fechamento mensal automático.
+- Estoque com lote, validade, quantidade mínima e movimentações reais.
+- Galeria clínica de fotos/antes e depois vinculada à paciente.
+- Contratos e termos com assinatura.
+- Alertas inteligentes para reativação, parcelas vencidas, estoque e aniversários.
+- Backup local/exportação JSON.
+- Auditoria de ações críticas.
 
----
+## Tecnologias
 
-## 🛠️ Tecnologias e Dependências
+- Next.js App Router
+- React
+- TypeScript
+- TailwindCSS
+- Prisma ORM
+- PostgreSQL
+- NextAuth
+- Zod
 
-A aplicação foi construída utilizando as melhores e mais modernas ferramentas do mercado para garantir performance, escalabilidade e segurança:
+## Configuração local
 
-| Categoria | Tecnologia |
-| :--- | :--- |
-| **Framework Base** | Next.js (App Router), TypeScript |
-| **Banco de Dados** | PostgreSQL (Neon.tech), Prisma ORM |
-| **Estilização & UI** | Tailwind CSS, Framer Motion, Lucide Icons |
-| **Autenticação** | NextAuth.js |
-| **Marketing IA & Docs** | `html-to-image`, `jsPDF`, `html2canvas`, `dnd-kit` (Drag & Drop) |
-| **Segurança & Validação** | Zod |
+Crie um arquivo `.env` e também um `.env.local` na raiz do projeto com:
 
----
+```env
+DATABASE_URL="postgresql://postgres:SUA_SENHA@localhost:5432/harmonie?schema=public"
+NEXTAUTH_URL="http://localhost:3000"
+NEXTAUTH_SECRET="troque-por-uma-chave-grande-e-segura"
+ADMIN_USER="admin"
+ADMIN_PASSWORD="admin123"
+MONTHLY_REVENUE_GOAL="30000"
+```
 
-## 🏁 Como Rodar o Projeto
+Depois rode:
 
-Siga os passos abaixo para configurar o ambiente localmente.
-
-### 1. Pré-requisitos
-* **[Node.js](https://nodejs.org/)** instalado (versão 18 ou superior).
-* Uma instância de **PostgreSQL** (recomenda-se o [Neon.tech](https://neon.tech/) para o plano gratuito).
-* Git instalado.
-
-### 2. Instalação e Configuração
-Clone o repositório e instale as dependências:
-
-```bash
-git clone [https://github.com/seu-usuario/harmonie-clinic.git](https://github.com/seu-usuario/harmonie-clinic.git)
-cd harmonie-clinic
+```powershell
 npm install
+npx prisma generate
+npx prisma migrate dev
+npm run lint
+npm run dev
+```
+
+Se o banco local estiver apenas em teste e o Prisma pedir reset:
+
+```powershell
+npx prisma migrate reset
+npx prisma migrate dev
+npx prisma generate
+npm run dev
+```
+
+## Login padrão
+
+```txt
+Usuário: admin
+Senha: admin123
+```
+
+## Observação
+
+O sistema foi mantido com uma única conta operacional da Dra. Mariana, sem módulo de múltiplos usuários/permissões, conforme decisão de simplificação. A recepção pode acessar pela mesma conta quando necessário.
+
+
+## Scripts úteis
+
+```powershell
+npm run dev          # inicia o sistema local
+npm run lint         # valida boas práticas de código
+npm run typecheck    # valida TypeScript após gerar Prisma Client
+npm run db:generate  # gera Prisma Client
+npm run db:migrate   # aplica migrations no banco local
+npm run db:reset     # reseta banco local de teste
+```
+
+## Pente fino técnico
+
+A versão atual inclui o arquivo `PENTE_FINO_APLICACAO.md` com os ajustes de arquitetura, segurança, assinatura pública, scripts e decisões de produto.

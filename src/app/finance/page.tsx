@@ -1,249 +1,547 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
-import { 
-  Search, Plus, TrendingUp, Filter, 
-  Activity, Download, X, Check, Trash2 // IMPORT DA LIXEIRA ADICIONADO AQUI
+import { useEffect, useMemo, useState } from "react";
+import {
+  Check,
+  Download,
+  Eye,
+  Filter,
+  Paperclip,
+  Plus,
+  RotateCcw,
+  Search,
+  Trash2,
+  X,
 } from "lucide-react";
+import {
+  expenseCategories,
+  financialStatusLabels,
+  incomeCategories,
+  paymentMethods,
+} from "@/lib/brand";
+
+type TransactionType = "INCOME" | "EXPENSE";
+type TransactionStatus = "PENDING" | "PAID" | "CANCELED" | "COMPLETED";
+
+type AttachmentFile = {
+  name: string;
+  type: string;
+  size: number;
+  dataUrl: string;
+};
+
+type FinancialTransaction = {
+  id: string;
+  date: string;
+  description: string;
+  category: string;
+  amount: number;
+  type: TransactionType;
+  status: TransactionStatus;
+  paymentMethod?: string | null;
+  notes?: string | null;
+  patientId?: string | null;
+  patient?: { id: string; name: string; phone?: string | null } | null;
+  attachmentsJson?: AttachmentFile[] | null;
+  paidAt?: string | null;
+  canceledAt?: string | null;
+};
+
+const statusOptions: TransactionStatus[] = ["PENDING", "PAID", "CANCELED"];
+const fmtCurrency = (v: number) => (v || 0).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const todayInputDate = () => new Date().toISOString().slice(0, 10);
+const monthStartInputDate = () => {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
+};
+
+const uniqueOptions = (options: readonly string[]) => Array.from(new Set(options));
+const financialCategoryFilterOptions = uniqueOptions(["", ...incomeCategories, ...expenseCategories]);
 
 export default function FinancePage() {
   const [stats, setStats] = useState<any>(null);
+  const [patients, setPatients] = useState<any[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showFilters, setShowFilters] = useState(true);
+  const [filters, setFilters] = useState({
+    startDate: monthStartInputDate(),
+    endDate: todayInputDate(),
+    category: "",
+    type: "",
+    patientId: "",
+    paymentMethod: "",
+    minValue: "",
+    maxValue: "",
+    status: "",
+  });
 
-  // --- CARREGAR DADOS ---
   async function loadFinance() {
     try {
       setLoading(true);
-      const res = await fetch("/api/finance/stats");
-      const data = await res.json();
-      setStats(data);
+      const [statsRes, patientsRes] = await Promise.all([
+        fetch("/api/finance/stats"),
+        fetch("/api/patients?includeInactive=true"),
+      ]);
+      if (statsRes.ok) setStats(await statsRes.json());
+      if (patientsRes.ok) setPatients(await patientsRes.json());
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { loadFinance(); }, []);
+  useEffect(() => {
+    loadFinance();
+  }, []);
 
-  // --- LÓGICA DE FILTRO REAL ---
   const filteredMovements = useMemo(() => {
-    if (!stats?.recentMovements) return [];
-    return stats.recentMovements.filter((t: any) => 
-      t.description.toLowerCase().includes(search.toLowerCase()) ||
-      t.category.toLowerCase().includes(search.toLowerCase())
-    );
-  }, [stats, search]);
+    const movements: FinancialTransaction[] = stats?.recentMovements || [];
+    const term = search.trim().toLowerCase();
 
-  // --- FUNÇÃO DE EXPORTAR (CSV para Excel) ---
-  const handleExport = () => {
-    if (!stats?.recentMovements) return;
-    const headers = ["Data", "Descrição", "Categoria", "Valor", "Tipo"];
-    const rows = stats.recentMovements.map((t: any) => [
-      new Date(t.date).toLocaleDateString('pt-BR'),
-      t.description,
-      t.category,
-      t.amount,
-      t.type
-    ]);
+    return movements.filter((t) => {
+      const date = new Date(t.date);
+      const start = filters.startDate ? new Date(`${filters.startDate}T00:00:00`) : null;
+      const end = filters.endDate ? new Date(`${filters.endDate}T23:59:59`) : null;
+      const minValue = filters.minValue ? Number(filters.minValue) : null;
+      const maxValue = filters.maxValue ? Number(filters.maxValue) : null;
+      const normalizedStatus = t.status === "COMPLETED" ? "PAID" : t.status;
 
-    const csvContent = [headers, ...rows].map(e => e.join(",")).join("\n");
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+      const matchesTerm = !term || [t.description, t.category, t.patient?.name, t.paymentMethod]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term));
+
+      return (
+        matchesTerm &&
+        (!start || date >= start) &&
+        (!end || date <= end) &&
+        (!filters.category || t.category === filters.category) &&
+        (!filters.type || t.type === filters.type) &&
+        (!filters.patientId || t.patientId === filters.patientId) &&
+        (!filters.paymentMethod || t.paymentMethod === filters.paymentMethod) &&
+        (!filters.status || normalizedStatus === filters.status) &&
+        (minValue === null || t.amount >= minValue) &&
+        (maxValue === null || t.amount <= maxValue)
+      );
+    });
+  }, [stats, search, filters]);
+
+  const exportRows = filteredMovements.map((t) => ({
+    Data: new Date(t.date).toLocaleDateString("pt-BR"),
+    Descrição: t.description,
+    Paciente: t.patient?.name || "",
+    Categoria: t.category,
+    Tipo: t.type === "INCOME" ? "Entrada" : "Saída",
+    Status: financialStatusLabels[t.status] || t.status,
+    Forma: t.paymentMethod || "",
+    Valor: t.amount,
+  }));
+
+  function downloadBlob(content: string, filename: string, type: string) {
+    const blob = new Blob([content], { type });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.setAttribute("download", `financeiro_harmonie_${new Date().toLocaleDateString()}.csv`);
+    link.setAttribute("download", filename);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  };
+  }
 
-  // --- FUNÇÃO DE DELETAR TRANSAÇÃO ADICIONADA AQUI ---
-  const handleDeleteTransaction = async (id: string) => {
-    const confirmDelete = window.confirm("Tem certeza que deseja excluir esta transação? O saldo do caixa será recalculado imediatamente.");
-    if (!confirmDelete) return;
+  function exportCsv() {
+    const headers = Object.keys(exportRows[0] || { Data: "", Descrição: "", Paciente: "", Categoria: "", Tipo: "", Status: "", Forma: "", Valor: "" });
+    const rows = exportRows.map((row: any) => headers.map((h) => `"${String(row[h] ?? "").replace(/"/g, '""')}"`).join(";"));
+    downloadBlob([headers.join(";"), ...rows].join("\n"), `financeiro_mariana_${Date.now()}.csv`, "text/csv;charset=utf-8;");
+  }
 
-    try {
-      await fetch(`/api/financial-transactions/${id}`, { method: "DELETE" });
-      loadFinance(); // Recarrega os dados do painel automaticamente após excluir
-    } catch (error) {
-      console.error("Erro ao excluir", error);
+  function exportExcel() {
+    const headers = Object.keys(exportRows[0] || { Data: "", Descrição: "", Paciente: "", Categoria: "", Tipo: "", Status: "", Forma: "", Valor: "" });
+    const html = `<table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${exportRows
+      .map((row: any) => `<tr>${headers.map((h) => `<td>${row[h] ?? ""}</td>`).join("")}</tr>`)
+      .join("")}</tbody></table>`;
+    downloadBlob(html, `financeiro_mariana_${Date.now()}.xls`, "application/vnd.ms-excel;charset=utf-8;");
+  }
+
+  function exportPdf() {
+    const headers = Object.keys(exportRows[0] || { Data: "", Descrição: "", Paciente: "", Categoria: "", Tipo: "", Status: "", Forma: "", Valor: "" });
+    const html = `
+      <html><head><title>Financeiro Mariana Thomaz Carmona</title>
+      <style>body{font-family:Arial,sans-serif;color:#1E1A18;background:#F7F2EA;padding:32px}h1{font-family:Georgia,serif;color:#5A1F2B}table{width:100%;border-collapse:collapse;background:#FBF8F2}th,td{border:1px solid rgba(90,31,43,.18);padding:10px;font-size:12px;text-align:left}th{color:#5A1F2B;text-transform:uppercase;font-size:10px}</style>
+      </head><body><h1>Financeiro Mariana Thomaz Carmona</h1><p>Exportação dos filtros aplicados.</p><table><thead><tr>${headers.map((h) => `<th>${h}</th>`).join("")}</tr></thead><tbody>${exportRows
+      .map((row: any) => `<tr>${headers.map((h) => `<td>${row[h] ?? ""}</td>`).join("")}</tr>`)
+      .join("")}</tbody></table><script>window.print()</script></body></html>`;
+    const printWindow = window.open("", "_blank");
+    if (printWindow) {
+      printWindow.document.write(html);
+      printWindow.document.close();
     }
-  };
+  }
 
-  if (loading) return <div className="min-h-screen bg-[#FAF8F3] flex items-center justify-center font-serif italic text-[#C5A059]">Sincronizando inteligência...</div>;
+  async function updateStatus(id: string, status: TransactionStatus) {
+    await fetch(`/api/financial-transactions/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ status }),
+    });
+    loadFinance();
+  }
+
+  async function handleDeleteTransaction(id: string) {
+    const confirmDelete = window.confirm("Tem certeza que deseja excluir esta transação? Essa ação será registrada no histórico financeiro.");
+    if (!confirmDelete) return;
+    await fetch(`/api/financial-transactions/${id}`, { method: "DELETE" });
+    loadFinance();
+  }
+
+  if (loading) {
+    return <div className="min-h-screen p-10 font-serif text-2xl italic text-brand-primary">Sincronizando inteligência financeira...</div>;
+  }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F3] px-8 py-8 md:px-12 font-sans antialiased text-[#1A1A1A]">
-      
-      {/* HEADER */}
-      <div className="flex flex-col gap-6 xl:flex-row xl:items-start xl:justify-between border-b border-[#EEECE7] pb-8">
+    <div className="min-h-screen px-2 py-3 font-sans text-brand-text sm:px-4 lg:px-6">
+      <div className="flex flex-col gap-6 border-b border-[rgba(90,31,43,.12)] pb-8 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.4em] text-[#C5A059] font-bold italic">Harmonie Financial Intelligence</p>
-          <h1 className="mt-2 text-5xl font-serif">Financeiro</h1>
+          <p className="micro-label text-brand-primary/70">Gestão financeira da clínica</p>
+          <h1 className="page-title mt-2">Financeiro</h1>
+          <p className="mt-3 max-w-2xl text-[14px] leading-6 text-brand-text/64">
+            Fechamento automático do mês, filtros reais, status financeiro e exportações para conferência de caixa.
+          </p>
         </div>
 
-        <div className="flex items-center gap-6">
-          <div className="flex h-10 w-72 items-center gap-3 border-b border-[#D9DEEA] focus-within:border-[#C5A059] transition-colors">
-            <Search size={14} className="text-[#B3BED2]" />
-            <input 
-              placeholder="BUSCAR TRANSAÇÃO..." 
-              className="w-full bg-transparent text-[10px] font-bold uppercase tracking-widest outline-none placeholder:text-[#C1CAD9]"
-              value={search} onChange={e => setSearch(e.target.value)}
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="flex h-12 min-w-70 items-center gap-3 rounded-full border border-[rgba(90,31,43,.12)] bg-brand-surface px-4 shadow-card transition focus-within:border-brand-primary/40">
+            <Search size={16} className="text-brand-primary/55" />
+            <input
+              placeholder="Buscar transação, paciente ou categoria"
+              className="h-full w-full border-0 bg-transparent text-[12px] font-semibold outline-none"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          {/* BOTÃO NOVA TRANSAÇÃO FUNCIONAL */}
-          <button 
-            onClick={() => setIsModalOpen(true)}
-            className="bg-[#1A1A1A] text-white px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest hover:bg-[#C5A059] transition-all shadow-xl"
-          >
-            + Nova Transação
+          <button onClick={() => setShowFilters((v) => !v)} className="btn-secondary h-12">
+            <Filter size={15} /> Filtros
+          </button>
+          <button onClick={() => setIsModalOpen(true)} className="btn-primary h-12">
+            <Plus size={15} /> Nova transação
           </button>
         </div>
       </div>
 
-      {/* DASHBOARD CARDS */}
-      <div className="mt-10 grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-        <FinanceCard label="Lucro Líquido (Mês)" value={stats.netProfit} trend="+12%" icon={<TrendingUp size={14}/>} />
-        <FinanceCard label="Disponível em Caixa" value={stats.totalBalance} color="#C5A059" />
-        <FinanceCard label="Previsão de Recebíveis" value={stats.receivables} />
-        
-        {/* SAÚDE DO NEGÓCIO */}
-        <div className="bg-white border-2 border-[#C5A059] p-7 shadow-sm flex flex-col justify-between relative overflow-hidden">
-          <div className="absolute -top-4 -right-4 opacity-[0.03]"><Activity size={120} /></div>
+      <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <FinanceCard label="Gastos do mês" value={stats?.expense} />
+        <FinanceCard label="Meta mensal" value={stats?.monthlyGoal} />
+        <FinanceCard label="Meta atingida" value={`${stats?.goalPercentage || 0}%`} isText />
+        <FinanceCard label="Lucro líquido" value={stats?.netProfit} accent={stats?.netProfit >= 0 ? "success" : "danger"} />
+        <FinanceCard label="Saldo disponível" value={stats?.totalBalance} accent="primary" />
+      </div>
+
+      <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-[1.2fr_.8fr]">
+        <div className="premium-card p-6">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="micro-label">Fechamento do mês</p>
+              <h2 className="mt-2 text-3xl">Resumo automático</h2>
+            </div>
+            <div className="h-16 w-16 rounded-full border border-[rgba(90,31,43,.12)] bg-brand-background p-1">
+              <div className="flex h-full w-full items-center justify-center rounded-full bg-brand-primary text-[12px] font-bold text-brand-background">
+                {stats?.goalPercentage || 0}%
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-4">
+            <MiniMetric label="Receitas" value={fmtCurrency(stats?.income)} />
+            <MiniMetric label="Despesas" value={fmtCurrency(stats?.expense)} />
+            <MiniMetric label="Ticket médio" value={fmtCurrency(stats?.averageTicket)} />
+            <MiniMetric label="Mais vendido" value={stats?.topProcedure || "—"} />
+          </div>
+        </div>
+
+        <div className="premium-card p-6">
+          <p className="micro-label">Origem dos pacientes</p>
+          <h2 className="mt-2 text-3xl">Evolução mensal</h2>
+          <div className="mt-5 space-y-3">
+            {Object.entries(stats?.patientOrigins || {}).length === 0 ? (
+              <p className="text-[13px] text-brand-text/55">Nenhum novo paciente com origem cadastrada neste mês.</p>
+            ) : (
+              Object.entries(stats.patientOrigins).map(([source, count]: any) => (
+                <div key={source}>
+                  <div className="flex justify-between text-[12px] font-semibold text-brand-text/70">
+                    <span>{source}</span><span>{count}</span>
+                  </div>
+                  <div className="mt-1 h-2 overflow-hidden rounded-full bg-brand-background-secondary/45">
+                    <div className="h-full rounded-full bg-brand-primary" style={{ width: `${Math.min(100, Number(count) * 18)}%` }} />
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      </div>
+
+      {showFilters && (
+        <section className="premium-card mt-6 p-5 animate-soft-in">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
+            <FilterInput label="Período inicial" type="date" value={filters.startDate} onChange={(v) => setFilters({ ...filters, startDate: v })} />
+            <FilterInput label="Período final" type="date" value={filters.endDate} onChange={(v) => setFilters({ ...filters, endDate: v })} />
+            <FilterSelect label="Tipo" value={filters.type} onChange={(v) => setFilters({ ...filters, type: v })} options={["", "INCOME", "EXPENSE"]} labels={{ "": "Todos", INCOME: "Entrada", EXPENSE: "Saída" }} />
+            <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} options={["", ...statusOptions]} labels={{ "": "Todos", PENDING: "Pendente", PAID: "Pago", CANCELED: "Cancelado" }} />
+            <FilterSelect label="Categoria" value={filters.category} onChange={(v) => setFilters({ ...filters, category: v })} options={financialCategoryFilterOptions} labels={{ "": "Todas" }} />
+            <FilterSelect label="Paciente" value={filters.patientId} onChange={(v) => setFilters({ ...filters, patientId: v })} options={["", ...patients.map((p) => p.id)]} labels={patients.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), { "": "Todos" } as Record<string, string>)} />
+            <FilterSelect label="Forma de pagamento" value={filters.paymentMethod} onChange={(v) => setFilters({ ...filters, paymentMethod: v })} options={["", ...paymentMethods]} labels={{ "": "Todas" }} />
+            <div className="grid grid-cols-2 gap-3">
+              <FilterInput label="Valor mín." type="number" value={filters.minValue} onChange={(v) => setFilters({ ...filters, minValue: v })} />
+              <FilterInput label="Valor máx." type="number" value={filters.maxValue} onChange={(v) => setFilters({ ...filters, maxValue: v })} />
+            </div>
+          </div>
+        </section>
+      )}
+
+      <section className="premium-card mt-8 overflow-hidden">
+        <div className="flex flex-col gap-4 border-b border-[rgba(90,31,43,.10)] px-5 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
           <div>
-            <p className="text-[9px] font-black text-[#C5A059] uppercase tracking-[0.3em] mb-4">Saúde do Negócio</p>
-            <div className="text-3xl font-serif italic">{stats.healthScore}</div>
+            <p className="micro-label mb-1">Movimentações</p>
+            <h3 className="text-2xl">{filteredMovements.length} lançamento(s)</h3>
           </div>
-          <div className="mt-6">
-            <p className="text-[9px] text-[#94A3B8] uppercase font-bold tracking-widest">Meta Trimestre: 85%</p>
-            <div className="h-[2px] w-full bg-[#F5F5F5] mt-2"><div className="h-full bg-[#C5A059] w-[85%]" /></div>
+          <div className="flex flex-wrap items-center gap-3">
+            <button onClick={exportCsv} className="btn-secondary py-3"><Download size={14} /> CSV</button>
+            <button onClick={exportExcel} className="btn-secondary py-3"><Download size={14} /> Excel</button>
+            <button onClick={exportPdf} className="btn-secondary py-3"><Download size={14} /> PDF</button>
           </div>
         </div>
-      </div>
 
-      {/* TABELA COM FILTRO E EXPORTAÇÃO FUNCIONAIS */}
-      <div className="mt-12 bg-white border border-[#EEECE7] rounded-none overflow-hidden shadow-sm">
-        <div className="px-10 py-6 border-b border-[#F9F9F9] flex justify-between items-center bg-[#FCFAF9]/50">
-           <div className="flex items-center gap-3">
-              <div className="w-1 h-4 bg-[#C5A059]" />
-              <h3 className="text-[11px] font-bold uppercase tracking-[0.3em]">Movimentações Recentes</h3>
-           </div>
-           <div className="flex items-center gap-6">
-              {/* BOTÃO EXPORTAR FUNCIONAL */}
-              <button 
-                onClick={handleExport}
-                className="flex items-center gap-2 text-[9px] font-bold uppercase tracking-widest text-[#94A3B8] hover:text-[#1A1A1A] transition-all"
-              >
-                 <Download size={14}/> Exportar
-              </button>
-              <Filter size={15} className="text-[#96A4C1] cursor-pointer hover:text-[#C5A059]" />
-           </div>
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[980px] text-left">
+            <thead>
+              <tr className="border-b border-[rgba(90,31,43,.10)] bg-brand-surface-muted/45">
+                {["Data", "Descrição", "Categoria", "Paciente", "Valor", "Status", "Ações"].map((h) => (
+                  <th key={h} className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-text/55 last:text-right">{h}</th>
+                ))}
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[rgba(90,31,43,.08)]">
+              {filteredMovements.map((t) => (
+                <TransactionRow key={t.id} t={t} onDelete={handleDeleteTransaction} onStatus={updateStatus} />
+              ))}
+              {filteredMovements.length === 0 && (
+                <tr><td colSpan={7} className="px-8 py-14 text-center text-sm text-brand-text/55">Nenhuma movimentação encontrada para os filtros aplicados.</td></tr>
+              )}
+            </tbody>
+          </table>
         </div>
+      </section>
 
-        <table className="w-full text-left">
-          <thead>
-            <tr className="bg-[#FCFAF6] border-b border-[#EEECE7]">
-              <th className="px-10 py-5 text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Data</th>
-              <th className="px-10 py-5 text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Descrição</th>
-              <th className="px-10 py-5 text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Categoria</th>
-              <th className="px-10 py-5 text-right text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Valor Bruto</th>
-              <th className="px-10 py-5 text-right text-[9px] font-bold uppercase tracking-[0.2em] text-[#BBB]">Status</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[#F9F9F9]">
-             {filteredMovements.map((t: any) => (
-               <TransactionRow key={t.id} t={t} onDelete={handleDeleteTransaction} /> // FUNÇÃO PASSADA AQUI
-             ))}
-          </tbody>
-        </table>
-      </div>
-
-      {/* MODAL DE NOVA TRANSAÇÃO */}
-      {isModalOpen && <NewTransactionModal onClose={() => setIsModalOpen(false)} onSave={loadFinance} />}
+      {isModalOpen && <NewTransactionModal patients={patients} onClose={() => setIsModalOpen(false)} onSave={loadFinance} />}
     </div>
   );
 }
 
-// --- SUB-COMPONENTES ---
+function NewTransactionModal({ onClose, onSave, patients }: any) {
+  const [form, setForm] = useState<{
+    description: string;
+    amount: string;
+    type: TransactionType;
+    category: string;
+    date: string;
+    paymentMethod: string;
+    status: TransactionStatus;
+    patientId: string;
+    notes: string;
+  }>({
+    description: "",
+    amount: "",
+    type: "INCOME",
+    category: incomeCategories[0],
+    date: new Date().toISOString().slice(0, 16),
+    paymentMethod: paymentMethods[0],
+    status: "PENDING",
+    patientId: "",
+    notes: "",
+  });
+  const [attachments, setAttachments] = useState<AttachmentFile[]>([]);
+  const categories = form.type === "INCOME" ? incomeCategories : expenseCategories;
 
-function NewTransactionModal({ onClose, onSave }: any) {
-  const [form, setForm] = useState({ description: "", amount: "", type: "INCOME", category: "PROCEDIMENTO" });
+  async function handleFiles(files: FileList | null) {
+    if (!files?.length) return;
+    const allowed = ["application/pdf", "image/png", "image/jpeg", "image/webp", "application/msword", "application/vnd.openxmlformats-officedocument.wordprocessingml.document"];
+    const readers = Array.from(files).filter((file) => allowed.includes(file.type) || /\.docx?$/i.test(file.name)).map((file) => new Promise<AttachmentFile>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve({ name: file.name, type: file.type, size: file.size, dataUrl: reader.result as string });
+      reader.readAsDataURL(file);
+    }));
+    const resolvedFiles = await Promise.all(readers);
+    setAttachments((prev) => [...prev, ...resolvedFiles]);
+  }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    // AQUI TAMBÉM AJUSTEI A ROTA PARA A ROTA CORRETA
-    await fetch("/api/financial-transactions", { 
-      method: "POST", 
-      body: JSON.stringify({ ...form, amount: parseFloat(form.amount), date: new Date() }) 
+    await fetch("/api/financial-transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        ...form,
+        amount: parseFloat(form.amount),
+        date: new Date(form.date).toISOString(),
+        patientId: form.patientId || null,
+        notes: form.notes || null,
+        attachmentsJson: attachments,
+      }),
     });
     onSave();
     onClose();
-  };
+  }
 
   return (
-    <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-6">
-      <div className="bg-white w-full max-w-md p-10 border border-[#C5A059]/30 shadow-2xl animate-in fade-in zoom-in-95 duration-300">
-        <div className="flex justify-between items-center mb-10">
-          <h3 className="text-xl font-serif italic">Nova Transação</h3>
-          <button onClick={onClose} className="text-gray-400 hover:text-black"><X size={20}/></button>
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-brand-primary-dark/35 p-4 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-[30px] border border-[rgba(90,31,43,.14)] bg-brand-surface p-6 shadow-[0_28px_90px_rgba(63,22,32,.22)] animate-soft-in sm:p-8">
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <p className="micro-label">Lançamento financeiro</p>
+            <h3 className="text-4xl">Nova transação</h3>
+          </div>
+          <button onClick={onClose} className="rounded-full border border-[rgba(90,31,43,.12)] p-2.5 text-brand-text/55 transition hover:bg-[rgba(90,31,43,.08)] hover:text-brand-primary" aria-label="Fechar modal">
+            <X size={18} />
+          </button>
         </div>
+
         <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="space-y-1">
-            <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Descrição</label>
-            <input required className="w-full border-b border-[#EEE] py-2 text-[12px] outline-none focus:border-[#C5A059]" value={form.description} onChange={e => setForm({...form, description: e.target.value})} />
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label="Descrição" value={form.description} onChange={(v: string) => setForm({ ...form, description: v })} required />
+            <Field label="Valor" type="number" value={form.amount} onChange={(v: string) => setForm({ ...form, amount: v })} required />
+            <SelectField label="Tipo" value={form.type} onChange={(v: string) => setForm({ ...form, type: v as TransactionType, category: (v === "INCOME" ? incomeCategories[0] : expenseCategories[0]) })} options={["INCOME", "EXPENSE"]} labels={{ INCOME: "Entrada", EXPENSE: "Saída" }} />
+            <SelectField label="Categoria" value={form.category} onChange={(v: string) => setForm({ ...form, category: v })} options={categories as unknown as string[]} />
+            <Field label="Data" type="datetime-local" value={form.date} onChange={(v: string) => setForm({ ...form, date: v })} required />
+            <SelectField label="Forma de pagamento" value={form.paymentMethod} onChange={(v: string) => setForm({ ...form, paymentMethod: v })} options={paymentMethods as unknown as string[]} />
+            <SelectField label="Status" value={form.status} onChange={(v: string) => setForm({ ...form, status: v as TransactionStatus })} options={statusOptions} labels={{ PENDING: "Pendente", PAID: "Pago", CANCELED: "Cancelado" }} />
+            <SelectField label="Paciente" value={form.patientId} onChange={(v: string) => setForm({ ...form, patientId: v })} options={["", ...patients.map((p: any) => p.id)]} labels={patients.reduce((acc: any, p: any) => ({ ...acc, [p.id]: p.name }), { "": "Sem paciente vinculado" })} />
           </div>
-          <div className="grid grid-cols-2 gap-6">
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Valor (R$)</label>
-              <input type="number" required className="w-full border-b border-[#EEE] py-2 text-[12px] outline-none" value={form.amount} onChange={e => setForm({...form, amount: e.target.value})} />
+
+          <label className="block">
+            <span>Observações</span>
+            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="min-h-28 w-full border p-4 text-sm" placeholder="Informações internas, parcelamento, comissão, taxa da maquininha..." />
+          </label>
+
+          <div className="rounded-3xl border border-dashed border-[rgba(90,31,43,.20)] bg-brand-background/70 p-5">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="micro-label mb-1">Anexos</p>
+                <p className="text-[13px] text-brand-text/62">PDF, PNG, JPEG, WEBP, DOC e DOCX.</p>
+              </div>
+              <label className="btn-secondary cursor-pointer py-3">
+                <Paperclip size={14} /> Selecionar arquivos
+                <input type="file" multiple className="hidden" accept=".pdf,.png,.jpg,.jpeg,.webp,.doc,.docx" onChange={(e) => handleFiles(e.target.files)} />
+              </label>
             </div>
-            <div className="space-y-1">
-              <label className="text-[9px] font-bold uppercase tracking-[0.2em] text-gray-400">Tipo</label>
-              <select className="w-full border-b border-[#EEE] py-2 text-[10px] font-bold uppercase" value={form.type} onChange={e => setForm({...form, type: e.target.value})}>
-                <option value="INCOME">Entrada (+)</option>
-                <option value="EXPENSE">Saída (-)</option>
-              </select>
-            </div>
+            {attachments.length > 0 && (
+              <div className="mt-4 grid gap-2">
+                {attachments.map((file, index) => (
+                  <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-2xl border border-[rgba(90,31,43,.10)] bg-brand-surface px-4 py-3 text-[12px]">
+                    <span className="truncate">{file.name}</span>
+                    <div className="flex items-center gap-3">
+                      <a href={file.dataUrl} target="_blank" className="text-brand-primary underline">Visualizar</a>
+                      <a href={file.dataUrl} download={file.name} className="text-brand-primary underline">Download</a>
+                      <button type="button" onClick={() => setAttachments((prev) => prev.filter((_, i) => i !== index))} className="text-brand-danger">Excluir</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
-          <button type="submit" className="w-full bg-[#1A1A1A] text-white py-4 text-[10px] font-bold uppercase tracking-[0.3em] hover:bg-[#C5A059] transition-all">Confirmar Lançamento</button>
+
+          <div className="flex flex-col-reverse gap-3 border-t border-[rgba(90,31,43,.10)] pt-5 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+            <button type="submit" className="btn-primary">Salvar transação</button>
+          </div>
         </form>
       </div>
     </div>
   );
 }
 
-function FinanceCard({ label, value, trend, icon, color }: any) {
+function TransactionRow({ t, onDelete, onStatus }: any) {
+  const status = t.status === "COMPLETED" ? "PAID" : t.status;
+  const attachments = Array.isArray(t.attachmentsJson) ? t.attachmentsJson : [];
+  const statusClass = status === "PAID" ? "text-brand-success bg-brand-success/10" : status === "CANCELED" ? "text-brand-danger bg-brand-danger/10" : "text-brand-warning bg-brand-warning/10";
+
   return (
-    <div className="bg-white border border-[#EEECE7] p-8 shadow-sm group hover:border-[#C5A059]/40 transition-all">
-      <p className="text-[9px] font-bold text-[#94A3B8] uppercase tracking-[0.3em] mb-4">{label}</p>
-      <p className="text-3xl font-serif text-[#1A1A1A]" style={{ color }}>R$ {(value || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</p>
-      {trend && <div className="mt-4 flex items-center gap-1.5 text-[10px] font-bold text-emerald-600 uppercase tracking-widest">{icon} {trend} <span className="text-[#94A3B8] font-medium">vs anterior</span></div>}
+    <tr className="group transition hover:bg-[rgba(90,31,43,.04)]">
+      <td className="px-6 py-5 text-[12px] text-brand-text/60">{new Date(t.date).toLocaleDateString("pt-BR")}</td>
+      <td className="px-6 py-5">
+        <p className="text-[13px] font-bold text-brand-strong">{t.description}</p>
+        <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-brand-text/45">{t.paymentMethod || "Forma não informada"}</p>
+        {attachments.length > 0 && (
+          <div className="mt-2 flex gap-2">
+            {attachments.map((file: AttachmentFile, index: number) => (
+              <a key={`${file.name}-${index}`} href={file.dataUrl} target="_blank" download={file.name} className="inline-flex items-center gap-1 rounded-full bg-brand-background px-2 py-1 text-[10px] text-brand-primary">
+                <Paperclip size={10} /> {file.name.slice(0, 18)}
+              </a>
+            ))}
+          </div>
+        )}
+      </td>
+      <td className="px-6 py-5"><span className="rounded-full border border-[rgba(90,31,43,.10)] bg-brand-background px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-primary">{t.category}</span></td>
+      <td className="px-6 py-5 text-[12px] text-brand-text/70">{t.patient?.name || "—"}</td>
+      <td className={`px-6 py-5 text-right font-serif text-[20px] ${t.type === "EXPENSE" ? "text-brand-danger" : "text-brand-strong"}`}>
+        {t.type === "EXPENSE" ? "- " : ""}{fmtCurrency(t.amount)}
+      </td>
+      <td className="px-6 py-5"><span className={`rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] ${statusClass}`}>{financialStatusLabels[t.status] || t.status}</span></td>
+      <td className="px-6 py-5 text-right">
+        <div className="flex items-center justify-end gap-2">
+          {status !== "PAID" && <IconButton label="Dar baixa" onClick={() => onStatus(t.id, "PAID")}><Check size={15} /></IconButton>}
+          {status !== "PENDING" && <IconButton label="Reabrir" onClick={() => onStatus(t.id, "PENDING")}><RotateCcw size={15} /></IconButton>}
+          {status !== "CANCELED" && <IconButton label="Cancelar" onClick={() => onStatus(t.id, "CANCELED")}><X size={15} /></IconButton>}
+          <IconButton label="Excluir" danger onClick={() => onDelete(t.id)}><Trash2 size={15} /></IconButton>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function IconButton({ children, label, onClick, danger }: any) {
+  return <button onClick={onClick} title={label} className={`rounded-full border border-[rgba(90,31,43,.10)] p-2 transition hover:bg-[rgba(90,31,43,.08)] ${danger ? "text-brand-danger" : "text-brand-primary"}`}>{children}</button>;
+}
+
+function FinanceCard({ label, value, accent, isText }: any) {
+  const color = accent === "success" ? "text-brand-success" : accent === "danger" ? "text-brand-danger" : accent === "primary" ? "text-brand-primary" : "text-brand-strong";
+  return (
+    <div className="premium-card p-6">
+      <p className="micro-label">{label}</p>
+      <p className={`mt-5 font-serif text-3xl ${color}`}>{isText ? value : fmtCurrency(Number(value || 0))}</p>
     </div>
   );
 }
 
-// O COMPONENTE DE LINHA ATUALIZADO COM A LIXEIRA
-function TransactionRow({ t, onDelete }: any) {
+function MiniMetric({ label, value }: any) {
   return (
-    <tr className="hover:bg-[#FCFAF9] transition-colors group">
-      <td className="px-10 py-5 text-[11px] text-[#94A3B8]">{new Date(t.date).toLocaleDateString('pt-BR')}</td>
-      <td className="px-10 py-5 text-[12px] font-bold uppercase tracking-tight text-[#1A1A1A]">{t.description}</td>
-      <td className="px-10 py-5"><span className="text-[8px] font-black border border-[#EEECE7] px-2.5 py-1 text-[#C5A059] bg-[#FCFAF6] uppercase group-hover:border-[#C5A059] transition-all">{t.category}</span></td>
-      <td className={`px-10 py-5 text-right font-serif text-[16px] font-bold ${t.type === 'EXPENSE' ? 'text-red-400' : 'text-[#1A1A1A]'}`}>
-        {t.type === 'EXPENSE' ? '- ' : ''} R$ {t.amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-      </td>
-      <td className="px-10 py-5 text-right flex items-center justify-end gap-4">
-        <div className={`inline-block w-2.5 h-2.5 rounded-full ${t.type === 'INCOME' ? 'bg-emerald-500' : 'bg-red-400'}`} />
-        
-        {/* BOTÃO DE LIXEIRA MÁGICO */}
-        <button 
-          onClick={() => onDelete(t.id)} 
-          className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-          title="Excluir Transação"
-        >
-          <Trash2 size={15} />
-        </button>
-      </td>
-    </tr>
+    <div className="rounded-3xl border border-[rgba(90,31,43,.10)] bg-brand-background/55 p-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-brand-text/50">{label}</p>
+      <p className="mt-3 truncate text-[14px] font-semibold text-brand-strong" title={value}>{value}</p>
+    </div>
   );
+}
+
+function Field({ label, value, onChange, type = "text", required = false }: any) {
+  return (
+    <label className="block">
+      <span>{label}</span>
+      <input type={type} value={value} required={required} onChange={(e) => onChange(e.target.value)} className="h-12 w-full border px-4 text-sm" />
+    </label>
+  );
+}
+
+function SelectField({ label, value, onChange, options, labels = {} }: any) {
+  return (
+    <label className="block">
+      <span>{label}</span>
+      <select value={value} onChange={(e) => onChange(e.target.value)} className="h-12 w-full border px-4 text-sm">
+        {options.map((option: string, index: number) => <option key={`${option || "empty"}-${index}`} value={option}>{labels[option] || option}</option>)}
+      </select>
+    </label>
+  );
+}
+
+function FilterInput({ label, value, onChange, type }: any) {
+  return <Field label={label} value={value} onChange={onChange} type={type} />;
+}
+
+function FilterSelect({ label, value, onChange, options, labels = {} }: any) {
+  return <SelectField label={label} value={value} onChange={onChange} options={options} labels={labels} />;
 }

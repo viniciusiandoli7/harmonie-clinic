@@ -9,7 +9,7 @@ import {
 import { createAppointmentSchema } from "@/validators/appointmentValidator";
 import { z } from "zod";
 
-const statusSchema = z.enum(["SCHEDULED", "COMPLETED", "CANCELED"]);
+const statusSchema = z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "NO_SHOW", "RESCHEDULED", "CANCELED", "RETURN", "FIT_IN"]);
 
 export async function GET(req: Request) {
   const session = await getServerSession(authOptions);
@@ -58,8 +58,6 @@ export async function POST(req: Request) {
     const body = await req.json();
 
     // 🛡️ REFINAMENTO: Log para debugar o que o frontend está enviando
-    console.log("Recebido no POST /appointments:", body);
-
     const parsed = createAppointmentSchema
       .extend({
         room: z.enum(["A", "B"]).optional(),

@@ -10,7 +10,7 @@ type Patient = {
 
 type Room = "A" | "B";
 
-// 🛡️ REFINAMENTO: Lista oficial de procedimentos da Harmonie Clinic
+// 🛡️ REFINAMENTO: Lista oficial de procedimentos da Mariana Thomaz Carmona
 const PROCEDURES = [
   "Consulta",
   "Retorno",
@@ -160,13 +160,13 @@ export default function CalendarQuickCreateModal({
       <div className="w-full max-w-2xl border border-[#F0ECE4] bg-white shadow-[0_20px_60px_rgba(17,17,17,0.18)]">
         <div className="flex items-center justify-between border-b border-[#F0ECE4] bg-[#FCFAF6] px-6 py-4">
           <div>
-            <p className="text-[10px] uppercase tracking-[0.34em] text-[#C8A35F]">Agenda</p>
-            <h2 className="mt-2 text-[28px] text-[#111111]" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
+            <p className="text-[10px] uppercase tracking-[0.34em] text-[#5A1F2B]">Agenda</p>
+            <h2 className="mt-2 text-[28px] text-[#1E1A18111]" style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}>
               Novo Agendamento
             </h2>
           </div>
 
-          <button onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center border border-[#ECE7DD] text-[#64748B] transition hover:text-[#111111]">
+          <button onClick={onClose} className="inline-flex h-10 w-10 items-center justify-center border border-[#ECE7DD] text-[#64748B] transition hover:text-[#1E1A18111]">
             <X size={16} />
           </button>
         </div>
@@ -243,9 +243,14 @@ export default function CalendarQuickCreateModal({
                 onChange={(e) => setStatus(e.target.value)}
                 className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
               >
-                <option value="SCHEDULED">Agendado / Remarcado</option>
+                <option value="SCHEDULED">Agendado</option>
+                <option value="CONFIRMED">Confirmado</option>
                 <option value="COMPLETED">Compareceu / Concluído</option>
-                <option value="CANCELED">Desmarcado / Faltou</option>
+                <option value="NO_SHOW">Faltou</option>
+                <option value="RESCHEDULED">Remarcou</option>
+                <option value="RETURN">Retorno</option>
+                <option value="FIT_IN">Encaixe</option>
+                <option value="CANCELED">Cancelado</option>
               </select>
             </div>
           </div>
@@ -264,7 +269,7 @@ export default function CalendarQuickCreateModal({
             <button
               type="button"
               onClick={onClose}
-              className="h-11 border border-[#ECE7DD] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#111827] hover:bg-gray-50 transition-colors"
+              className="h-11 border border-[#ECE7DD] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-[#1E1A18] hover:bg-gray-50 transition-colors"
             >
               Cancelar
             </button>
@@ -272,7 +277,7 @@ export default function CalendarQuickCreateModal({
             <button
               type="submit"
               disabled={saving}
-              className="h-11 bg-[#111111] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60 hover:bg-[#C8A35F] transition-colors"
+              className="h-11 bg-[#1E1A18111] px-5 text-[12px] font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60 hover:bg-[#5A1F2B] transition-colors"
             >
               {saving ? "Salvando..." : "Salvar agendamento"}
             </button>

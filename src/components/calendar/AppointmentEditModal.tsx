@@ -9,7 +9,7 @@ type Patient = {
 };
 
 type Room = "A" | "B";
-type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
+type AppointmentStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "RESCHEDULED" | "CANCELED" | "RETURN" | "FIT_IN";
 type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
 
 type Appointment = {
@@ -297,9 +297,14 @@ export default function AppointmentEditModal({
                 onChange={(e) => setStatus(e.target.value as AppointmentStatus)}
                 className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none bg-white"
               >
-                <option value="SCHEDULED">Agendada / Remarcada</option>
+                <option value="SCHEDULED">Agendada</option>
+                <option value="CONFIRMED">Confirmada</option>
                 <option value="COMPLETED">Compareceu / Concluída</option>
-                <option value="CANCELED">Desmarcada / Faltou</option>
+                <option value="NO_SHOW">Faltou</option>
+                <option value="RESCHEDULED">Remarcou</option>
+                <option value="RETURN">Retorno</option>
+                <option value="FIT_IN">Encaixe</option>
+                <option value="CANCELED">Cancelada</option>
               </select>
             </div>
           </div>

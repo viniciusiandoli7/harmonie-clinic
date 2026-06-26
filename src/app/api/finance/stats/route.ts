@@ -2,54 +2,119 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { calculateMonthlyClosing, isPaid } from "@/lib/finance-utils";
+import { roundMoney } from "@/lib/money";
 
-// A MÁGICA: Isso desativa o cache e força o Next.js a sempre pegar o valor real do caixa
-export const dynamic = 'force-dynamic';
+export const dynamic = "force-dynamic";
 
 export async function GET() {
-  // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);
-  if (!session) {
-    return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  }
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
     const now = new Date();
     const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+    const monthlyGoal = Number(process.env.MONTHLY_REVENUE_GOAL || 30000);
 
-    // 1. Lucro Líquido (Entradas - Saídas do mês)
-    const transactions = await prisma.financialTransaction.findMany({
-      where: { date: { gte: firstDayMonth } }
-    });
+    const [monthTransactions, allTransactions, recentMovements, sales, patients, overdueInstallments, pendingInstallments, closingPreview, savedClosing] = await Promise.all([
+      prisma.financialTransaction.findMany({
+        where: { date: { gte: firstDayMonth, lt: firstDayNextMonth } },
+        include: { patient: { select: { id: true, name: true, phone: true } }, installments: true },
+      }),
+      prisma.financialTransaction.findMany(),
+      prisma.financialTransaction.findMany({
+        take: 250,
+        orderBy: { date: "desc" },
+        include: { patient: { select: { id: true, name: true, phone: true } }, installments: true },
+      }),
+      prisma.sale.findMany({
+        where: { createdAt: { gte: firstDayMonth, lt: firstDayNextMonth } },
+        include: { service: true, saleItems: true },
+      }),
+      prisma.patient.findMany({
+        where: { createdAt: { gte: firstDayMonth, lt: firstDayNextMonth } },
+        select: { id: true, crmSource: true, crmStatus: true },
+      }),
+      (prisma as any).financialInstallment.findMany({
+        where: { status: "PENDING", dueDate: { lt: now } },
+        include: { patient: { select: { id: true, name: true, phone: true } } },
+        orderBy: { dueDate: "asc" },
+        take: 15,
+      }),
+      (prisma as any).financialInstallment.findMany({
+        where: { status: "PENDING", dueDate: { gte: firstDayMonth, lt: firstDayNextMonth } },
+        include: { patient: { select: { id: true, name: true, phone: true } } },
+        orderBy: { dueDate: "asc" },
+        take: 50,
+      }),
+      calculateMonthlyClosing(),
+      (prisma as any).monthlyClosing.findUnique({ where: { month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}` } }),
+    ]);
 
-    const income = transactions.filter(t => t.type === "INCOME").reduce((acc, t) => acc + t.amount, 0);
-    const expense = transactions.filter(t => t.type === "EXPENSE").reduce((acc, t) => acc + t.amount, 0);
-    const netProfit = income - expense;
+    const paidMonthTransactions = monthTransactions.filter((t) => isPaid(t.status));
+    const incomeTransactions = paidMonthTransactions.filter((t) => t.type === "INCOME");
+    const expenseTransactions = paidMonthTransactions.filter((t) => t.type === "EXPENSE");
 
-    // 2. Disponível em Caixa (Total acumulado de todas as transações)
-    const allTransactions = await prisma.financialTransaction.findMany();
-    const totalBalance = allTransactions.reduce((acc, t) => 
-      t.type === "INCOME" ? acc + t.amount : acc - t.amount, 0
-    );
+    const grossIncome = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.grossAmount ?? t.amount ?? 0), 0));
+    const fees = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.feeAmount ?? 0), 0));
+    const commissions = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.commissionAmount ?? t.professionalValue ?? 0), 0));
+    const income = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.netAmount ?? t.amount ?? 0), 0));
+    const expense = roundMoney(expenseTransactions.reduce((acc, t) => acc + Number(t.amount ?? 0), 0));
+    const netProfit = roundMoney(income - expense);
+    const totalBalance = roundMoney(allTransactions
+      .filter((t) => isPaid(t.status))
+      .reduce((acc, t: any) => (t.type === "INCOME" ? acc + Number(t.netAmount ?? t.amount) : acc - Number(t.amount)), 0));
 
-    // 3. Previsão de Recebíveis (Agendamentos pendentes de pagamento)
-    const pendingAppointments = await prisma.appointment.aggregate({
-      where: { paymentStatus: "PENDING" },
-      _sum: { price: true }
-    });
-
-    // 4. Movimentações Recentes (Aumentei para 15 para aparecer mais na tela)
-    const recentMovements = await prisma.financialTransaction.findMany({
-      take: 15,
-      orderBy: { date: 'desc' }
-    });
+    const paidIncomeCount = incomeTransactions.length;
+    const averageTicket = paidIncomeCount ? roundMoney(grossIncome / paidIncomeCount) : 0;
+    const procedureCounts = sales.reduce<Record<string, number>>((acc, sale: any) => {
+      if (sale.saleItems?.length) {
+        for (const item of sale.saleItems) acc[item.productName || "Procedimento"] = (acc[item.productName || "Procedimento"] || 0) + Number(item.quantity || 1);
+      } else {
+        const name = sale.service?.name || "Procedimento";
+        acc[name] = (acc[name] || 0) + 1;
+      }
+      return acc;
+    }, {});
+    const topProcedure = (Object.entries(procedureCounts) as [string, number][]).sort((a, b) => b[1] - a[1])[0]?.[0] || "Sem vendas no mês";
+    const patientOrigins = patients.reduce<Record<string, number>>((acc, patient) => {
+      const source = patient.crmSource || "Outros";
+      acc[source] = (acc[source] || 0) + 1;
+      return acc;
+    }, {});
+    const crmStatus = patients.reduce<Record<string, number>>((acc, patient) => {
+      const status = patient.crmStatus || "Novo Lead";
+      acc[status] = (acc[status] || 0) + 1;
+      return acc;
+    }, {});
 
     return NextResponse.json({
+      month: {
+        start: firstDayMonth.toISOString(),
+        end: new Date(firstDayNextMonth.getTime() - 1).toISOString(),
+        isClosed: savedClosing?.status === "CLOSED",
+      },
+      grossIncome,
+      income,
+      expense,
+      fees,
+      commissions,
       netProfit,
       totalBalance,
-      receivables: pendingAppointments._sum.price || 0,
+      monthlyGoal,
+      goalPercentage: monthlyGoal ? Math.min(100, Math.round((grossIncome / monthlyGoal) * 100)) : 0,
+      averageTicket,
+      topProcedure,
+      patientOrigins,
+      crmStatus,
+      newPatients: patients.length,
       recentMovements,
-      healthScore: netProfit > 0 ? "EXCELENTE" : "ATENÇÃO"
+      overdueInstallments,
+      pendingInstallments,
+      closingPreview,
+      savedClosing,
+      healthScore: netProfit > 0 ? "EXCELENTE" : grossIncome > 0 ? "EM AJUSTE" : "ATENÇÃO",
     });
   } catch (error) {
     console.error("Erro ao buscar estatísticas financeiras:", error);

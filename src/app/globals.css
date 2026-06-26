@@ -1,15 +1,35 @@
-/* Importação das fontes de luxo */
-@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,400&family=Inter:wght@300;400;500;600&display=swap');
 @import "tailwindcss";
 
 :root {
-  /* Paleta Harmonie Clinic */
-  --background: #FAFAFA;    /* Blanc Pur */
-  --foreground: #1A1A1A;    /* Noir Absolu */
-  --gold: #C5A059;          /* Or Harmonie */
-  --border: #EEECE7;        /* Bordas finas e sutis */
-  --muted: #94A3B8;         /* Cinza para micro-labels */
-  --card: #FFFFFF;
+  --primary: #5A1F2B;
+  --primary-dark: #3F1620;
+  --background: #F7F2EA;
+  --background-secondary: #D8C4AE;
+  --surface: #FBF8F2;
+  --surface-muted: #EFE5D8;
+  --text-primary: #5B3A2E;
+  --text-strong: #1E1A18;
+  --border: rgba(90, 31, 43, 0.12);
+  --hover: rgba(90, 31, 43, 0.08);
+  --success: #6D9B73;
+  --warning: #C9A227;
+  --danger: #A13D3D;
+  --shadow-soft: 0 18px 55px rgba(63, 22, 32, 0.08);
+  --shadow-card: 0 14px 35px rgba(90, 31, 43, 0.06);
+}
+
+@theme inline {
+  --color-brand-primary: var(--primary);
+  --color-brand-primary-dark: var(--primary-dark);
+  --color-brand-background: var(--background);
+  --color-brand-background-secondary: var(--background-secondary);
+  --color-brand-surface: var(--surface);
+  --color-brand-surface-muted: var(--surface-muted);
+  --color-brand-text: var(--text-primary);
+  --color-brand-strong: var(--text-strong);
+  --color-brand-success: var(--success);
+  --color-brand-warning: var(--warning);
+  --color-brand-danger: var(--danger);
 }
 
 html {
@@ -17,127 +37,186 @@ html {
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: 'Inter', sans-serif; /* Fonte base para dados e interface */
+  background:
+    radial-gradient(circle at top left, rgba(90, 31, 43, 0.06), transparent 34rem),
+    linear-gradient(135deg, var(--background), #F3E8DA 100%);
+  color: var(--text-primary);
+  font-family: var(--font-inter), Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: geometricPrecision;
   letter-spacing: -0.01em;
 }
 
-/* Títulos: O peso da tradição e sofisticação */
 h1, h2, h3, h4, .font-serif {
-  font-family: 'Cormorant Garamond', serif;
-  color: var(--foreground);
-  font-weight: 400;
-  letter-spacing: -0.01em;
+  font-family: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
+  color: var(--text-strong);
+  font-weight: 500;
+  letter-spacing: -0.015em;
 }
 
-/* Estilo de Card: Arquitetônico (Bordas Retas) */
-.card {
+::selection {
+  background: rgba(90, 31, 43, 0.18);
+  color: var(--primary-dark);
+}
+
+.card,
+.premium-card {
   border: 1px solid var(--border);
-  background: var(--card);
-  border-radius: 0px; /* Forçar quinas retas */
-  transition: all 0.4s ease;
+  background: rgba(251, 248, 242, 0.88);
+  border-radius: 24px;
+  box-shadow: var(--shadow-card);
+  backdrop-filter: blur(18px);
+  transition: border-color 240ms ease, box-shadow 240ms ease, transform 240ms ease, background 240ms ease;
 }
 
-.card:hover {
-  border-color: var(--gold);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.03);
+.card:hover,
+.premium-card:hover {
+  border-color: rgba(90, 31, 43, 0.24);
+  box-shadow: var(--shadow-soft);
+  transform: translateY(-1px);
 }
 
-/* Botão Primário: Noir & Gold */
 .btn-primary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--foreground);
-  padding: 1rem 2rem;
+  gap: 0.65rem;
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  padding: 0.95rem 1.4rem;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.25em;
-  color: white;
-  border-radius: 0px;
-  transition: all 0.3s ease;
-  border: 1px solid var(--foreground);
+  letter-spacing: 0.18em;
+  color: #F7F2EA;
+  border-radius: 999px;
+  transition: transform 220ms ease, box-shadow 220ms ease, opacity 220ms ease;
+  border: 1px solid rgba(90, 31, 43, 0.22);
+  box-shadow: 0 14px 30px rgba(90, 31, 43, 0.18);
 }
 
 .btn-primary:hover {
-  background: var(--gold);
-  border-color: var(--gold);
   transform: translateY(-1px);
+  box-shadow: 0 18px 40px rgba(90, 31, 43, 0.24);
 }
 
-/* Botão Secundário: Minimalismo Dourado */
 .btn-secondary {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid var(--gold);
-  background: transparent;
-  padding: 1rem 2rem;
+  gap: 0.65rem;
+  border: 1px solid var(--border);
+  background: rgba(251, 248, 242, 0.72);
+  padding: 0.9rem 1.25rem;
   font-size: 11px;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.25em;
-  color: var(--gold);
-  border-radius: 0px;
-  transition: all 0.3s ease;
+  letter-spacing: 0.16em;
+  color: var(--primary);
+  border-radius: 999px;
+  transition: all 220ms ease;
 }
 
 .btn-secondary:hover {
-  background: var(--gold);
-  color: white;
+  background: rgba(90, 31, 43, 0.08);
+  border-color: rgba(90, 31, 43, 0.24);
 }
 
-/* Micro-labels: O segredo da delicadeza */
-.section-title, label, .micro-label {
-  font-size: 9px;
-  font-weight: 600;
+.section-title,
+label,
+.micro-label {
+  font-size: 10px;
+  font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.35em;
-  color: var(--muted);
+  letter-spacing: 0.24em;
+  color: rgba(91, 58, 46, 0.68);
   margin-bottom: 0.5rem;
   display: block;
 }
 
-/* Page Title: Grandeza sem ser pesado */
 .page-title {
-  font-family: 'Cormorant Garamond', serif;
-  font-size: 2.75rem;
-  line-height: 1.1;
-  font-weight: 300;
-  color: var(--foreground);
+  font-family: var(--font-cormorant), "Cormorant Garamond", Georgia, serif;
+  font-size: clamp(2.65rem, 5vw, 4.85rem);
+  line-height: 0.94;
+  font-weight: 500;
+  color: var(--text-strong);
 }
 
-/* Inputs Delicados */
-input, select, textarea {
-  border-bottom: 1px solid var(--border) !important;
-  border-top: none !important;
-  border-left: none !important;
-  border-right: none !important;
-  border-radius: 0px !important;
-  background: transparent !important;
-  padding: 0.5rem 0 !important;
-  font-size: 14px;
-  transition: border-color 0.3s ease;
+input,
+select,
+textarea {
+  border-color: var(--border) !important;
+  border-radius: 16px !important;
+  background: rgba(251, 248, 242, 0.72) !important;
+  color: var(--text-strong) !important;
+  transition: border-color 220ms ease, box-shadow 220ms ease, background 220ms ease;
 }
 
-input:focus, select:focus, textarea:focus {
-  border-bottom-color: var(--gold) !important;
+input::placeholder,
+textarea::placeholder {
+  color: rgba(91, 58, 46, 0.38) !important;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: rgba(90, 31, 43, 0.42) !important;
   outline: none !important;
+  box-shadow: 0 0 0 4px rgba(90, 31, 43, 0.08) !important;
+  background: rgba(251, 248, 242, 0.94) !important;
 }
 
-/* Ajuste de scrollbar para ser invisível/delicada */
-::-webkit-scrollbar {
-  width: 4px;
+button,
+a {
+  outline-color: rgba(90, 31, 43, 0.45);
 }
-::-webkit-scrollbar-track {
-  background: var(--background);
+
+*:focus-visible {
+  outline: 2px solid rgba(90, 31, 43, 0.42);
+  outline-offset: 3px;
 }
-::-webkit-scrollbar-thumb {
-  background: var(--border);
+
+.animate-soft-in {
+  animation: softIn 360ms ease both;
 }
-::-webkit-scrollbar-thumb:hover {
-  background: var(--gold);
+
+@keyframes softIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-track { background: rgba(216, 196, 174, 0.22); }
+::-webkit-scrollbar-thumb { background: rgba(90, 31, 43, 0.2); border-radius: 999px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(90, 31, 43, 0.38); }
+
+.input-premium {
+  width: 100%;
+  min-height: 2.75rem;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: rgba(251, 248, 242, 0.78);
+  padding: 0 0.95rem;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+/* Campo de busca do dashboard: remove o “input dentro de input” criado pelo estilo global. */
+.search-shell input,
+.search-shell input:focus,
+.patient-search-input,
+.patient-search-input:focus {
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+  padding: 0 !important;
+}
+
+.line-clamp-2 {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
 }

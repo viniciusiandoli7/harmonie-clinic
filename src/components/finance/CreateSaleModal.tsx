@@ -102,7 +102,7 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
 
       const htmlContent = buildContractHtml({
         patient: { name: patient.name, cpf: patient.cpf, rg: patient.rg, phone: patient.phone, birthDate: patient.birthDate },
-        clinic: { companyName: "Harmonie Clinic", cnpj: "57.007.483/0001-73", address: "Avenida Coronel Sezefredo Fagundes, Nº 2168", email: "contato@harmonie.com" },
+        clinic: { companyName: "Mariana Thomaz Carmona", cnpj: "57.007.483/0001-73", address: "Avenida Coronel Sezefredo Fagundes, Nº 2168", email: "contato@marianathomazcarmona.com" },
         items: contractItems, subtotal, discount: numDiscount, total: finalTotal,
         paymentMethodLabel, signatureImage: null 
       } as any); 
@@ -144,9 +144,9 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
     <div className="fixed inset-0 z-9999 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 font-sans">
       <div className="w-full max-w-6xl bg-white shadow-2xl rounded-sm flex flex-col h-[90vh] overflow-hidden">
         
-        <div className="bg-[#111] px-8 py-6 flex justify-between items-center border-b border-[#C8A35F]/30">
+        <div className="bg-[#1E1A18] px-8 py-6 flex justify-between items-center border-b border-[#5A1F2B]/30">
           <div className="flex items-center gap-4">
-            <ShoppingCart size={24} style={{ color: '#C8A35F' }} />
+            <ShoppingCart size={24} style={{ color: '#5A1F2B' }} />
             <h2 
               className="text-xl font-serif font-bold uppercase tracking-[0.25em]"
               style={{ color: '#FFFFFF', margin: 0 }} 
@@ -154,7 +154,7 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
               Caixa / Ponto de Venda
             </h2>
           </div>
-          <button onClick={onClose} style={{ color: '#FFFFFF' }} className="hover:text-[#C8A35F] transition-all">
+          <button onClick={onClose} style={{ color: '#FFFFFF' }} className="hover:text-[#5A1F2B] transition-all">
             <X size={32} />
           </button>
         </div>
@@ -163,40 +163,40 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
           <div className="w-2/3 p-8 flex flex-col bg-[#FAFAFA] border-r border-gray-200 overflow-y-auto">
             <div className="mb-6">
               <span className="text-[10px] font-black text-[#96A4C1] uppercase tracking-widest">Paciente Selecionado</span>
-              <h3 className="text-2xl font-serif text-[#111] mt-1">{patient?.name}</h3>
+              <h3 className="text-2xl font-serif text-[#1E1A18] mt-1">{patient?.name}</h3>
             </div>
 
             <div className="bg-white border border-gray-200 p-6 rounded-sm shadow-sm mb-8">
-              <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#C8A35F] mb-6">Adicionar Serviço</h4>
+              <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#5A1F2B] mb-6">Adicionar Serviço</h4>
               <div className="grid grid-cols-12 gap-4 mb-4">
                 <div className="col-span-5">
                   <label className="text-[9px] font-bold text-gray-400 uppercase mb-1 block">Tratamento</label>
-                  <select value={treatment} onChange={(e) => setTreatment(e.target.value)} className="w-full border-b border-gray-300 py-2 text-sm outline-none focus:border-[#C8A35F] bg-transparent text-[#111]">
+                  <select value={treatment} onChange={(e) => setTreatment(e.target.value)} className="w-full border-b border-gray-300 py-2 text-sm outline-none focus:border-[#5A1F2B] bg-transparent text-[#1E1A18]">
                     <option value="">Selecione o procedimento...</option>
-                    {TREATMENTS.map(t => <option key={t} value={t} className="text-[#111]">{t}</option>)}
+                    {TREATMENTS.map(t => <option key={t} value={t} className="text-[#1E1A18]">{t}</option>)}
                   </select>
                 </div>
                 <div className="col-span-4">
                   <label className="text-[9px] font-bold text-gray-400 uppercase mb-1 block">Profissional</label>
-                  <select value={professional} onChange={(e) => setProfessional(e.target.value)} className="w-full border-b border-gray-300 py-2 text-sm outline-none focus:border-[#C8A35F] bg-transparent text-[#111]">
-                    {PROFESSIONALS.map(p => <option key={p} value={p} className="text-[#111]">{p}</option>)}
+                  <select value={professional} onChange={(e) => setProfessional(e.target.value)} className="w-full border-b border-gray-300 py-2 text-sm outline-none focus:border-[#5A1F2B] bg-transparent text-[#1E1A18]">
+                    {PROFESSIONALS.map(p => <option key={p} value={p} className="text-[#1E1A18]">{p}</option>)}
                   </select>
                 </div>
                 <div className="col-span-2">
                   <label className="text-[9px] font-bold text-gray-400 uppercase mb-1 block">Preço (R$)</label>
-                  <input type="number" value={price} onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))} className="w-full border-b border-gray-300 py-2 text-sm outline-none focus:border-[#C8A35F] placeholder:text-gray-400 text-[#111] font-sans font-semibold tabular-nums" placeholder="0,00" />
+                  <input type="number" value={price} onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))} className="w-full border-b border-gray-300 py-2 text-sm outline-none focus:border-[#5A1F2B] placeholder:text-gray-400 text-[#1E1A18] font-sans font-semibold tabular-nums" placeholder="0,00" />
                 </div>
                 <div className="col-span-1">
                   <label className="text-[9px] font-bold text-gray-400 uppercase mb-1 block">Qtd</label>
-                  <input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))} className="w-full border-b border-gray-300 py-2 text-sm outline-none text-center text-[#111] font-sans font-semibold tabular-nums" />
+                  <input type="number" min="1" value={qty} onChange={(e) => setQty(e.target.value === "" ? "" : Number(e.target.value))} className="w-full border-b border-gray-300 py-2 text-sm outline-none text-center text-[#1E1A18] font-sans font-semibold tabular-nums" />
                 </div>
               </div>
               <div className="flex gap-4 items-end">
                 <div className="flex-1">
                   <label className="text-[9px] font-bold text-gray-400 uppercase mb-1 block">Observação (ex: Glabela, 40 unidades)</label>
-                  <input type="text" value={observation} onChange={(e) => setObservation(e.target.value)} className="w-full border-b border-gray-300 py-2 text-sm outline-none focus:border-[#C8A35F] placeholder:text-gray-400 text-[#111]" placeholder="Detalhes opcionais..." />
+                  <input type="text" value={observation} onChange={(e) => setObservation(e.target.value)} className="w-full border-b border-gray-300 py-2 text-sm outline-none focus:border-[#5A1F2B] placeholder:text-gray-400 text-[#1E1A18]" placeholder="Detalhes opcionais..." />
                 </div>
-                <button onClick={handleAddItem} className="bg-[#C8A35F] text-white px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm flex items-center gap-2 hover:bg-[#b08d4f] transition-all shadow-md">
+                <button onClick={handleAddItem} className="bg-[#5A1F2B] text-white px-6 py-2.5 text-[10px] font-bold uppercase tracking-widest rounded-sm flex items-center gap-2 hover:bg-[#b08d4f] transition-all shadow-md">
                   <Plus size={14} /> Incluir
                 </button>
               </div>
@@ -220,11 +220,11 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
                     cart.map((item, index) => (
                       <tr key={index} className="hover:bg-[#FCFAF6] transition-colors">
                         <td className="p-4">
-                          <p className="font-bold text-[#111]">{item.description}</p>
-                          <p className="text-[10px] text-[#C8A35F] font-bold uppercase tracking-tighter">{item.observation}</p>
+                          <p className="font-bold text-[#1E1A18]">{item.description}</p>
+                          <p className="text-[10px] text-[#5A1F2B] font-bold uppercase tracking-tighter">{item.observation}</p>
                         </td>
-                        <td className="p-4 text-center text-[#111] font-sans tabular-nums">{item.quantity}</td>
-                        <td className="p-4 text-right font-sans font-semibold text-[#111] tabular-nums">R$ {(item.price * item.quantity).toFixed(2)}</td>
+                        <td className="p-4 text-center text-[#1E1A18] font-sans tabular-nums">{item.quantity}</td>
+                        <td className="p-4 text-right font-sans font-semibold text-[#1E1A18] tabular-nums">R$ {(item.price * item.quantity).toFixed(2)}</td>
                         <td className="p-4 text-center">
                           <button onClick={() => handleRemoveItem(index)} className="text-red-300 hover:text-red-500 transition-colors"><Trash2 size={18} /></button>
                         </td>
@@ -238,28 +238,28 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
 
           <div className="w-1/3 bg-white p-8 flex flex-col justify-between border-l border-gray-100 overflow-y-auto">
             <div>
-              <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#C8A35F] mb-8 border-b border-gray-100 pb-3">Resumo</h4>
+              <h4 className="text-[11px] font-bold uppercase tracking-[0.2em] text-[#5A1F2B] mb-8 border-b border-gray-100 pb-3">Resumo</h4>
               <div className="flex justify-between items-center mb-4 text-gray-500 text-sm">
                 <span>Subtotal:</span>
-                <span className="font-sans font-semibold text-[#111] tabular-nums">R$ {subtotal.toFixed(2)}</span>
+                <span className="font-sans font-semibold text-[#1E1A18] tabular-nums">R$ {subtotal.toFixed(2)}</span>
               </div>
               <div className="flex justify-between items-center mb-8 text-gray-500 text-sm">
                 <span>Desconto (R$):</span>
-                <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value === "" ? "" : Number(e.target.value))} className="w-24 text-right border-b border-gray-300 outline-none focus:border-[#C8A35F] font-sans font-semibold tabular-nums text-[#111]" placeholder="0,00" />
+                <input type="number" value={discount} onChange={(e) => setDiscount(e.target.value === "" ? "" : Number(e.target.value))} className="w-24 text-right border-b border-gray-300 outline-none focus:border-[#5A1F2B] font-sans font-semibold tabular-nums text-[#1E1A18]" placeholder="0,00" />
               </div>
               
               <div className="bg-[#FAF8F3] p-6 border border-[#E9DEC9] rounded-sm text-center mb-8">
                 <span className="text-[9px] font-bold text-[#96A4C1] uppercase tracking-[0.2em]">Total Final</span>
-                <h2 className="text-4xl font-sans font-bold text-[#111] mt-2 tabular-nums">R$ {finalTotal.toFixed(2)}</h2>
+                <h2 className="text-4xl font-sans font-bold text-[#1E1A18] mt-2 tabular-nums">R$ {finalTotal.toFixed(2)}</h2>
               </div>
 
               <div className="mb-8 space-y-3">
                 <h4 className="text-[9px] font-bold uppercase tracking-widest text-gray-400">Pagamentos</h4>
                 {paymentsList.map((p, i) => (
                   <div key={i} className="flex justify-between items-center text-xs border border-gray-100 p-3 rounded-sm bg-gray-50">
-                    <span className="font-bold text-[#111] uppercase tracking-tighter">{p.method.replace('_', ' ')}</span>
+                    <span className="font-bold text-[#1E1A18] uppercase tracking-tighter">{p.method.replace('_', ' ')}</span>
                     <div className="flex items-center gap-3">
-                      <span className="font-sans font-semibold text-[#111] tabular-nums">R$ {p.amount.toFixed(2)}</span>
+                      <span className="font-sans font-semibold text-[#1E1A18] tabular-nums">R$ {p.amount.toFixed(2)}</span>
                       <button onClick={() => handleRemovePayment(i)} className="text-red-300 hover:text-red-500"><Trash2 size={14} /></button>
                     </div>
                   </div>
@@ -278,7 +278,7 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="text-[8px] font-bold text-gray-400 uppercase block mb-1">Método</label>
-                      <select value={currentMethod} onChange={(e) => setCurrentMethod(e.target.value)} className="w-full border border-gray-300 rounded-sm p-2 text-xs outline-none focus:border-[#C8A35F] text-[#111]">
+                      <select value={currentMethod} onChange={(e) => setCurrentMethod(e.target.value)} className="w-full border border-gray-300 rounded-sm p-2 text-xs outline-none focus:border-[#5A1F2B] text-[#1E1A18]">
                         <option value="PIX">PIX</option>
                         <option value="CARTAO_CREDITO">Cartão de Crédito</option>
                         <option value="CARTAO_DEBITO">Cartão de Débito</option>
@@ -287,10 +287,10 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
                     </div>
                     <div>
                       <label className="text-[8px] font-bold text-gray-400 uppercase block mb-1">Valor</label>
-                      <input type="number" value={currentAmount} onChange={(e) => setCurrentAmount(e.target.value === "" ? "" : Number(e.target.value))} className="w-full border border-gray-300 rounded-sm p-2 text-xs outline-none focus:border-[#C8A35F] font-sans font-semibold tabular-nums text-[#111]" placeholder="0,00" />
+                      <input type="number" value={currentAmount} onChange={(e) => setCurrentAmount(e.target.value === "" ? "" : Number(e.target.value))} className="w-full border border-gray-300 rounded-sm p-2 text-xs outline-none focus:border-[#5A1F2B] font-sans font-semibold tabular-nums text-[#1E1A18]" placeholder="0,00" />
                     </div>
                   </div>
-                  <button onClick={handleAddPayment} className="w-full bg-white border border-gray-300 text-gray-600 py-2 text-[9px] font-bold uppercase tracking-widest hover:border-[#C8A35F] hover:text-[#C8A35F] transition-all">
+                  <button onClick={handleAddPayment} className="w-full bg-white border border-gray-300 text-gray-600 py-2 text-[9px] font-bold uppercase tracking-widest hover:border-[#5A1F2B] hover:text-[#5A1F2B] transition-all">
                     Confirmar Parcela
                   </button>
                 </div>

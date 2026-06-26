@@ -3,24 +3,32 @@ import { prisma } from "@/lib/prisma";
 
 type Ctx = { params: Promise<{ token: string }> };
 
+function requestIp(req: NextRequest) {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+}
+
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   try {
     const { token } = await ctx.params;
-    const { signatureImage } = await req.json();
+    const { signatureImage, signatureName } = await req.json();
 
-    if (!signatureImage) return NextResponse.json({ error: "Sem assinatura" }, { status: 400 });
+    if (!signatureImage) {
+      return NextResponse.json({ error: "Assinatura obrigatória." }, { status: 400 });
+    }
 
-    const contract = await prisma.patientContract.update({
+    await prisma.patientContract.update({
       where: { token },
       data: {
         signatureImage,
-        status: "SIGNED", // Muda o status do contrato para Assinado!
-      }
+        signatureName: typeof signatureName === "string" && signatureName.trim() ? signatureName.trim() : undefined,
+        signatureIp: requestIp(req),
+        signedAt: new Date(),
+        status: "SIGNED",
+      },
     });
 
     return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error(error);
-    return NextResponse.json({ error: "Erro ao assinar contrato" }, { status: 500 });
+  } catch {
+    return NextResponse.json({ error: "Erro ao assinar contrato." }, { status: 500 });
   }
 }

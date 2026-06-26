@@ -11,7 +11,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     
     // 👈 NOVIDADE: Recebendo o contractToken do frontend
-    const { patientId, patientName, items, subtotal, discount, total, payments, contractToken } = body;
+    const { patientId, items, subtotal, discount, total, payments, contractToken } = body;
 
     if (!items || items.length === 0) {
       return NextResponse.json({ error: "Carrinho vazio." }, { status: 400 });
@@ -57,12 +57,46 @@ export async function POST(request: NextRequest) {
         )
       );
 
-      await tx.financialTransaction.create({
+      const financialTransaction = await tx.financialTransaction.create({
         data: {
-          type: "INCOME", category: "PROCEDIMENTO", description: `Venda Multi: ${generalTreatmentName}`,
-          amount: total, profit: lucroReal, patientId, saleId: sale.id, date: new Date(),
+          type: "INCOME",
+          category: "PROCEDIMENTO",
+          description: `Venda Multi: ${generalTreatmentName}`,
+          amount: total,
+          grossAmount: total,
+          feeAmount: 0,
+          netAmount: lucroReal,
+          commissionAmount: repasse,
+          profit: lucroReal,
+          patientId,
+          saleId: sale.id,
+          date: new Date(),
+          status: payments && payments.length > 0 ? "PAID" : "PENDING",
+          paidAt: payments && payments.length > 0 ? new Date() : null,
         }
       });
+
+      if (payments && payments.length > 0) {
+        await Promise.all(payments.map((p: any, index: number) =>
+          (tx as any).financialInstallment.create({
+            data: {
+              transactionId: financialTransaction.id,
+              saleId: sale.id,
+              patientId,
+              description: `Venda Multi: ${generalTreatmentName} (${index + 1}/${payments.length})`,
+              installmentNumber: index + 1,
+              totalInstallments: payments.length,
+              amount: Number(p.amount || 0),
+              feeAmount: 0,
+              netAmount: Number(p.amount || 0),
+              dueDate: new Date(),
+              status: "PAID",
+              paidAt: new Date(),
+              paymentMethod: p.method || null,
+            }
+          })
+        ));
+      }
 
       await tx.patientContract.create({
         data: {
@@ -92,6 +126,17 @@ export async function POST(request: NextRequest) {
 
       await tx.clinicalEvolution.create({
         data: { patientId, content: `CONTRATO FECHADO: ${generalTreatmentName}. Valor: R$ ${total.toLocaleString('pt-BR')}. Protocolos iniciados.`, type: "SALE_RECORD", }
+      });
+
+      await (tx as any).auditLog.create({
+        data: {
+          action: "CREATE",
+          entity: "Sale",
+          entityId: sale.id,
+          description: `Venda fechada: ${generalTreatmentName}`,
+          userName: "Dra. Mariana",
+          afterJson: { saleId: sale.id, patientId, total, items } as any,
+        }
       });
 
       return sale;

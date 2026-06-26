@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { assertNotBlocked } from "@/services/blockedTimeService";
 
-type AppointmentStatus = "SCHEDULED" | "COMPLETED" | "CANCELED";
+type AppointmentStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "RESCHEDULED" | "CANCELED" | "RETURN" | "FIT_IN";
 type PaymentStatus = "PENDING" | "PAID" | "CANCELED";
 type DurationMinutes = 30 | 60 | 90 | 120;
 type Room = "A" | "B";

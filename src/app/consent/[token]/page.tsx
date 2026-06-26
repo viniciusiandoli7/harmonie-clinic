@@ -67,24 +67,24 @@ export default function ConsentPage({
   }
 
   if (!doc) {
-    return <div className="min-h-screen bg-[#FAF8F3] p-10">Carregando...</div>;
+    return <div className="min-h-screen bg-[#F7F2EA] p-10">Carregando...</div>;
   }
 
   return (
-    <div className="min-h-screen bg-[#FAF8F3] px-6 py-12">
+    <div className="min-h-screen bg-[#F7F2EA] px-6 py-12">
       <div className="mx-auto max-w-4xl border border-[#ECE7DD] bg-white p-8 md:p-10">
-        <p className="text-[10px] uppercase tracking-[0.32em] text-[#C8A35F]">
-          Harmonie Clinic
+        <p className="text-[10px] uppercase tracking-[0.32em] text-[#5A1F2B]">
+          Mariana Thomaz Carmona
         </p>
 
         <h1
-          className="mt-3 text-[34px] leading-tight text-[#111111]"
+          className="mt-3 text-[34px] leading-tight text-[#1E1A18]"
           style={{ fontFamily: 'Georgia, "Times New Roman", serif' }}
         >
           {doc.title}
         </h1>
 
-        <div className="mt-6 grid gap-3 border border-[#ECE7DD] bg-[#FCFAF6] p-4 text-sm text-[#111111]">
+        <div className="mt-6 grid gap-3 border border-[#ECE7DD] bg-[#FCFAF6] p-4 text-sm text-[#1E1A18]">
           <div>
             <strong>Paciente:</strong> {doc.patient.name}
           </div>
@@ -102,7 +102,7 @@ export default function ConsentPage({
 
         {doc.status !== "SIGNED" ? (
           <div className="mt-10 border border-[#ECE7DD] bg-[#FCFAF6] p-5">
-            <label className="mb-2 block text-sm font-medium text-[#111111]">
+            <label className="mb-2 block text-sm font-medium text-[#1E1A18]">
               Nome para assinatura
             </label>
             <input
@@ -115,7 +115,7 @@ export default function ConsentPage({
               type="button"
               onClick={handleSign}
               disabled={saving}
-              className="mt-4 h-11 bg-[#111111] px-5 text-sm font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
+              className="mt-4 h-11 bg-[#1E1A18] px-5 text-sm font-semibold uppercase tracking-[0.14em] text-white disabled:opacity-60"
             >
               {saving ? "Assinando..." : "Assinar documento"}
             </button>

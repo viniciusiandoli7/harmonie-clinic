@@ -137,7 +137,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
     const element = document.getElementById(`evolution-plan-${plan.id}`);
     if (!element) return;
     const printWindow = window.open('', '', 'width=900,height=800');
-    printWindow?.document.write(`<html><head><title>Evolução</title><style>body { font-family: serif; padding: 40px; color: #111; background: #fff !important; } .no-print, button, input, textarea { display: none !important; } .pdf-h { border-bottom: 2px solid #C8A35F; margin-bottom: 30px; padding-bottom: 10px; }</style></head><body><div class="pdf-h"><h1 style="color: #C8A35F; text-transform: uppercase; font-size: 12px;">Harmonie Clinic</h1><h2 style="font-size: 24px;">Acompanhamento: ${patient.name}</h2></div>${element.innerHTML}</body></html>`);
+    printWindow?.document.write(`<html><head><title>Evolução</title><style>body { font-family: serif; padding: 40px; color: #1E1A18; background: #F7F2EA !important; } .no-print, button, input, textarea { display: none !important; } .pdf-h { border-bottom: 2px solid #5A1F2B; margin-bottom: 30px; padding-bottom: 10px; }</style></head><body><div class="pdf-h"><h1 style="color: #5A1F2B; text-transform: uppercase; font-size: 12px;">Mariana Thomaz Carmona</h1><h2 style="font-size: 24px;">Acompanhamento: ${patient.name}</h2></div>${element.innerHTML}</body></html>`);
     printWindow?.document.close();
     setTimeout(() => { printWindow?.print(); printWindow?.close(); }, 1200);
   };

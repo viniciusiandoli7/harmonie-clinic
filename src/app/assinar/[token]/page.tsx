@@ -48,16 +48,16 @@ export default function SignDocumentPage() {
   // TELA DE SUCESSO (O que o paciente vê após assinar)
   if (success) {
     return (
-      <div className="min-h-screen bg-[#FAF8F3] flex flex-col items-center justify-center p-6 text-center font-sans">
+      <div className="min-h-screen bg-[#F7F2EA] flex flex-col items-center justify-center p-6 text-center font-sans">
         <div className="w-20 h-20 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mb-6 shadow-sm animate-in zoom-in duration-500">
           <CheckCircle size={40} />
         </div>
-        <h1 className="text-3xl font-serif text-[#111] mb-2">Assinatura Concluída!</h1>
+        <h1 className="text-3xl font-serif text-[#1E1A18] mb-2">Assinatura Concluída!</h1>
         <p className="text-[#60759B] text-sm max-w-xs leading-relaxed mb-8">
           Seu documento foi assinado digitalmente com sucesso e já está anexado ao seu prontuário.
         </p>
-        <p className="text-[10px] font-bold text-[#C8A35F] uppercase tracking-widest flex items-center justify-center gap-2">
-          <ShieldCheck size={14} /> Harmonie Clinic
+        <p className="text-[10px] font-bold text-[#5A1F2B] uppercase tracking-widest flex items-center justify-center gap-2">
+          <ShieldCheck size={14} /> Mariana Thomaz Carmona
         </p>
       </div>
     );
@@ -65,12 +65,12 @@ export default function SignDocumentPage() {
 
   // TELA DE ASSINATURA (Mobile-First)
   return (
-    <div className="min-h-screen bg-[#FAF8F3] flex flex-col font-sans">
+    <div className="min-h-screen bg-[#F7F2EA] flex flex-col font-sans">
       
       {/* HEADER DA CLÍNICA */}
-      <div className="bg-[#111] py-6 px-6 text-center shadow-md">
-        <h1 className="text-xl font-serif uppercase tracking-widest text-[#C8A35F]">
-          Harmonie Clinic
+      <div className="bg-[#1E1A18] py-6 px-6 text-center shadow-md">
+        <h1 className="text-xl font-serif uppercase tracking-widest text-[#5A1F2B]">
+          Mariana Thomaz Carmona
         </h1>
         <p className="text-white/70 text-[10px] font-bold uppercase tracking-[0.2em] mt-1 flex items-center justify-center gap-1.5">
           <ShieldCheck size={12} /> Assinatura Digital
@@ -81,7 +81,7 @@ export default function SignDocumentPage() {
       <div className="flex-1 flex flex-col p-6 max-w-md mx-auto w-full">
         
         <div className="text-center mb-8 mt-4">
-          <h2 className="text-lg font-bold text-[#111]">Confirmação de Sessão</h2>
+          <h2 className="text-lg font-bold text-[#1E1A18]">Confirmação de Sessão</h2>
           <p className="text-sm text-[#64748B] mt-2 leading-relaxed">
             Por favor, utilize o dedo ou uma caneta touch para assinar no quadro em branco abaixo.
           </p>
@@ -99,10 +99,10 @@ export default function SignDocumentPage() {
             </button>
           </div>
 
-          <div className="bg-white border-2 border-dashed border-[#C8A35F]/50 rounded-xl shadow-inner overflow-hidden h-64 touch-none">
+          <div className="bg-white border-2 border-dashed border-[#5A1F2B]/50 rounded-xl shadow-inner overflow-hidden h-64 touch-none">
             <SignatureCanvas 
               ref={sigCanvas}
-              penColor="#111"
+              penColor="#1E1A18"
               canvasProps={{
                 className: "w-full h-full",
               }}
@@ -115,7 +115,7 @@ export default function SignDocumentPage() {
           <button 
             onClick={handleSave}
             disabled={loading}
-            className="w-full bg-[#111] hover:bg-[#C8A35F] text-white py-4 rounded-xl text-[12px] font-bold uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-70"
+            className="w-full bg-[#1E1A18] hover:bg-[#5A1F2B] text-white py-4 rounded-xl text-[12px] font-bold uppercase tracking-widest transition-all shadow-lg flex items-center justify-center gap-2 disabled:opacity-70"
           >
             {loading ? "Enviando de forma segura..." : <><CheckCircle size={18} /> Confirmar Assinatura</>}
           </button>

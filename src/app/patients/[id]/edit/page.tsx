@@ -84,7 +84,7 @@ export default function EditPatientPage({ params }: PageProps) {
 
   const whatsappLink = useMemo(() => {
     if (!patient?.phone) return null;
-    const message = `Olá${patient.name ? `, ${patient.name}` : ""}! Tudo bem? 😊\n\nAqui é da clínica Harmonie.`;
+    const message = `Olá${patient.name ? `, ${patient.name}` : ""}! Tudo bem? 😊\n\nAqui é da clínica Dra. Mariana Thomaz Carmona.`;
     return getWhatsappLink(patient.phone, message);
   }, [patient]);
 
@@ -92,10 +92,10 @@ export default function EditPatientPage({ params }: PageProps) {
     <div className="min-h-screen bg-[#FAFAFA] px-4 py-4 md:px-8 xl:px-12 xl:py-8">
       <header className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div>
-          <p className="text-[10px] uppercase tracking-[0.28em] text-[#C5A059] font-semibold mb-1">
-            Harmonie Management System
+          <p className="text-[10px] uppercase tracking-[0.28em] text-[#5A1F2B] font-semibold mb-1">
+            Mariana Thomaz Carmona System
           </p>
-          <h1 className="text-[32px] leading-none text-[#1A1A1A] xl:text-[38px] tracking-[0.18em] font-serif font-bold">
+          <h1 className="text-[32px] leading-none text-[#1E1A18] xl:text-[38px] tracking-[0.18em] font-serif font-bold">
             Editar paciente
           </h1>
         </div>
@@ -105,22 +105,22 @@ export default function EditPatientPage({ params }: PageProps) {
       <div className="mt-6 flex items-center gap-3">
         <button
           onClick={() => router.push('/patients')}
-          className="inline-flex h-9 items-center justify-center gap-2 border border-[#C5A059] px-4 text-[11px] font-semibold text-[#1A1A1A] transition hover:bg-[#C5A059] hover:text-white uppercase tracking-[0.12em]"
+          className="inline-flex h-9 items-center justify-center gap-2 border border-[#5A1F2B] px-4 text-[11px] font-semibold text-[#1E1A18] transition hover:bg-[#5A1F2B] hover:text-white uppercase tracking-[0.12em]"
         >
           ← Voltar para a Base
         </button>
       </div>
 
       <div className="mt-6 flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-        <p className="text-[12px] text-[#C5A059]">Atualize os dados cadastrais e observações do paciente.</p>
+        <p className="text-[12px] text-[#5A1F2B]">Atualize os dados cadastrais e observações do paciente.</p>
         <div className="flex flex-wrap gap-2">
           {whatsappLink && (
-            <a href={whatsappLink} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center bg-[#1A1A1A] px-4 text-[11px] font-semibold text-white transition hover:opacity-90 uppercase tracking-[0.12em]">
+            <a href={whatsappLink} target="_blank" rel="noreferrer" className="inline-flex h-9 items-center justify-center bg-[#1E1A18] px-4 text-[11px] font-semibold text-white transition hover:opacity-90 uppercase tracking-[0.12em]">
               WhatsApp
             </a>
           )}
           {patient && (
-            <button onClick={handleToggleActive} disabled={changingStatus} className="inline-flex h-9 items-center justify-center border border-[#C5A059] px-4 text-[11px] font-semibold text-[#1A1A1A] transition hover:bg-[#C5A059] hover:text-white uppercase tracking-[0.12em] disabled:opacity-60">
+            <button onClick={handleToggleActive} disabled={changingStatus} className="inline-flex h-9 items-center justify-center border border-[#5A1F2B] px-4 text-[11px] font-semibold text-[#1E1A18] transition hover:bg-[#5A1F2B] hover:text-white uppercase tracking-[0.12em] disabled:opacity-60">
               {changingStatus ? "Salvando..." : patient.isActive === false ? "Reativar paciente" : "Inativar paciente"}
             </button>
           )}
@@ -128,24 +128,24 @@ export default function EditPatientPage({ params }: PageProps) {
       </div>
 
       {patient && (
-        <div className="mt-6 border border-[#C5A059] bg-white p-5 rounded-xl shadow-md grid gap-3 text-[12px] md:grid-cols-3 font-sans">
+        <div className="mt-6 border border-[#5A1F2B] bg-white p-5 rounded-xl shadow-md grid gap-3 text-[12px] md:grid-cols-3 font-sans">
           <div>
-            <div className="text-[9px] uppercase tracking-[0.18em] text-[#C5A059] font-semibold">Nome</div>
-            <div className="mt-1 font-semibold text-[#1A1A1A]">{patient.name}</div>
+            <div className="text-[9px] uppercase tracking-[0.18em] text-[#5A1F2B] font-semibold">Nome</div>
+            <div className="mt-1 font-semibold text-[#1E1A18]">{patient.name}</div>
           </div>
           <div>
-            <div className="text-[9px] uppercase tracking-[0.18em] text-[#C5A059] font-semibold">E-mail</div>
-            <div className="mt-1 text-[#1A1A1A]">{patient.email || "—"}</div>
+            <div className="text-[9px] uppercase tracking-[0.18em] text-[#5A1F2B] font-semibold">E-mail</div>
+            <div className="mt-1 text-[#1E1A18]">{patient.email || "—"}</div>
           </div>
           <div>
-            <div className="text-[9px] uppercase tracking-[0.18em] text-[#C5A059] font-semibold">Telefone</div>
-            <div className="mt-1 text-[#1A1A1A]">{patient.phone || "—"}</div>
+            <div className="text-[9px] uppercase tracking-[0.18em] text-[#5A1F2B] font-semibold">Telefone</div>
+            <div className="mt-1 text-[#1E1A18]">{patient.phone || "—"}</div>
           </div>
         </div>
       )}
 
       {loading ? (
-        <div className="mt-6 text-[12px] text-[#C5A059]">Carregando paciente...</div>
+        <div className="mt-6 text-[12px] text-[#5A1F2B]">Carregando paciente...</div>
       ) : error ? (
         <div className="mt-6 border border-red-300 bg-red-50 px-4 py-3 text-[12px] text-red-700 rounded-xl">{error}</div>
       ) : patient && (

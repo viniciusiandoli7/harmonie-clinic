@@ -65,7 +65,7 @@ export async function GET() {
 
     const totalIncomeMonth = monthTransactions
       .filter((item) => item.type === "INCOME")
-      .reduce((acc, item) => acc + item.amount, 0);
+      .reduce((acc, item: any) => acc + Number(item.netAmount ?? item.amount ?? 0), 0);
 
     const totalExpenseMonth = monthTransactions
       .filter((item) => item.type === "EXPENSE")
@@ -88,7 +88,7 @@ export async function GET() {
       const month = new Date(transaction.date).getMonth();
 
       if (transaction.type === "INCOME") {
-        monthlyRevenueMap.set(month, (monthlyRevenueMap.get(month) ?? 0) + transaction.amount);
+        monthlyRevenueMap.set(month, (monthlyRevenueMap.get(month) ?? 0) + Number((transaction as any).netAmount ?? transaction.amount ?? 0));
       } else {
         monthlyExpenseMap.set(month, (monthlyExpenseMap.get(month) ?? 0) + transaction.amount);
       }

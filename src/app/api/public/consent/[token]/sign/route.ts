@@ -5,6 +5,10 @@ type Ctx = {
   params: Promise<{ token: string }>;
 };
 
+function requestIp(req: NextRequest) {
+  return req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || req.headers.get("x-real-ip") || "unknown";
+}
+
 export async function POST(req: NextRequest, ctx: Ctx) {
   const { token } = await ctx.params;
 
@@ -13,30 +17,34 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     const signatureName = String(body.signatureName || "").trim();
 
     if (!signatureName) {
-      return NextResponse.json(
-        { error: "Nome da assinatura é obrigatório." },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Nome da assinatura é obrigatório." }, { status: 400 });
     }
 
-    const ip =
-      req.headers.get("x-forwarded-for") ||
-      req.headers.get("x-real-ip") ||
-      "unknown";
-
-    const contract = await prisma.patientContract.update({
+    const document = await prisma.patientConsentDocument.update({
       where: { token },
       data: {
-        // Atualizamos o título para não deixar o update vazio, já que os campos de assinatura foram removidos
-        title: `Contrato Assinado por ${signatureName}`,
+        status: "SIGNED",
+        signatureName,
+        signatureIp: requestIp(req),
+        signedAt: new Date(),
+      },
+      include: {
+        patient: { select: { name: true } },
+        treatment: { select: { name: true } },
       },
     });
 
-    return NextResponse.json(contract);
+    return NextResponse.json({
+      id: document.id,
+      title: document.title,
+      content: document.content,
+      status: document.status,
+      signedAt: document.signedAt,
+      signatureName: document.signatureName,
+      patient: document.patient,
+      treatmentName: document.treatment.name,
+    });
   } catch {
-    return NextResponse.json(
-      { error: "Erro ao assinar contrato." },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Erro ao assinar documento." }, { status: 500 });
   }
 }

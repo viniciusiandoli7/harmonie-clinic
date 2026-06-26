@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { createAuditLog } from "@/lib/audit";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
@@ -47,7 +48,18 @@ export async function POST(req: Request) {
         state: body.state || null,
         zipCode: body.zipCode || null,
         crmSource: body.crmSource || null,
+        referralName: body.referralName || null,
+        crmStatus: body.crmStatus || "Novo Lead",
+        imageAuthorized: Boolean(body.imageAuthorized),
         interestProcedure: body.interestProcedure || null,
+        patientProfile: body.patientProfile || null,
+        commercialNotes: body.commercialNotes || null,
+        conversionStatus: body.conversionStatus || null,
+        proposedValue: body.proposedValue ? Number(body.proposedValue) : null,
+        closedValue: body.closedValue ? Number(body.closedValue) : null,
+        lostReason: body.lostReason || null,
+        firstEvaluationAt: body.firstEvaluationAt ? new Date(body.firstEvaluationAt) : null,
+        nextSuggestedAt: body.nextSuggestedAt ? new Date(body.nextSuggestedAt) : null,
         notes: body.notes || null,
         isActive: body.isActive ?? true,
 
@@ -83,9 +95,25 @@ export async function POST(req: Request) {
             recentTreatmentOrVaccine: body.recentTreatmentOrVaccine || null,
             permanentImplants: body.permanentImplants || null,
             consentSigned: Boolean(body.consentSigned),
+            usesAnticoagulant: Boolean(body.usesAnticoagulant),
+            hasAutoimmuneDisease: Boolean(body.hasAutoimmuneDisease),
+            hasDiabetes: Boolean(body.hasDiabetes),
+            hasEpilepsy: Boolean(body.hasEpilepsy),
+            activeInfection: Boolean(body.activeInfection),
+            recentDentalProcedure: Boolean(body.recentDentalProcedure),
+            fillerComplicationHistory: body.fillerComplicationHistory || null,
+            clinicalRiskNotes: body.clinicalRiskNotes || null,
           }
         }
       },
+    });
+
+    await createAuditLog({
+      action: "CREATE",
+      entity: "Patient",
+      entityId: patient.id,
+      description: `Paciente cadastrada: ${patient.name}`,
+      afterJson: patient,
     });
 
     return NextResponse.json(patient, { status: 201 });

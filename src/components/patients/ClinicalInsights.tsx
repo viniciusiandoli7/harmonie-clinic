@@ -41,7 +41,7 @@ export default function ClinicalInsights({ data }: InsightsProps) {
           </span>
         </div>
         <p className="text-[12px] font-serif italic leading-relaxed text-[#1A1A1A]">
-          "{data.criticalObservation}"
+          “{data.criticalObservation}”
         </p>
       </div>
     </div>

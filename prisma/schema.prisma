@@ -40,9 +40,20 @@ model Patient {
   cpf               String?   @unique
   rg                String?
   
-  // Marketing e CRM
+  // Relacionamento e CRM
   crmSource         String?   // Ex: Instagram, Indicação, Google
+  referralName      String?   // Nome de quem indicou
+  crmStatus         String?   @default("Novo Lead") // Novo Lead, Avaliação, Procedimento, Retorno, VIP
+  imageAuthorized   Boolean   @default(false)
   interestProcedure String?   // Procedimento de maior interesse
+  patientProfile    String?   // Conservadora, VIP, foco pele, sensível a preço etc.
+  commercialNotes   String?   @db.Text
+  conversionStatus  String?   // Fechou no dia, vai pensar, achou caro etc.
+  proposedValue     Float?
+  closedValue       Float?
+  lostReason        String?
+  firstEvaluationAt DateTime?
+  nextSuggestedAt   DateTime?
   
   // Relacionamentos (Lado Inverso)
   appointments      Appointment[]
@@ -54,6 +65,13 @@ model Patient {
   sales             Sale[]
   medicalRecords    MedicalRecord[] 
   transactions      FinancialTransaction[]
+  installments      FinancialInstallment[]
+  inventoryMovements InventoryMovement[]
+  photos            PatientPhoto[]
+  treatmentPlans    TreatmentPlan[]
+  structuredEvolutions StructuredClinicalEvolution[]
+  postProcedureTasks PostProcedureTask[]
+  evaluationConversions EvaluationConversion[]
 
   // ÍNDICES: Para buscas instantâneas por nome, CPF ou Telefone
   @@index([name])
@@ -156,6 +174,14 @@ model PatientAnamnesis {
   usesCorticosteroids      Boolean  @default(false)
   smoker                   Boolean  @default(false)
   drinksAlcohol            Boolean  @default(false)
+  usesAnticoagulant        Boolean  @default(false)
+  hasAutoimmuneDisease     Boolean  @default(false)
+  hasDiabetes              Boolean  @default(false)
+  hasEpilepsy              Boolean  @default(false)
+  activeInfection          Boolean  @default(false)
+  recentDentalProcedure    Boolean  @default(false)
+  fillerComplicationHistory String?
+  clinicalRiskNotes        String?  @db.Text
   
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
@@ -225,6 +251,7 @@ model Sale {
   
   payments       SalePayment[] 
   transactions   FinancialTransaction[]
+  installments   FinancialInstallment[]
   
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @default(now()) @updatedAt
@@ -275,8 +302,18 @@ model FinancialTransaction {
   description       String
   category          String
   amount            Float
+  grossAmount       Float?
+  feeAmount         Float?
+  netAmount         Float?
+  cardFeePercent    Float?
+  commissionAmount  Float?
   type              TransactionType
-  status            String          @default("COMPLETED")
+  status            String          @default("PENDING") // PENDING, PAID, CANCELED. Dados antigos podem conter COMPLETED.
+  paymentMethod     String?
+  notes             String?         @db.Text
+  attachmentsJson   Json?
+  paidAt            DateTime?
+  canceledAt        DateTime?
   
   profit            Float?          // Lucro Real
   clinicProfit      Float?          // Alias
@@ -288,6 +325,7 @@ model FinancialTransaction {
 
   saleId            String?
   sale              Sale?           @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  installments      FinancialInstallment[]
 
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @default(now()) @updatedAt
@@ -295,6 +333,162 @@ model FinancialTransaction {
   @@index([date])
   @@index([patientId])
   @@index([saleId])
+}
+
+
+model TreatmentCostItem {
+  id          String   @id @default(uuid())
+  treatmentId String
+  name        String
+  type        String   @default("Produto")
+  quantity    Float    @default(1)
+  unitCost    Float    @default(0)
+  totalCost   Float    @default(0)
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  treatment   Treatment @relation(fields: [treatmentId], references: [id], onDelete: Cascade)
+
+  @@index([treatmentId])
+}
+
+model TreatmentPlan {
+  id              String   @id @default(uuid())
+  patientId       String
+  title           String
+  objective       String?  @db.Text
+  totalEstimated  Float    @default(0)
+  status          String   @default("ACTIVE") // ACTIVE, FINISHED, CANCELED
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  steps           TreatmentPlanStep[]
+
+  @@index([patientId])
+  @@index([status])
+}
+
+model TreatmentPlanStep {
+  id              String   @id @default(uuid())
+  planId          String
+  treatmentId     String?
+  title           String
+  priority        Int      @default(1)
+  estimatedValue  Float    @default(0)
+  status          String   @default("SUGGESTED") // SUGGESTED, ACCEPTED, REFUSED, POSTPONED, DONE
+  plannedDate     DateTime?
+  performedDate   DateTime?
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  plan            TreatmentPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  treatment       Treatment?    @relation(fields: [treatmentId], references: [id], onDelete: SetNull)
+
+  @@index([planId])
+  @@index([treatmentId])
+  @@index([status])
+}
+
+model StructuredClinicalEvolution {
+  id                 String   @id @default(uuid())
+  patientId          String
+  treatmentId        String?
+  complaint          String?  @db.Text
+  clinicalAssessment String?  @db.Text
+  procedurePerformed String
+  productUsed        String?
+  batch              String?
+  expiresAt          DateTime?
+  bodyArea           String?
+  quantity           String?
+  intercurrences     String?  @db.Text
+  guidance           String?  @db.Text
+  recommendedReturn  DateTime?
+  termSigned         Boolean  @default(false)
+  photosTaken        Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
+
+  patient            Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  treatment          Treatment? @relation(fields: [treatmentId], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@index([treatmentId])
+  @@index([createdAt])
+}
+
+model PostProcedureTask {
+  id             String   @id @default(uuid())
+  patientId      String
+  treatmentId    String?
+  title          String
+  message        String?  @db.Text
+  dueDate        DateTime
+  completedAt    DateTime?
+  status         String   @default("PENDING") // PENDING, DONE, CANCELED
+  channel        String   @default("WhatsApp")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+  treatment      Treatment? @relation(fields: [treatmentId], references: [id], onDelete: SetNull)
+
+  @@index([patientId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model WhatsAppTemplate {
+  id        String   @id @default(uuid())
+  category  String
+  title     String
+  content   String   @db.Text
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([category])
+  @@index([isActive])
+}
+
+model EvaluationConversion {
+  id             String   @id @default(uuid())
+  patientId      String
+  evaluationDate DateTime @default(now())
+  proposedPlan   String?  @db.Text
+  proposedValue  Float    @default(0)
+  closedValue    Float    @default(0)
+  status         String   @default("FOLLOW_UP") // CLOSED_SAME_DAY, CLOSED_LATER, FOLLOW_UP, LOST_EXPENSIVE, LOST_NO_INDICATION, LOST_OTHER
+  lostReason     String?  @db.Text
+  followUpDate   DateTime?
+  notes          String?  @db.Text
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  patient        Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([evaluationDate])
+  @@index([status])
+}
+
+model BusinessGoal {
+  id          String   @id @default(uuid())
+  month       String   @unique
+  revenueGoal Float    @default(0)
+  patientGoal Int      @default(0)
+  evaluationGoal Int   @default(0)
+  conversionGoal Float @default(0)
+  averageTicketGoal Float @default(0)
+  notes       String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
+
+  @@index([month])
 }
 
 // -----------------------------------------
@@ -335,6 +529,8 @@ model PatientContract {
   
   signatureName  String?        // Nome de quem assinou
   signatureImage String?        @db.Text 
+  signatureIp    String?
+  signedAt       DateTime?
   
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @default(now()) @updatedAt
@@ -344,14 +540,28 @@ model PatientContract {
 }
 
 model Treatment {
-  id        String                   @id @default(uuid())
-  name      String                   @unique
-  template  String                   // Template base do termo de consentimento
-  createdAt DateTime                 @default(now())
-  updatedAt DateTime                 @default(now()) @updatedAt
+  id                     String                   @id @default(uuid())
+  name                   String                   @unique
+  template               String                   // Template base do termo de consentimento
+  standardPrice          Float                    @default(0)
+  averageCost            Float                    @default(0)
+  averageDurationMinutes Int                      @default(60)
+  defaultReturnDays      Int?
+  requiresTerm           Boolean                  @default(true)
+  requiresPhotos         Boolean                  @default(false)
+  requiresBatch          Boolean                  @default(false)
+  postCareInstructions   String?                  @db.Text
+  defaultWhatsAppMessage String?                  @db.Text
+  isActive               Boolean                  @default(true)
+  createdAt              DateTime                 @default(now())
+  updatedAt              DateTime                 @default(now()) @updatedAt
   
-  documents PatientConsentDocument[]
-  sales     Sale[]
+  documents              PatientConsentDocument[]
+  sales                  Sale[]
+  costItems              TreatmentCostItem[]
+  planSteps              TreatmentPlanStep[]
+  structuredEvolutions   StructuredClinicalEvolution[]
+  postProcedureTasks     PostProcedureTask[]
 }
 
 model Professional {
@@ -373,14 +583,162 @@ model BlockedTime {
   @@index([start, end])
 }
 
+
+model InventoryItem {
+  id              String   @id @default(uuid())
+  product         String
+  supplier        String?
+  batch           String?
+  expiresAt       DateTime?
+  quantity        Int      @default(0)
+  minimumQuantity Int      @default(1)
+  unitValue       Float    @default(0)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+  movements       InventoryMovement[]
+
+  @@index([product])
+  @@index([expiresAt])
+}
+
+model FinancialInstallment {
+  id                String   @id @default(uuid())
+  transactionId     String?
+  saleId            String?
+  patientId         String?
+  description       String
+  installmentNumber Int      @default(1)
+  totalInstallments Int      @default(1)
+  amount            Float
+  feeAmount         Float    @default(0)
+  netAmount         Float?
+  dueDate           DateTime
+  paidAt            DateTime?
+  canceledAt        DateTime?
+  status            String   @default("PENDING")
+  paymentMethod     String?
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
+
+  transaction       FinancialTransaction? @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  sale              Sale?                 @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  patient           Patient?              @relation(fields: [patientId], references: [id])
+
+  @@index([transactionId])
+  @@index([saleId])
+  @@index([patientId])
+  @@index([dueDate])
+  @@index([status])
+}
+
+model MonthlyClosing {
+  id               String   @id @default(uuid())
+  month            String   @unique
+  startDate        DateTime
+  endDate          DateTime
+  grossIncome      Float    @default(0)
+  expenses         Float    @default(0)
+  fees             Float    @default(0)
+  commissions      Float    @default(0)
+  netProfit        Float    @default(0)
+  availableBalance Float    @default(0)
+  averageTicket    Float    @default(0)
+  topProcedure     String?
+  status           String   @default("OPEN")
+  closedAt         DateTime?
+  notes            String?  @db.Text
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
+
+  @@index([startDate, endDate])
+  @@index([status])
+}
+
+model InventoryMovement {
+  id              String   @id @default(uuid())
+  inventoryItemId String
+  type            String
+  quantity        Int
+  unitValue       Float?
+  totalValue      Float?
+  reason          String?  @db.Text
+  procedureName   String?
+  patientId       String?
+  date            DateTime @default(now())
+  createdAt       DateTime @default(now())
+
+  inventoryItem   InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Cascade)
+  patient         Patient?      @relation(fields: [patientId], references: [id])
+
+  @@index([inventoryItemId])
+  @@index([patientId])
+  @@index([date])
+  @@index([type])
+}
+
+model PatientPhoto {
+  id              String   @id @default(uuid())
+  patientId       String
+  title           String?
+  procedureName   String?
+  bodyArea        String?
+  photoType       String   @default("CLINICAL")
+  imageUrl        String   @db.Text
+  takenAt         DateTime @default(now())
+  imageAuthorized Boolean  @default(false)
+  notes           String?  @db.Text
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  patient         Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([takenAt])
+  @@index([imageAuthorized])
+}
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  action      String
+  entity      String
+  entityId    String?
+  description String?  @db.Text
+  userName    String?
+  beforeJson  Json?
+  afterJson   Json?
+  contextJson Json?
+  createdAt   DateTime @default(now())
+
+  @@index([entity])
+  @@index([createdAt])
+}
+
+model BackupHistory {
+  id        String   @id @default(uuid())
+  type      String   @default("MANUAL")
+  target    String   @default("LOCAL")
+  status    String   @default("SUCCESS")
+  sizeLabel String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+}
+
 // -----------------------------------------
 // ENUMS (PADRONIZAÇÃO)
 // -----------------------------------------
 
 enum AppointmentStatus {
   SCHEDULED
+  CONFIRMED
   COMPLETED
+  NO_SHOW
+  RESCHEDULED
   CANCELED
+  RETURN
+  FIT_IN
 }
 
 enum PaymentStatus {

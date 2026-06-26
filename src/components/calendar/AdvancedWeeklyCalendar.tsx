@@ -41,7 +41,7 @@ type Patient = {
 
 type Room = "A" | "B";
 type CalendarMode = "appointment" | "blocked";
-type StatusFilter = "ALL" | "SCHEDULED" | "COMPLETED" | "CANCELED";
+type StatusFilter = "ALL" | "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "RESCHEDULED" | "CANCELED" | "RETURN" | "FIT_IN";
 type RoomFilter = "ALL" | "A" | "B";
 
 type Appointment = {
@@ -52,7 +52,7 @@ type Appointment = {
   durationMinutes?: number;
   procedureName?: string | null;
   price?: number | null;
-  status?: "SCHEDULED" | "COMPLETED" | "CANCELED";
+  status?: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "NO_SHOW" | "RESCHEDULED" | "CANCELED" | "RETURN" | "FIT_IN";
   paymentStatus?: "PENDING" | "PAID" | "CANCELED";
   notes?: string | null;
   room?: Room;
@@ -626,7 +626,12 @@ export default function AdvancedWeeklyCalendar({
                 >
                   <option value="ALL">Todos os status</option>
                   <option value="SCHEDULED">Agendadas</option>
+                  <option value="CONFIRMED">Confirmadas</option>
                   <option value="COMPLETED">Concluídas</option>
+                  <option value="NO_SHOW">Faltas</option>
+                  <option value="RESCHEDULED">Remarcadas</option>
+                  <option value="RETURN">Retornos</option>
+                  <option value="FIT_IN">Encaixes</option>
                   <option value="CANCELED">Canceladas</option>
                 </select>
               </div>

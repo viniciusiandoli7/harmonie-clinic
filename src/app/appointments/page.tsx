@@ -204,14 +204,14 @@ export default function AgendaPage() {
   };
 
   return (
-    <div className="flex h-screen bg-[#FAFAFA] font-sans antialiased text-[#1A1A1A] overflow-hidden text-[11px]">
+    <div className="flex h-screen bg-[#F7F2EA] font-sans antialiased text-[#1E1A18] overflow-hidden text-[11px]">
       
       {/* SIDEBAR AGENDAMENTO */}
       <aside className="w-75 bg-white border-r border-[#EEECE7] p-6 overflow-y-auto flex flex-col z-50 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
         <div className="mb-6">
-          <p className="text-[8px] font-bold tracking-[0.4em] text-[#C5A059] uppercase mb-1">Registration</p>
+          <p className="text-[8px] font-bold tracking-[0.4em] text-[#5A1F2B] uppercase mb-1">Registration</p>
           <h3 className="text-xl font-serif italic text-black">Agendar Sessão</h3>
-          <div className="h-px w-8 bg-[#C5A059] mt-2" />
+          <div className="h-px w-8 bg-[#5A1F2B] mt-2" />
         </div>
         
         <div className="space-y-5 flex-1">
@@ -228,7 +228,7 @@ export default function AgendaPage() {
                 else setFormData({...formData, patientId: ""});
               }} 
               placeholder="BUSCAR NOME..." 
-              className="w-full py-1.5 border-b border-[#EEE] outline-none bg-transparent focus:border-[#C5A059] transition-colors" 
+              className="w-full py-1.5 border-b border-[#EEE] outline-none bg-transparent focus:border-[#5A1F2B] transition-colors" 
             />
             <datalist id="patients-list">
               {dbPatients.map(p => <option key={p.id} value={p.name} />)}
@@ -245,7 +245,7 @@ export default function AgendaPage() {
                   setFormData({...formData, procedures: [...formData.procedures, val]});
                 }
               }} 
-              className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none uppercase font-medium focus:border-[#C5A059] transition-colors"
+              className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none uppercase font-medium focus:border-[#5A1F2B] transition-colors"
             >
               <option value="">Adicionar procedimento...</option>
               {PROCEDIMENTOS.map(p => <option key={p} value={p}>{p}</option>)}
@@ -253,7 +253,7 @@ export default function AgendaPage() {
             
             <div className="flex flex-wrap gap-1.5 mt-2">
               {formData.procedures.map(proc => (
-                <span key={proc} className="inline-flex items-center gap-1.5 bg-[#FAF8F3] border border-[#E9DEC9] text-[#C8A35F] text-[8px] font-bold px-2 py-1 rounded uppercase">
+                <span key={proc} className="inline-flex items-center gap-1.5 bg-[#F7F2EA] border border-[#E9DEC9] text-[#5A1F2B] text-[8px] font-bold px-2 py-1 rounded uppercase">
                   {proc}
                   <button type="button" onClick={() => setFormData({...formData, procedures: formData.procedures.filter(p => p !== proc)})} className="hover:text-red-500 transition-colors">
                     <X size={10} strokeWidth={3} />
@@ -279,7 +279,7 @@ export default function AgendaPage() {
                    setView("DIA");
                  }
                }} 
-               className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none focus:border-[#C5A059] transition-colors" 
+               className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none focus:border-[#5A1F2B] transition-colors" 
              />
           </div>
 
@@ -290,7 +290,7 @@ export default function AgendaPage() {
                 type="time" 
                 value={formData.time} 
                 onChange={e => setFormData({...formData, time: e.target.value})} 
-                className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none focus:border-[#C5A059] transition-colors" 
+                className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none focus:border-[#5A1F2B] transition-colors" 
               />
             </div>
             <div className="space-y-1">
@@ -298,7 +298,7 @@ export default function AgendaPage() {
               <select 
                 value={formData.room} 
                 onChange={e => setFormData({...formData, room: e.target.value as any})} 
-                className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none focus:border-[#C5A059] transition-colors"
+                className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none focus:border-[#5A1F2B] transition-colors"
               >
                 <option value="SALA A">SALA A</option>
                 <option value="SALA B">SALA B</option>
@@ -308,7 +308,7 @@ export default function AgendaPage() {
 
           <button 
             onClick={handleCreateAppointment} 
-            className="w-full mt-6 bg-[#1A1A1A] hover:bg-[#C5A059] text-white py-3.5 rounded-sm text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-md active:scale-95"
+            className="w-full mt-6 bg-[#1E1A18] hover:bg-[#5A1F2B] text-white py-3.5 rounded-sm text-[10px] font-bold uppercase tracking-[0.2em] transition-all shadow-md active:scale-95"
           >
             Confirmar Registro
           </button>
@@ -319,7 +319,7 @@ export default function AgendaPage() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <header className="bg-white border-b border-[#EEECE7] px-8 py-4 flex justify-between items-center z-40">
           <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.4em] text-[#C5A059] mb-0.5">Harmonie Concierge</p>
+            <p className="text-[9px] font-bold uppercase tracking-[0.4em] text-[#5A1F2B] mb-0.5">Mariana Concierge</p>
             <h1 className="text-2xl font-serif italic capitalize text-black">
               {currentDate.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
             </h1>
@@ -331,7 +331,7 @@ export default function AgendaPage() {
                 <button 
                   key={t} 
                   onClick={() => setView(t)} 
-                  className={`px-6 py-1.5 text-[9px] font-bold uppercase tracking-[0.2em] transition-all rounded-sm ${view === t ? "bg-white text-[#1A1A1A] shadow-sm" : "text-[#94A3B8] hover:text-[#1A1A1A]"}`}
+                  className={`px-6 py-1.5 text-[9px] font-bold uppercase tracking-[0.2em] transition-all rounded-sm ${view === t ? "bg-white text-[#1E1A18] shadow-sm" : "text-[#94A3B8] hover:text-[#1E1A18]"}`}
                 >
                   {t}
                 </button>
@@ -339,27 +339,27 @@ export default function AgendaPage() {
             </div>
 
             <div className="flex items-center border border-[#EEECE7] p-1 bg-white scale-90 rounded-sm shadow-sm">
-              <button onClick={() => changeDate(-1)} className="p-1.5 hover:text-[#C5A059] transition-all"><ChevronLeft size={16}/></button>
-              <button onClick={handleHoje} className="px-3 text-[9px] font-bold uppercase tracking-widest border-x border-[#EEECE7] hover:text-[#C5A059] transition-colors">Hoje</button>
-              <button onClick={() => changeDate(1)} className="p-1.5 hover:text-[#C5A059] transition-all"><ChevronRight size={16}/></button>
+              <button onClick={() => changeDate(-1)} className="p-1.5 hover:text-[#5A1F2B] transition-all"><ChevronLeft size={16}/></button>
+              <button onClick={handleHoje} className="px-3 text-[9px] font-bold uppercase tracking-widest border-x border-[#EEECE7] hover:text-[#5A1F2B] transition-colors">Hoje</button>
+              <button onClick={() => changeDate(1)} className="p-1.5 hover:text-[#5A1F2B] transition-all"><ChevronRight size={16}/></button>
             </div>
           </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 bg-[#FAFAFA]">
+        <main className="flex-1 overflow-y-auto p-6 bg-[#F7F2EA]">
           <div className="bg-white border border-[#EEECE7] max-w-400 mx-auto shadow-sm rounded-sm overflow-hidden">
             
             {/* --- VISUALIZAÇÃO DIA --- */}
             {view === "DIA" && (
               <>
                 <div className="flex bg-white border-b border-[#EEECE7] ml-16 sticky top-0 z-30">
-                  <div className="flex-1 py-3 text-center border-r border-[#EEECE7] bg-[#FCFAF6]"><span className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#C5A059]">SALA A (AVANÇADA)</span></div>
-                  <div className="flex-1 py-3 text-center bg-[#FCFAF6]"><span className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#C5A059]">SALA B (BÁSICA)</span></div>
+                  <div className="flex-1 py-3 text-center border-r border-[#EEECE7] bg-[#FCFAF6]"><span className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#5A1F2B]">SALA A (AVANÇADA)</span></div>
+                  <div className="flex-1 py-3 text-center bg-[#FCFAF6]"><span className="text-[9px] font-bold uppercase tracking-[0.3em] text-[#5A1F2B]">SALA B (BÁSICA)</span></div>
                 </div>
                 <div className="divide-y divide-[#F9F9F9]">
                   {HOURS.map(hour => (
                     <div key={hour} className="flex min-h-15 group/row">
-                      <div className="w-16 py-4 border-r border-[#EEECE7] flex justify-center items-start bg-[#FAFAFA] font-sans text-[11px] text-[#94A3B8] font-medium">{hour}</div>
+                      <div className="w-16 py-4 border-r border-[#EEECE7] flex justify-center items-start bg-[#F7F2EA] font-sans text-[11px] text-[#94A3B8] font-medium">{hour}</div>
                       <div className="flex-1 border-r border-[#F9F9F9] relative p-1 transition-colors hover:bg-gray-50/50" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(currentDate), hour, "SALA A")}>
                         {parsedAppointments.filter(a => a.localTime === hour && a.uiRoom === "SALA A" && a.localDate === formatDate(currentDate)).map(app => (
                           <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} onClick={() => setEditingAppointment(app)} />
@@ -383,14 +383,14 @@ export default function AgendaPage() {
                   <div className="w-16 border-r border-[#EEECE7]"></div>
                   {currentWeekDays.map(day => (
                     <div key={day.toString()} className="flex-1 py-3 text-center border-r border-[#EEECE7] last:border-0">
-                      <span className="text-[9px] font-bold uppercase tracking-widest text-[#C5A059]">{DIAS_SEMANA_NOMES[day.getDay()]} {day.getDate()}</span>
+                      <span className="text-[9px] font-bold uppercase tracking-widest text-[#5A1F2B]">{DIAS_SEMANA_NOMES[day.getDay()]} {day.getDate()}</span>
                     </div>
                   ))}
                 </div>
                 <div className="divide-y divide-[#F9F9F9]">
                   {HOURS.map(hour => (
                     <div key={hour} className="flex min-h-13.75">
-                      <div className="w-16 flex justify-center items-center border-r border-[#EEECE7] bg-[#FAFAFA] font-sans text-[10px] text-[#94A3B8] font-medium">{hour}</div>
+                      <div className="w-16 flex justify-center items-center border-r border-[#EEECE7] bg-[#F7F2EA] font-sans text-[10px] text-[#94A3B8] font-medium">{hour}</div>
                       {currentWeekDays.map(day => (
                         <div key={day.toString()} className="flex-1 border-r border-[#F9F9F9] last:border-0 relative p-0.5 transition-colors hover:bg-gray-50/50" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(day), hour)}>
                           {parsedAppointments.filter(a => a.localTime === hour && a.localDate === formatDate(day)).map(app => (
@@ -408,12 +408,12 @@ export default function AgendaPage() {
             {view === "MES" && (
               <div className="grid grid-cols-7 border-collapse">
                 {DIAS_SEMANA_NOMES.map(dia => (
-                  <div key={dia} className="py-3 text-center border-b border-r border-[#EEECE7] bg-[#FCFAF6] text-[9px] font-bold tracking-widest text-[#C5A059]">{dia}</div>
+                  <div key={dia} className="py-3 text-center border-b border-r border-[#EEECE7] bg-[#FCFAF6] text-[9px] font-bold tracking-widest text-[#5A1F2B]">{dia}</div>
                 ))}
                 {getDaysInMonth(currentDate).map((day, i) => (
                   <div 
                     key={i} 
-                    className={`min-h-27.5 p-2 border-b border-r border-[#F5F5F5] transition-colors relative group/day ${day ? 'cursor-pointer hover:bg-[#FAFAFA]' : ''}`}
+                    className={`min-h-27.5 p-2 border-b border-r border-[#F5F5F5] transition-colors relative group/day ${day ? 'cursor-pointer hover:bg-[#F7F2EA]' : ''}`}
                     onDragOver={e => e.preventDefault()} 
                     onDrop={e => day && handleDrop(e, formatDate(day))}
                     onClick={() => {
@@ -426,7 +426,7 @@ export default function AgendaPage() {
                   >
                     {day && (
                       <>
-                        <span className={`text-[13px] font-sans font-bold w-6 h-6 flex items-center justify-center rounded-full transition-colors ${day.toDateString() === new Date().toDateString() ? 'bg-[#C5A059] text-white' : 'text-[#1A1A1A] group-hover/day:bg-gray-200'}`}>
+                        <span className={`text-[13px] font-sans font-bold w-6 h-6 flex items-center justify-center rounded-full transition-colors ${day.toDateString() === new Date().toDateString() ? 'bg-[#5A1F2B] text-white' : 'text-[#1E1A18] group-hover/day:bg-gray-200'}`}>
                           {day.getDate()}
                         </span>
                         <div className="mt-1 space-y-1">
@@ -436,9 +436,9 @@ export default function AgendaPage() {
                               draggable 
                               onDragStart={e => { e.stopPropagation(); onDragStart(e, app.id); }} 
                               onClick={(e) => { e.stopPropagation(); setEditingAppointment(app); }} 
-                              className="bg-white border border-[#EEECE7] text-[#1A1A1A] p-1.5 text-[8px] font-bold uppercase truncate cursor-move shadow-sm border-l-2 border-l-[#C5A059] hover:bg-[#FAF8F3] transition-colors"
+                              className="bg-white border border-[#EEECE7] text-[#1E1A18] p-1.5 text-[8px] font-bold uppercase truncate cursor-move shadow-sm border-l-2 border-l-[#5A1F2B] hover:bg-[#F7F2EA] transition-colors"
                             >
-                              <span className="text-[#C5A059] mr-1">{app.localTime}</span> 
+                              <span className="text-[#5A1F2B] mr-1">{app.localTime}</span> 
                               {app.patientName.split(' ')[0]}
                             </div>
                           ))}
@@ -471,9 +471,9 @@ function AppointmentCard({ app, onDragStart, compact, onClick }: any) {
       draggable 
       onDragStart={e => onDragStart(e, app.id)} 
       onClick={onClick}
-      className="absolute inset-x-1 top-0.5 bottom-0.5 bg-white border border-[#EEECE7] p-2 flex flex-col justify-center shadow-sm cursor-move border-l-4 border-l-[#C5A059] z-20 transition-all hover:shadow-md hover:border-[#C5A059] group/card rounded-sm"
+      className="absolute inset-x-1 top-0.5 bottom-0.5 bg-white border border-[#EEECE7] p-2 flex flex-col justify-center shadow-sm cursor-move border-l-4 border-l-[#5A1F2B] z-20 transition-all hover:shadow-md hover:border-[#5A1F2B] group/card rounded-sm"
     >
-      <p className="text-[#1A1A1A] text-[9px] font-extrabold uppercase tracking-wide truncate">{app.patientName}</p>
+      <p className="text-[#1E1A18] text-[9px] font-extrabold uppercase tracking-wide truncate">{app.patientName}</p>
       {!compact && <p className="text-[#94A3B8] text-[8px] font-semibold truncate uppercase mt-0.5 leading-tight">{app.procedureName}</p>}
     </div>
   );

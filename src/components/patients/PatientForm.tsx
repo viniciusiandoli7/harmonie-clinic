@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { User, MapPin, Stethoscope, Megaphone, CheckCircle } from "lucide-react";
+import { conversionStatuses, patientOrigins, patientProfiles, patientStatuses } from "@/lib/brand";
 
 type PatientFormData = {
   id?: string;
@@ -10,7 +11,8 @@ type PatientFormData = {
   cpf: string; rg: string; notes: string; isActive: boolean;
   zipCode: string; address: string; addressNumber: string; addressComplement: string;
   neighborhood: string; city: string; state: string;
-  crmSource: string; interestProcedure: string;
+  crmSource: string; referralName: string; crmStatus: string; imageAuthorized: boolean; interestProcedure: string;
+  patientProfile: string; commercialNotes: string; conversionStatus: string; proposedValue: string; closedValue: string; lostReason: string; firstEvaluationAt: string; nextSuggestedAt: string;
   
   // Anamnese Completa
   profession: string; sunExposure: boolean; mainComplaint: string;
@@ -23,6 +25,7 @@ type PatientFormData = {
   exercises: boolean; skinCareRoutine: string; weightLoss: string;
   intendsToLoseWeight: string; intendsSurgery: string; surgeries: string;
   recentTreatmentOrVaccine: string; permanentImplants: string; consentSigned: boolean;
+  usesAnticoagulant: boolean; hasAutoimmuneDisease: boolean; hasDiabetes: boolean; hasEpilepsy: boolean; activeInfection: boolean; recentDentalProcedure: boolean; fillerComplicationHistory: string; clinicalRiskNotes: string;
 };
 
 type Props = {
@@ -57,7 +60,7 @@ const formatCEP = (value: string) => {
 };
 
 const TabButton = ({ id, icon: Icon, label, activeTab, setActiveTab }: any) => (
-  <button type="button" onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-5 py-3 text-[11px] font-bold uppercase tracking-widest transition-all border-b-2 ${activeTab === id ? "border-[#C8A35F] text-[#C8A35F] bg-[#FCFAF6]" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
+  <button type="button" onClick={() => setActiveTab(id)} className={`flex items-center gap-2 px-5 py-3 text-[11px] font-bold uppercase tracking-widest transition-all border-b-2 ${activeTab === id ? "border-[#5A1F2B] text-[#5A1F2B] bg-[#FCFAF6]" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
     <Icon size={14} /> {label}
   </button>
 );
@@ -71,7 +74,7 @@ const CustomInput = ({ label, field, type = "text", placeholder = "", mask, form
         if (mask === "cpf") val = formatCPF(val);
         if (mask === "cep") val = formatCEP(val);
         handleChange(field, val);
-      }} placeholder={placeholder} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#C8A35F] bg-white text-gray-800" />
+      }} placeholder={placeholder} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800" />
   </div>
 );
 
@@ -80,10 +83,10 @@ const RadioSimNao = ({ label, field, formData, handleChange }: any) => (
     <label className="mb-2 block text-[13px] text-gray-600">{label}</label>
     <div className="flex gap-4">
       <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-        <input type="radio" checked={formData[field] === true} onChange={() => handleChange(field, true)} className="accent-[#C8A35F]" /> Sim
+        <input type="radio" checked={formData[field] === true} onChange={() => handleChange(field, true)} className="accent-[#5A1F2B]" /> Sim
       </label>
       <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-        <input type="radio" checked={formData[field] === false} onChange={() => handleChange(field, false)} className="accent-[#C8A35F]" /> Não
+        <input type="radio" checked={formData[field] === false} onChange={() => handleChange(field, false)} className="accent-[#5A1F2B]" /> Não
       </label>
     </div>
   </div>
@@ -108,7 +111,8 @@ export default function PatientForm({ mode, patient }: Props) {
     zipCode: patient?.zipCode || "", address: patient?.address || "", addressNumber: patient?.addressNumber || "",
     addressComplement: patient?.addressComplement || "", neighborhood: patient?.neighborhood || "",
     city: patient?.city || "", state: patient?.state || "",
-    crmSource: patient?.crmSource || "", interestProcedure: patient?.interestProcedure || "",
+    crmSource: patient?.crmSource || "", referralName: patient?.referralName || "", crmStatus: patient?.crmStatus || "Novo Lead", imageAuthorized: patient?.imageAuthorized || false, interestProcedure: patient?.interestProcedure || "",
+    patientProfile: patient?.patientProfile || "", commercialNotes: patient?.commercialNotes || "", conversionStatus: patient?.conversionStatus || "", proposedValue: patient?.proposedValue ? String(patient.proposedValue) : "", closedValue: patient?.closedValue ? String(patient.closedValue) : "", lostReason: patient?.lostReason || "", firstEvaluationAt: patient?.firstEvaluationAt ? patient.firstEvaluationAt.slice(0, 10) : "", nextSuggestedAt: patient?.nextSuggestedAt ? patient.nextSuggestedAt.slice(0, 10) : "",
     
     // Anamnese
     profession: patient?.anamnesis?.profession || "", sunExposure: patient?.anamnesis?.sunExposure || false,
@@ -126,6 +130,10 @@ export default function PatientForm({ mode, patient }: Props) {
     intendsToLoseWeight: patient?.anamnesis?.intendsToLoseWeight || "", intendsSurgery: patient?.anamnesis?.intendsSurgery || "",
     surgeries: patient?.anamnesis?.surgeries || "", recentTreatmentOrVaccine: patient?.anamnesis?.recentTreatmentOrVaccine || "",
     permanentImplants: patient?.anamnesis?.permanentImplants || "", consentSigned: patient?.anamnesis?.consentSigned || false,
+    usesAnticoagulant: patient?.anamnesis?.usesAnticoagulant || false, hasAutoimmuneDisease: patient?.anamnesis?.hasAutoimmuneDisease || false,
+    hasDiabetes: patient?.anamnesis?.hasDiabetes || false, hasEpilepsy: patient?.anamnesis?.hasEpilepsy || false,
+    activeInfection: patient?.anamnesis?.activeInfection || false, recentDentalProcedure: patient?.anamnesis?.recentDentalProcedure || false,
+    fillerComplicationHistory: patient?.anamnesis?.fillerComplicationHistory || "", clinicalRiskNotes: patient?.anamnesis?.clinicalRiskNotes || "",
   });
 
   const handleChange = (field: keyof PatientFormData, value: any) => {
@@ -182,11 +190,11 @@ export default function PatientForm({ mode, patient }: Props) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white border border-[#E9DEC9] shadow-sm rounded-xl overflow-hidden font-sans">
-      <div className="flex border-b border-[#E9DEC9] bg-[#FAFAFA] overflow-x-auto">
+    <form onSubmit={handleSubmit} className="bg-[#FBF8F2] border border-[rgba(90,31,43,.12)] shadow-sm rounded-xl overflow-hidden font-sans">
+      <div className="flex border-b border-[#E9DEC9] bg-[#F7F2EA] overflow-x-auto">
         <TabButton id="GERAL" icon={User} label="Dados Pessoais" activeTab={activeTab} setActiveTab={setActiveTab} />
         <TabButton id="ENDERECO" icon={MapPin} label="Endereço" activeTab={activeTab} setActiveTab={setActiveTab} />
-        <TabButton id="CRM" icon={Megaphone} label="Marketing / CRM" activeTab={activeTab} setActiveTab={setActiveTab} />
+        <TabButton id="CRM" icon={Megaphone} label="Relacionamento / CRM" activeTab={activeTab} setActiveTab={setActiveTab} />
         <TabButton id="ANAMNESE" icon={Stethoscope} label="Ficha de Anamnese" activeTab={activeTab} setActiveTab={setActiveTab} />
       </div>
 
@@ -207,7 +215,7 @@ export default function PatientForm({ mode, patient }: Props) {
             </div>
             <div>
               <label className="mb-2 block text-[13px] text-gray-600">Alerta Crítico (Insight Clínico)</label>
-              <textarea value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#C8A35F] bg-white text-gray-800 min-h-15" />
+              <textarea value={formData.notes} onChange={(e) => handleChange("notes", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800 min-h-15" />
             </div>
           </div>
         )}
@@ -234,16 +242,52 @@ export default function PatientForm({ mode, patient }: Props) {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="mb-2 block text-[13px] text-gray-600">Como nos conheceu?</label>
-                <select value={formData.crmSource} onChange={(e) => handleChange("crmSource", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#C8A35F] bg-white text-gray-800">
+                <label className="mb-2 block text-[13px] text-gray-600">Origem da paciente</label>
+                <select value={formData.crmSource} onChange={(e) => handleChange("crmSource", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800">
                   <option value="">Selecione...</option>
-                  <option value="Instagram">Instagram</option>
-                  <option value="Google">Google</option>
-                  <option value="Indicação">Indicação</option>
-                  <option value="Fachada">Fachada</option>
+                  {patientOrigins.map((origin) => <option key={origin} value={origin}>{origin}</option>)}
                 </select>
               </div>
+              <div>
+                <label className="mb-2 block text-[13px] text-gray-600">Status no CRM</label>
+                <select value={formData.crmStatus} onChange={(e) => handleChange("crmStatus", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800">
+                  {patientStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+                </select>
+              </div>
+              <CustomInput label="Nome da indicação" field="referralName" placeholder="Quem indicou a paciente?" formData={formData} handleChange={handleChange} />
               <CustomInput label="Procedimento de Maior Interesse" field="interestProcedure" formData={formData} handleChange={handleChange} />
+              <div>
+                <label className="mb-2 block text-[13px] text-gray-600">Perfil da paciente</label>
+                <select value={formData.patientProfile} onChange={(e) => handleChange("patientProfile", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800">
+                  <option value="">Selecione...</option>
+                  {patientProfiles.map((profile) => <option key={profile} value={profile}>{profile}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-[13px] text-gray-600">Resultado da avaliação</label>
+                <select value={formData.conversionStatus} onChange={(e) => handleChange("conversionStatus", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800">
+                  <option value="">Não informado</option>
+                  {conversionStatuses.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
+                </select>
+              </div>
+              <CustomInput label="Valor proposto no plano" field="proposedValue" type="number" formData={formData} handleChange={handleChange} />
+              <CustomInput label="Valor fechado" field="closedValue" type="number" formData={formData} handleChange={handleChange} />
+              <CustomInput label="Primeira avaliação" field="firstEvaluationAt" type="date" formData={formData} handleChange={handleChange} />
+              <CustomInput label="Próximo contato sugerido" field="nextSuggestedAt" type="date" formData={formData} handleChange={handleChange} />
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-[13px] text-gray-600">Motivo de perda / objeção</label>
+                <textarea value={formData.lostReason} onChange={(e) => handleChange("lostReason", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800 min-h-16" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="mb-2 block text-[13px] text-gray-600">Observações comerciais</label>
+                <textarea value={formData.commercialNotes} onChange={(e) => handleChange("commercialNotes", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800 min-h-20" />
+              </div>
+              <div className="md:col-span-2 rounded-2xl border border-[rgba(90,31,43,.12)] bg-[#F7F2EA]/70 p-4">
+                <label className="mb-0 flex items-center gap-3 text-sm text-[#5B3A2E] cursor-pointer font-medium normal-case tracking-normal">
+                  <input type="checkbox" checked={formData.imageAuthorized} onChange={(e) => handleChange("imageAuthorized", e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-[#5A1F2B] focus:ring-[#5A1F2B]" />
+                  Paciente autorizou uso de imagem para antes e depois / divulgação autorizada.
+                </label>
+              </div>
             </div>
           </div>
         )}
@@ -272,14 +316,27 @@ export default function PatientForm({ mode, patient }: Props) {
             <CustomInput label="Possui alergia a algum produto, comida, medicamento ou outros?" field="allergies" placeholder="Possui alergia a algum produto?..." formData={formData} handleChange={handleChange} />
             <RadioSimNao label="Possui herpes?" field="hasHerpes" formData={formData} handleChange={handleChange} />
             <RadioSimNao label="Fumante?" field="smoker" formData={formData} handleChange={handleChange} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 rounded-2xl border border-[#E9DEC9] bg-[#F7F2EA]/60 p-5">
+              <RadioSimNao label="Usa anticoagulante ou AAS?" field="usesAnticoagulant" formData={formData} handleChange={handleChange} />
+              <RadioSimNao label="Doença autoimune?" field="hasAutoimmuneDisease" formData={formData} handleChange={handleChange} />
+              <RadioSimNao label="Diabetes?" field="hasDiabetes" formData={formData} handleChange={handleChange} />
+              <RadioSimNao label="Epilepsia?" field="hasEpilepsy" formData={formData} handleChange={handleChange} />
+              <RadioSimNao label="Infecção ativa?" field="activeInfection" formData={formData} handleChange={handleChange} />
+              <RadioSimNao label="Procedimento odontológico recente?" field="recentDentalProcedure" formData={formData} handleChange={handleChange} />
+            </div>
+            <CustomInput label="Histórico de intercorrência com preenchimento" field="fillerComplicationHistory" placeholder="Produto, região, reação, conduta anterior..." formData={formData} handleChange={handleChange} />
+            <div>
+              <label className="mb-2 block text-[13px] text-gray-600">Observações de risco clínico</label>
+              <textarea value={formData.clinicalRiskNotes} onChange={(e) => handleChange("clinicalRiskNotes", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800 min-h-20" />
+            </div>
 
             {/* Pressão */}
             <div>
               <label className="mb-2 block text-[13px] text-gray-600">Pressão</label>
               <div className="flex flex-col gap-2">
-                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer"><input type="radio" checked={formData.bloodPressure === "ALTA"} onChange={() => handleChange("bloodPressure", "ALTA")} className="accent-[#C8A35F]" /> ALTA</label>
-                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer"><input type="radio" checked={formData.bloodPressure === "NORMAL"} onChange={() => handleChange("bloodPressure", "NORMAL")} className="accent-[#C8A35F]" /> NORMAL</label>
-                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer"><input type="radio" checked={formData.bloodPressure === "BAIXA"} onChange={() => handleChange("bloodPressure", "BAIXA")} className="accent-[#C8A35F]" /> BAIXA</label>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer"><input type="radio" checked={formData.bloodPressure === "ALTA"} onChange={() => handleChange("bloodPressure", "ALTA")} className="accent-[#5A1F2B]" /> ALTA</label>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer"><input type="radio" checked={formData.bloodPressure === "NORMAL"} onChange={() => handleChange("bloodPressure", "NORMAL")} className="accent-[#5A1F2B]" /> NORMAL</label>
+                <label className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer"><input type="radio" checked={formData.bloodPressure === "BAIXA"} onChange={() => handleChange("bloodPressure", "BAIXA")} className="accent-[#5A1F2B]" /> BAIXA</label>
               </div>
             </div>
 
@@ -294,7 +351,7 @@ export default function PatientForm({ mode, patient }: Props) {
               <div className="flex flex-col gap-2">
                 {["+5kg", "+10kg", "+20kg", "+40kg", "não"].map(peso => (
                   <label key={peso} className="flex items-center gap-2 text-sm text-gray-600 cursor-pointer">
-                    <input type="radio" checked={formData.weightLoss === peso} onChange={() => handleChange("weightLoss", peso)} className="accent-[#C8A35F]" /> {peso}
+                    <input type="radio" checked={formData.weightLoss === peso} onChange={() => handleChange("weightLoss", peso)} className="accent-[#5A1F2B]" /> {peso}
                   </label>
                 ))}
               </div>
@@ -314,7 +371,7 @@ export default function PatientForm({ mode, patient }: Props) {
                 minha segurança.
               </p>
               <label className="flex items-center gap-2 text-sm text-gray-800 cursor-pointer font-medium">
-                <input type="checkbox" checked={formData.consentSigned} onChange={(e) => handleChange("consentSigned", e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-[#C8A35F] focus:ring-[#C8A35F]" />
+                <input type="checkbox" checked={formData.consentSigned} onChange={(e) => handleChange("consentSigned", e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-[#5A1F2B] focus:ring-[#C8A35F]" />
                 Li e concordo
               </label>
             </div>
@@ -326,7 +383,7 @@ export default function PatientForm({ mode, patient }: Props) {
         <p className="text-[10px] text-[#96A4C1] uppercase tracking-widest hidden md:block">Preencha as abas antes de salvar.</p>
         <div className="flex gap-4">
           <button type="button" onClick={() => router.back()} className="px-6 py-3 text-[11px] font-bold uppercase tracking-widest text-[#96A4C1] hover:text-[#111] transition-all">Cancelar</button>
-          <button type="submit" disabled={saving || !formData.name} className="flex items-center gap-2 bg-[#25D366] px-8 py-3 text-[11px] font-bold uppercase tracking-widest text-white hover:bg-[#1EBE5A] transition-all active:scale-95 disabled:opacity-60 rounded-md shadow-md">
+          <button type="submit" disabled={saving || !formData.name} className="flex items-center gap-2 bg-[#5A1F2B] px-8 py-3 text-[11px] font-bold uppercase tracking-widest text-[#F7F2EA] hover:bg-[#3F1620] transition-all active:scale-95 disabled:opacity-60 rounded-md shadow-md">
             <CheckCircle size={14} />
             {saving ? "Salvando..." : "Salvar Cadastro"}
           </button>

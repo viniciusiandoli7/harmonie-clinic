@@ -46,7 +46,7 @@ Data: ${formattedDate}
 Sala: ${room}
 
 Qualquer dúvida, estamos à disposição.
-Harmonie Clinic`;
+Mariana Thomaz Carmona`;
 }
 
 export function buildWhatsappConsentMessage(params: {
@@ -63,7 +63,7 @@ Segue seu termo de consentimento referente ao tratamento de ${params.treatmentNa
 ${params.documentLink}
 
 Assim que finalizar, me avise por aqui.
-Harmonie Clinic`;
+Mariana Thomaz Carmona`;
 }
 
 export function buildWhatsappContractMessage(params: {
@@ -79,7 +79,7 @@ Segue seu contrato para leitura e assinatura:
 ${params.contractLink}
 
 Assim que finalizar, me avise por aqui.
-Harmonie Clinic`;
+Mariana Thomaz Carmona`;
 }
 
 export function buildWhatsappMessage(params: {

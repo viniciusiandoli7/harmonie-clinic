@@ -2,8 +2,13 @@ import { z } from "zod";
 
 export const appointmentStatusSchema = z.enum([
   "SCHEDULED",
+  "CONFIRMED",
   "COMPLETED",
+  "NO_SHOW",
+  "RESCHEDULED",
   "CANCELED",
+  "RETURN",
+  "FIT_IN",
 ]);
 
 export const paymentStatusSchema = z.enum([

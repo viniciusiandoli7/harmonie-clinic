@@ -1,50 +1,50 @@
-﻿"use client";
-
+import type { Metadata, Viewport } from "next";
 import { Inter, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
-import Sidebar from "@/components/layout/Sidebar";
 import { Providers } from "@/components/Providers";
-import { usePathname } from "next/navigation";
+import AppShell from "@/components/layout/AppShell";
+import { brand } from "@/lib/brand";
 
-const inter = Inter({ 
+const inter = Inter({
   subsets: ["latin"],
-  variable: '--font-inter',
-  weight: ['300', '400', '500', '600', '700']
+  variable: "--font-inter",
+  weight: ["300", "400", "500", "600", "700"],
 });
 
-const cormorant = Cormorant_Garamond({ 
+const cormorant = Cormorant_Garamond({
   subsets: ["latin"],
-  variable: '--font-cormorant',
-  weight: ['400', '500', '600', '700'] 
+  variable: "--font-cormorant",
+  weight: ["400", "500", "600", "700"],
 });
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  const pathname = usePathname();
-  const isLoginPage = pathname === "/login";
+export const metadata: Metadata = {
+  title: {
+    default: brand.name,
+    template: `%s | ${brand.name}`,
+  },
+  description: "Sistema privado de gestão clínica, financeiro, prontuário e relacionamento da Dra. Mariana Thomaz Carmona.",
+  applicationName: brand.name,
+  icons: {
+    icon: [
+      { url: "/favicon.ico", sizes: "any" },
+      { url: "/favicon-32.png", type: "image/png", sizes: "32x32" },
+      { url: "/favicon-64.png", type: "image/png", sizes: "64x64" },
+      { url: "/favicon-512.png", type: "image/png", sizes: "512x512" },
+    ],
+    apple: [{ url: "/favicon-180.png", sizes: "180x180" }],
+  },
+};
 
+export const viewport: Viewport = {
+  themeColor: brand.colors.primary,
+};
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body className={`${inter.variable} ${cormorant.variable} font-sans bg-harmonie-bg text-harmonie-dark antialiased`}>
+      <body className={`${inter.variable} ${cormorant.variable} bg-brand-background font-sans text-brand-text antialiased`}>
         <Providers>
-          <div className="flex min-h-screen">
-            {/* Sidebar só ocupa espaço se não for página de login */}
-            {!isLoginPage && (
-              <div className="sticky top-0 h-screen shrink-0">
-                <Sidebar />
-              </div>
-            )}
-            
-            {/* Main expande 100% no login, ou mantém o padding no dashboard */}
-            <main className={`flex-1 min-w-0 ${isLoginPage ? 'w-full' : ''}`}>
-              <div className={`${isLoginPage ? '' : 'mx-auto w-full max-w-7xl p-8'}`}>
-                {children}
-              </div>
-            </main>
-          </div>
+          <AppShell>{children}</AppShell>
         </Providers>
       </body>
     </html>

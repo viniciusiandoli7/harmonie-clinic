@@ -10,8 +10,8 @@ export default function PageHeader({
   return (
     <div className="mb-8 flex items-center justify-between">
       <div>
-        <p className="text-[11px] tracking-[0.3em] text-[#C8A35F] uppercase">
-          Harmonie Management System
+        <p className="text-[11px] tracking-[0.3em] text-[#5A1F2B] uppercase">
+          Mariana Thomaz Carmona System
         </p>
 
         <h1 className="text-4xl mt-2">{title}</h1>

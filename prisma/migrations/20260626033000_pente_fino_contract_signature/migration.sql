@@ -1,0 +1,2 @@
+ALTER TABLE "PatientContract" ADD COLUMN IF NOT EXISTS "signatureIp" TEXT;
+ALTER TABLE "PatientContract" ADD COLUMN IF NOT EXISTS "signedAt" TIMESTAMP(3);

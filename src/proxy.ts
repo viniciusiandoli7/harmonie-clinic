@@ -1,27 +1,17 @@
 import { withAuth } from "next-auth/middleware";
 
-export default withAuth(
-  function middleware(req) {
-    // Aqui você poderia adicionar lógicas personalizadas, 
-    // como verificar se o usuário é "ADMIN" para acessar o financeiro.
+export default withAuth({
+  pages: {
+    signIn: "/login",
   },
-  {
-    pages: {
-      signIn: "/login",
-    },
-  }
-);
+});
 
-// BLINDAGEM DE ROTAS
-export const config = { 
+export const config = {
   matcher: [
     /*
-     * Protege todas as rotas, EXCETO:
-     * 1. /login (Página de acesso)
-     * 2. /api/auth (Necessário para o NextAuth funcionar)
-     * 3. /_next (Arquivos internos do Next.js)
-     * 4. /favicon.ico, /images, etc. (Arquivos estáticos)
+     * Protege o sistema interno e libera somente login, autenticação,
+     * links públicos de assinatura e arquivos estáticos da pasta public.
      */
-    "/((?!login|api/auth|_next/static|_next/image|favicon.ico|public).*)",
-  ] 
+    "/((?!login|api/auth|api/public|api/contracts/[^/]+/sign|api/evolution-sessions/sign|consent|contracts|assinar|assinar-contrato|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|webp|svg|ico|gif|avif|css|js|txt|xml|json|woff|woff2|ttf)$).*)",
+  ],
 };

@@ -176,6 +176,40 @@ if (exists(proxyPath)) {
 const pkg = JSON.parse(read(path.join(root, "package.json")));
 if (pkg.scripts?.postinstall) errors.push("Remova postinstall com prisma generate para evitar erro antes do .env estar pronto.");
 
+
+// 9. Evita dependência de internet no build por next/font/google.
+for (const file of codeFiles.filter((f) => /\.(ts|tsx)$/.test(f))) {
+  const text = read(file);
+  if (text.includes('next/font/google')) {
+    errors.push(`Uso de next/font/google em ${path.relative(root, file)} pode quebrar build sem internet. Use CSS/local fallback.`);
+  }
+}
+
+// 10. Rotas internas de API devem exigir sessão.
+for (const routeFile of walk(apiRoot, (file) => path.basename(file) === 'route.ts')) {
+  const rel = path.relative(root, routeFile).replace(/\\/g, '/');
+  const isPublic =
+    rel.includes('/api/auth/') ||
+    rel.includes('/api/public/') ||
+    rel.includes('/api/contracts/[token]/sign/') ||
+    rel.includes('/api/evolution-sessions/[id]/sign/');
+
+  if (!isPublic && !read(routeFile).includes('getServerSession')) {
+    errors.push(`Rota interna sem autenticação explícita: ${rel}`);
+  }
+}
+
+// 11. Evita .env local apontando para banco placeholder antigo.
+for (const envFile of ['.env', '.env.local']) {
+  const envPath = path.join(root, envFile);
+  if (exists(envPath)) {
+    const envText = read(envPath);
+    if (envText.includes('mariana_clinic')) {
+      errors.push(`${envFile} aponta para mariana_clinic. Neste setup local, use o banco harmonie.`);
+    }
+  }
+}
+
 if (errors.length || warnings.length) {
   if (errors.length) {
     console.error("QA encontrou problemas bloqueantes:\n" + errors.map((e) => `- ${e}`).join("\n"));

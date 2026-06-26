@@ -1,23 +1,23 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
 type Ctx = {
   params: Promise<{ id: string }>;
 };
 
-export async function DELETE(req: NextRequest, ctx: Ctx) {
+export async function DELETE(_: Request, ctx: Ctx) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   try {
     const { id } = await ctx.params;
-    
-    // 1. Deleta as sessões de dentro do plano primeiro (Evita o erro de bloqueio)
-    await prisma.clinicalEvolutionSession.deleteMany({
-      where: { planId: id },
-    });
 
-    // 2. Agora deleta o plano vazio com segurança
-    await prisma.clinicalEvolutionPlan.delete({
-      where: { id },
-    });
+    await prisma.$transaction([
+      prisma.clinicalEvolutionSession.deleteMany({ where: { planId: id } }),
+      prisma.clinicalEvolutionPlan.delete({ where: { id } }),
+    ]);
 
     return NextResponse.json({ success: true });
   } catch (error) {

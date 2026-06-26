@@ -1,43 +1,53 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 
 type Ctx = {
   params: Promise<{ id: string }>;
 };
 
-export async function POST(req: NextRequest, ctx: Ctx) {
+function nullableText(value: unknown) {
+  const text = String(value ?? "").trim();
+  return text || null;
+}
+
+export async function POST(req: Request, ctx: Ctx) {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
   try {
     const { id } = await ctx.params;
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
-    // Junta bodyMeasurements nas clinicalNotes, pois a tabela não tem a coluna separada
-    let finalNotes = body.clinicalNotes || "";
-    if (body.bodyMeasurements) {
-      finalNotes = `MEDIDAS: ${body.bodyMeasurements}\n\nOBSERVAÇÕES: ${finalNotes}`;
-    }
+    const bodyMeasurements = nullableText(body.bodyMeasurements);
+    const clinicalNotes = nullableText(body.clinicalNotes);
+    const finalNotes = bodyMeasurements
+      ? `MEDIDAS: ${bodyMeasurements}${clinicalNotes ? `\n\nOBSERVAÇÕES: ${clinicalNotes}` : ""}`
+      : clinicalNotes;
 
-    const session = await prisma.clinicalEvolutionSession.create({
+    const sessionRecord = await prisma.clinicalEvolutionSession.create({
       data: {
-        planId: id, // Aqui usamos 'id' que vem da URL
+        planId: id,
         sessionNumber: Number(body.sessionNumber || 1),
         sessionDate: body.sessionDate ? new Date(body.sessionDate) : new Date(),
-        performedProcedure: String(body.performedProcedure || "").trim() || null,
-        clinicalNotes: finalNotes, 
-        patientSignatureName: String(body.patientSignatureName || "").trim() || null,
-        signatureImage: body.signatureImage || null, // 👈 A ASSINATURA SENDO SALVA AQUI!
+        performedProcedure: nullableText(body.performedProcedure),
+        bodyMeasurements,
+        clinicalNotes: finalNotes,
+        patientSignatureName: nullableText(body.patientSignatureName),
+        signatureImage: body.signatureImage || null,
         imagesJson: Array.isArray(body.images) ? body.images : [],
       },
     });
 
-    // Atualiza a contagem do plano
     const plan = await prisma.clinicalEvolutionPlan.findUnique({
-      where: { id: id },
+      where: { id },
       include: { sessions: true },
     });
 
     if (plan) {
       await prisma.clinicalEvolutionPlan.update({
-        where: { id: id },
+        where: { id },
         data: {
           completedSessions: plan.sessions.length,
           status: plan.sessions.length >= plan.totalSessions ? "FINISHED" : plan.status,
@@ -45,7 +55,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       });
     }
 
-    return NextResponse.json(session, { status: 201 });
+    return NextResponse.json(sessionRecord, { status: 201 });
   } catch (error) {
     console.error("Erro ao criar sessão de evolução:", error);
     return NextResponse.json({ error: "Erro ao salvar a sessão." }, { status: 500 });

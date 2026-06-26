@@ -1,21 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Inter, Cormorant_Garamond } from "next/font/google";
 import "./globals.css";
 import { Providers } from "@/components/Providers";
 import AppShell from "@/components/layout/AppShell";
 import { brand } from "@/lib/brand";
-
-const inter = Inter({
-  subsets: ["latin"],
-  variable: "--font-inter",
-  weight: ["300", "400", "500", "600", "700"],
-});
-
-const cormorant = Cormorant_Garamond({
-  subsets: ["latin"],
-  variable: "--font-cormorant",
-  weight: ["400", "500", "600", "700"],
-});
 
 export const metadata: Metadata = {
   title: {
@@ -42,7 +29,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="pt-BR">
-      <body className={`${inter.variable} ${cormorant.variable} bg-brand-background font-sans text-brand-text antialiased`}>
+      <body className="bg-brand-background font-sans text-brand-text antialiased">
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

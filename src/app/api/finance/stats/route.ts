@@ -68,26 +68,31 @@ export async function GET() {
 
     const paidIncomeCount = incomeTransactions.length;
     const averageTicket = paidIncomeCount ? roundMoney(grossIncome / paidIncomeCount) : 0;
-    const procedureCounts = sales.reduce<Record<string, number>>((acc, sale: any) => {
+
+    const procedureCounts: Record<string, number> = {};
+    for (const sale of sales as any[]) {
       if (sale.saleItems?.length) {
-        for (const item of sale.saleItems) acc[item.productName || "Procedimento"] = (acc[item.productName || "Procedimento"] || 0) + Number(item.quantity || 1);
+        for (const item of sale.saleItems) {
+          const name = item.productName || "Procedimento";
+          procedureCounts[name] = (procedureCounts[name] || 0) + Number(item.quantity || 1);
+        }
       } else {
         const name = sale.service?.name || "Procedimento";
-        acc[name] = (acc[name] || 0) + 1;
+        procedureCounts[name] = (procedureCounts[name] || 0) + 1;
       }
-      return acc;
-    }, {});
-    const topProcedure = (Object.entries(procedureCounts) as [string, number][]).sort((a, b) => b[1] - a[1])[0]?.[0] || "Sem vendas no mês";
-    const patientOrigins = patients.reduce<Record<string, number>>((acc, patient) => {
+    }
+
+    const topProcedure = Object.entries(procedureCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "Sem vendas no mês";
+
+    const patientOrigins: Record<string, number> = {};
+    const crmStatus: Record<string, number> = {};
+    for (const patient of patients as any[]) {
       const source = patient.crmSource || "Outros";
-      acc[source] = (acc[source] || 0) + 1;
-      return acc;
-    }, {});
-    const crmStatus = patients.reduce<Record<string, number>>((acc, patient) => {
+      patientOrigins[source] = (patientOrigins[source] || 0) + 1;
+
       const status = patient.crmStatus || "Novo Lead";
-      acc[status] = (acc[status] || 0) + 1;
-      return acc;
-    }, {});
+      crmStatus[status] = (crmStatus[status] || 0) + 1;
+    }
 
     return NextResponse.json({
       month: {

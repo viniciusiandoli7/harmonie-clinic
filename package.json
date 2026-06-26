@@ -11,7 +11,8 @@
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:reset": "prisma migrate reset",
-    "qa": "node scripts/qa-check.mjs"
+    "qa": "node scripts/qa-check.mjs",
+    "check": "npm run qa && npm run lint && npm run typecheck"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

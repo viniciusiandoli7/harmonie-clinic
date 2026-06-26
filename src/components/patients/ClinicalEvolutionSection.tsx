@@ -41,26 +41,38 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#96A4C1]">{children}</label>;
 }
 
-// ☁️ MOTOR CLOUDINARY
-async function uploadToCloudinary(file: File) {
-  const cloudName = "domf1tnzd"; 
-  const uploadPreset = "harmonie_fotos"; 
-  
-  const formData = new FormData();
-  formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
-
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, { 
-    method: "POST", 
-    body: formData 
+function fileToDataUrl(file: File) {
+  return new Promise<string>((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ""));
+    reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
+    reader.readAsDataURL(file);
   });
-  
-  const data = await res.json();
-  if (!res.ok) {
-    console.error("DETALHE DO ERRO CLOUDINARY:", data);
-    throw new Error(data.error?.message || "Erro no upload");
+}
+
+// Upload resiliente: tenta Cloudinary e, se houver falha de configuração/conexão,
+// salva a imagem como Data URL para não bloquear o prontuário da paciente.
+async function uploadClinicalImage(file: File) {
+  const cloudName = "domf1tnzd";
+  const uploadPreset = "harmonie_fotos";
+
+  try {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", uploadPreset);
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+      method: "POST",
+      body: formData,
+    });
+
+    const data = await res.json().catch(() => null);
+    if (res.ok && data?.secure_url) return data.secure_url as string;
+  } catch {
+    // Fallback abaixo.
   }
-  return data.secure_url; 
+
+  return fileToDataUrl(file);
 }
 
 export default function ClinicalEvolutionSection({ patient, contractSignature }: Props) {
@@ -146,7 +158,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
     if (!files?.length) return;
     setUploadingImages(true);
     try {
-      const urls = await Promise.all(Array.from(files).map(file => uploadToCloudinary(file)));
+      const urls = await Promise.all(Array.from(files).map((file) => uploadClinicalImage(file)));
       setUploadedImages(prev => [...prev, ...urls]);
     } catch (err: any) { 
       alert("Erro ao subir fotos: " + err.message); 

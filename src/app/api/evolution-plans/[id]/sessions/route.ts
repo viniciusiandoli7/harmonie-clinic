@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { schedulePatientReturn } from "@/services/returnSchedulingService";
 
 type Ctx = {
   params: Promise<{ id: string }>;
@@ -42,7 +43,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
     const plan = await prisma.clinicalEvolutionPlan.findUnique({
       where: { id },
-      include: { sessions: true },
+      include: { sessions: true, patient: true },
     });
 
     if (plan) {
@@ -53,6 +54,17 @@ export async function POST(req: Request, ctx: Ctx) {
           status: plan.sessions.length >= plan.totalSessions ? "FINISHED" : plan.status,
         },
       });
+
+      if (body.recommendedReturn) {
+        await schedulePatientReturn({
+          patientId: plan.patientId,
+          procedureName: nullableText(body.performedProcedure) || plan.treatmentName,
+          returnDate: body.recommendedReturn,
+          returnTime: body.returnTime,
+          notes: "Retorno definido ao registrar sessão do prontuário.",
+          sourceRef: `clinicalEvolutionSession:${sessionRecord.id}; clinicalEvolutionPlan:${id}`,
+        });
+      }
     }
 
     return NextResponse.json(sessionRecord, { status: 201 });

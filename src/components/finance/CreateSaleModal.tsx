@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { X, ShoppingCart, Plus, Trash2, Smartphone } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { buildContractHtml } from "@/lib/contracts";
+import { generateContractPdf } from "@/lib/contractPdf";
 
 interface Props { open: boolean; onClose: () => void; patient: any; }
 
@@ -79,14 +80,22 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          patientId: patient.id, patientName: patient.name,
-          items: cart, subtotal, discount: numDiscount, total: finalTotal,
+          patientId: patient.id,
+          patientName: patient.name,
+          items: cart,
+          subtotal,
+          discount: numDiscount,
+          total: finalTotal,
           payments: paymentsList,
-          contractToken: contractToken
+          contractToken,
         }),
       });
 
-      if (!response.ok) throw new Error("Erro ao salvar a venda.");
+      const responseData = await response.json().catch(() => null);
+
+      if (!response.ok) {
+        throw new Error(responseData?.error || "Erro ao salvar a venda.");
+      }
 
       const contractItems = cart.map(item => ({
         description: item.description, 
@@ -96,8 +105,16 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
         observation: item.observation
       }));
 
+      const paymentLabels: Record<string, string> = {
+        CREDIT_CARD: "Cartão de crédito",
+        DEBIT_CARD: "Cartão de débito",
+        PIX: "Pix",
+        CASH: "Dinheiro",
+        BANK_SLIP: "Boleto",
+        BANK_TRANSFER: "Transferência",
+      };
       const paymentMethodLabel = paymentsList.length > 0 
-        ? paymentsList.map(p => `${p.method.replace('_', ' ')} (R$ ${p.amount.toFixed(2)})`).join(" | ") 
+        ? paymentsList.map(p => `${paymentLabels[p.method] || p.method.replace("_", " ")} (R$ ${p.amount.toFixed(2)})`).join(" | ") 
         : "Bonificação";
 
       const htmlContent = buildContractHtml({
@@ -107,13 +124,20 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
         paymentMethodLabel, signatureImage: null 
       } as any); 
 
-      const tempDiv = document.createElement("div");
-      tempDiv.innerHTML = htmlContent;
-      const html2pdf = (await import("html2pdf.js")).default;
-      await html2pdf().set({
-        margin: 15, filename: `Contrato_${patient.name.replace(/\s/g, "_")}.pdf`,
-        image: { type: "jpeg", quality: 0.98 }, html2canvas: { scale: 2 }, jsPDF: { unit: "mm", format: "a4", orientation: "portrait" }
-      }).from(tempDiv).save();
+      await generateContractPdf({
+        filename: `Contrato_${patient.name.replace(/\s/g, "_")}.pdf`,
+        title: "Contrato de Prestação de Serviços Estéticos",
+        patient: { name: patient.name, cpf: patient.cpf, rg: patient.rg, phone: patient.phone, birthDate: patient.birthDate },
+        clinic: { companyName: "Mariana Thomaz Carmona", cnpj: "57.007.483/0001-73", address: "Avenida Coronel Sezefredo Fagundes, Nº 2168", email: "contato@marianathomazcarmona.com" },
+        items: contractItems,
+        subtotal,
+        discount: numDiscount,
+        total: finalTotal,
+        paymentMethodLabel,
+        paymentDetails: "Pagamento registrado na data de fechamento da venda.",
+        contentHtml: htmlContent,
+        contractDate: new Date(),
+      });
 
       const link = `${window.location.origin}/assinar-contrato/${contractToken}`;
       const phone = patient.phone ? patient.phone.replace(/\D/g, '') : '';
@@ -132,7 +156,7 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
       
     } catch (err) {
       console.error(err);
-      alert("Ocorreu um erro ao finalizar a venda.");
+      alert(err instanceof Error ? err.message : "Ocorreu um erro ao finalizar a venda.");
     } finally {
       setLoading(false);
     }

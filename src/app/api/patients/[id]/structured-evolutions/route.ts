@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { schedulePatientReturn } from "@/services/returnSchedulingService";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -64,15 +65,14 @@ export async function POST(req: NextRequest, ctx: Ctx) {
     },
   });
 
-  if (body.createReturnTask && body.recommendedReturn) {
-    await (prisma as any).postProcedureTask.create({
-      data: {
-        patientId: id,
-        treatmentId: body.treatmentId || null,
-        title: `Retorno: ${procedurePerformed}`,
-        dueDate: new Date(body.recommendedReturn),
-        message: `Oi, [primeiroNome]. Tudo bem? A Dra. Mariana pediu para te lembrar do retorno de ${procedurePerformed}. Podemos verificar um horário para você?`,
-      },
+  if (body.recommendedReturn) {
+    await schedulePatientReturn({
+      patientId: id,
+      procedureName: procedurePerformed,
+      returnDate: body.recommendedReturn,
+      returnTime: body.returnTime,
+      notes: "Retorno definido na evolução estruturada.",
+      sourceRef: `structuredClinicalEvolution:${evolution.id}`,
     });
   }
 

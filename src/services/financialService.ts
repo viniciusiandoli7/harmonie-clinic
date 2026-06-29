@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { addMonths, calculateNetAmount, roundMoney } from "@/lib/money";
 
-type TransactionStatus = "PENDING" | "PAID" | "CANCELED" | "COMPLETED";
+type TransactionStatus = "PENDING" | "PARTIAL" | "PAID" | "CANCELED" | "COMPLETED";
 
 type InstallmentInput = {
   amount?: number;
@@ -49,7 +49,7 @@ function toOptionalDate(value?: string | Date | null) {
 }
 
 function isPaidStatus(status?: TransactionStatus | string | null) {
-  return status === "PAID" || status === "COMPLETED";
+  return status === "PAID" || status === "PARTIAL" || status === "COMPLETED";
 }
 
 function buildInstallments(data: CreateFinancialTransactionInput, transactionId: string, saleId?: string | null) {
@@ -230,7 +230,7 @@ export async function deleteFinancialTransaction(id: string) {
 
 export async function getFinancialSummary() {
   const transactions = await prisma.financialTransaction.findMany({
-    where: { status: { in: ["PAID", "COMPLETED"] } },
+    where: { status: { in: ["PAID", "PARTIAL", "COMPLETED"] } },
   });
 
   const totalIncome = transactions

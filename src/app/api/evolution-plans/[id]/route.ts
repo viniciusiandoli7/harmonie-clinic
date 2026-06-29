@@ -14,7 +14,28 @@ export async function DELETE(_: Request, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
 
+    const plan = await prisma.clinicalEvolutionPlan.findUnique({
+      where: { id },
+      select: { id: true, patientId: true, treatmentName: true },
+    });
+
     await prisma.$transaction([
+      // Remove retornos automáticos criados a partir desse prontuário.
+      prisma.appointment.deleteMany({
+        where: {
+          status: "RETURN",
+          notes: { contains: `clinicalEvolutionPlan:${id}` },
+        },
+      }),
+      // Remove alertas antigos/legados de retorno criados antes da agenda automática.
+      plan
+        ? (prisma as any).postProcedureTask.deleteMany({
+            where: {
+              patientId: plan.patientId,
+              title: { contains: plan.treatmentName, mode: "insensitive" },
+            },
+          })
+        : prisma.clinicalEvolutionSession.deleteMany({ where: { id: "__no_plan__" } }),
       prisma.clinicalEvolutionSession.deleteMany({ where: { planId: id } }),
       prisma.clinicalEvolutionPlan.delete({ where: { id } }),
     ]);

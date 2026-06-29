@@ -100,10 +100,11 @@ export const paymentMethods = [
   "Outros",
 ] as const;
 
-export const financialStatuses = ["PENDING", "PAID", "CANCELED"] as const;
+export const financialStatuses = ["PENDING", "PARTIAL", "PAID", "CANCELED"] as const;
 
 export const financialStatusLabels: Record<(typeof financialStatuses)[number] | "COMPLETED", string> = {
   PENDING: "Pendente",
+  PARTIAL: "Parcial",
   PAID: "Pago",
   CANCELED: "Cancelado",
   COMPLETED: "Pago",

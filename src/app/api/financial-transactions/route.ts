@@ -13,7 +13,7 @@ const createSchema = z.object({
   category: z.string().min(2, "Categoria obrigatória"),
   amount: z.number().positive("Valor deve ser maior que zero"),
   type: z.enum(["INCOME", "EXPENSE"]),
-  status: z.enum(["PENDING", "PAID", "CANCELED", "COMPLETED"]).optional(),
+  status: z.enum(["PENDING", "PARTIAL", "PAID", "CANCELED", "COMPLETED"]).optional(),
   paymentMethod: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
   patientId: z.string().uuid().optional().nullable(),
@@ -28,7 +28,7 @@ const createSchema = z.object({
   installments: z.array(z.object({
     amount: z.number().positive().optional(),
     dueDate: z.string().optional(),
-    status: z.enum(["PENDING", "PAID", "CANCELED", "COMPLETED"]).optional(),
+    status: z.enum(["PENDING", "PARTIAL", "PAID", "CANCELED", "COMPLETED"]).optional(),
     paymentMethod: z.string().optional().nullable(),
     notes: z.string().optional().nullable(),
   })).optional(),

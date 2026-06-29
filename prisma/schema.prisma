@@ -478,18 +478,22 @@ model EvaluationConversion {
 }
 
 model BusinessGoal {
-  id          String   @id @default(uuid())
-  month       String   @unique
-  revenueGoal Float    @default(0)
-  patientGoal Int      @default(0)
-  evaluationGoal Int   @default(0)
-  conversionGoal Float @default(0)
-  averageTicketGoal Float @default(0)
-  notes       String?  @db.Text
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @default(now()) @updatedAt
+  id                String   @id @default(uuid())
+  month             String   @unique
+  startDate         DateTime?
+  endDate           DateTime?
+  revenueGoal       Float    @default(0)
+  patientGoal       Int      @default(0)
+  evaluationGoal    Int      @default(0)
+  conversionGoal    Float    @default(0)
+  averageTicketGoal Float    @default(0)
+  notes             String?  @db.Text
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @default(now()) @updatedAt
 
   @@index([month])
+  @@index([startDate])
+  @@index([endDate])
 }
 
 // -----------------------------------------
@@ -586,20 +590,33 @@ model BlockedTime {
 
 
 model InventoryItem {
-  id              String   @id @default(uuid())
-  product         String
-  supplier        String?
-  batch           String?
-  expiresAt       DateTime?
-  quantity        Int      @default(0)
-  minimumQuantity Int      @default(1)
-  unitValue       Float    @default(0)
-  notes           String?  @db.Text
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @default(now()) @updatedAt
-  movements       InventoryMovement[]
+  id                   String   @id @default(uuid())
+  product              String
+  category             String?
+  linkedProcedure      String?
+  supplier             String?
+  entryQuantity        Int      @default(0)
+  quantity             Int      @default(0)
+  entryDate            DateTime?
+  batch                String?
+  expiresAt            DateTime?
+  minimumQuantity      Int      @default(1)
+  unitValue            Float    @default(0)
+  applicationMaterials      String?  @db.Text
+  applicationMaterialsValue Float    @default(0)
+  status               String   @default("DISPONIVEL")
+  patientName          String?
+  exitDate             DateTime?
+  notes                String?  @db.Text
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @default(now()) @updatedAt
+  movements            InventoryMovement[]
 
   @@index([product])
+  @@index([category])
+  @@index([linkedProcedure])
+  @@index([status])
+  @@index([patientName])
   @@index([expiresAt])
 }
 

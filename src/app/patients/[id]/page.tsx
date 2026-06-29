@@ -15,6 +15,7 @@ import PatientTreatmentPlanSection from "@/components/patients/PatientTreatmentP
 import PatientSafetySection from "@/components/patients/PatientSafetySection";
 import PatientPostCareSection from "@/components/patients/PatientPostCareSection";
 import StructuredEvolutionPremiumSection from "@/components/patients/StructuredEvolutionPremiumSection";
+import { generateContractPdf } from "@/lib/contractPdf";
 
 export default function PatientDetailPage() {
   const { id } = useParams();
@@ -106,6 +107,81 @@ export default function PatientDetailPage() {
       window.open(`https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}`, '_blank');
     } else {
       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`, '_blank');
+    }
+  };
+
+  const normalizeContractItems = (itemsJson: any, total: number) => {
+    if (Array.isArray(itemsJson)) {
+      return itemsJson.map((item) => ({
+        description: item.description || item.productName || "Procedimento",
+        quantity: item.quantity || 1,
+        unitPrice: item.unitPrice || item.price || 0,
+        total: item.total || item.totalPrice || ((Number(item.unitPrice || item.price || 0)) * Number(item.quantity || 1)),
+        observation: item.observation || "",
+      }));
+    }
+
+    if (itemsJson && typeof itemsJson === "object") {
+      return [{
+        description: itemsJson.service || itemsJson.description || "Procedimento estético",
+        quantity: itemsJson.quantity || 1,
+        unitPrice: itemsJson.price || total || 0,
+        total: total || itemsJson.price || 0,
+        observation: itemsJson.observation || "",
+      }];
+    }
+
+    return [{
+      description: "Procedimento estético",
+      quantity: 1,
+      unitPrice: total || 0,
+      total: total || 0,
+      observation: "",
+    }];
+  };
+
+  const downloadContractPdf = async (contract: any) => {
+    try {
+      const items = normalizeContractItems(contract.itemsJson, Number(contract.total || 0));
+      const subtotal = items.reduce((sum: number, item: any) => sum + Number(item.total || 0), 0) || Number(contract.total || 0);
+
+      await generateContractPdf({
+        filename: `${String(contract.title || "contrato")
+          .toLowerCase()
+          .normalize("NFD")
+          .replace(/[\u0300-\u036f]/g, "")
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/(^-|-$)/g, "") || "contrato"}-${new Date(contract.createdAt).toISOString().slice(0, 10)}.pdf`,
+        title: contract.title || "Contrato de Prestação de Serviços Estéticos",
+        patient: {
+          name: patient?.name,
+          cpf: patient?.cpf,
+          rg: patient?.rg,
+          phone: patient?.phone,
+          birthDate: patient?.birthDate,
+        },
+        clinic: {
+          companyName: "Mariana Thomaz Carmona",
+          cnpj: "57.007.483/0001-73",
+          address: "Avenida Coronel Sezefredo Fagundes, Nº 2168",
+          email: "contato@marianathomazcarmona.com",
+        },
+        items,
+        subtotal,
+        discount: 0,
+        total: Number(contract.total || subtotal || 0),
+        paymentMethodLabel: "Conforme venda registrada",
+        paymentDetails: "Contrato gerado a partir do fechamento da venda.",
+        contentHtml: contract.content,
+        contractDate: contract.createdAt,
+        status: contract.status,
+        signatureName: contract.signatureName,
+        signatureImage: contract.signatureImage,
+        signedAt: contract.signedAt,
+      });
+    } catch (error) {
+      console.error("Erro ao gerar PDF do contrato:", error);
+      alert("Não foi possível gerar o PDF do contrato.");
     }
   };
 
@@ -326,7 +402,7 @@ export default function PatientDetailPage() {
                        <p className="text-[10px] font-bold text-gray-400 uppercase">{new Date(c.createdAt).toLocaleDateString()}</p>
                        <p className="text-sm font-bold text-[#1E1A18]">{c.title}</p>
                      </div>
-                     <div className="flex items-center gap-6 text-right">
+                     <div className="flex items-center gap-3 text-right">
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded">
                              {c.status === "SIGNED" ? (
@@ -336,6 +412,14 @@ export default function PatientDetailPage() {
                              )}
                           </p>
                         </div>
+
+                        <button
+                          onClick={() => downloadContractPdf(c)}
+                          className="text-[9px] border border-[#C8A35F] bg-[#FAF8F3] text-[#5A1F2B] px-4 py-2 rounded font-bold uppercase tracking-widest hover:bg-[#F7F2EA] transition-colors flex items-center gap-2 shadow-sm"
+                        >
+                           <FileText size={12}/> PDF
+                        </button>
+
                         {c.status !== "SIGNED" && (
                           <button
                             onClick={() => sendWhatsAppContract(c)}
@@ -344,6 +428,7 @@ export default function PatientDetailPage() {
                              <FileText size={12}/> Enviar WhatsApp
                           </button>
                         )}
+
                         {c.status === "SIGNED" && c.signatureImage && (
                           <img src={c.signatureImage} alt="Visto" className="h-8 object-contain" />
                         )}

@@ -9,10 +9,24 @@ import AppointmentEditModal from "@/components/calendar/AppointmentEditModal";
 
 // --- CONFIGURAÇÕES ---
 const PROCEDIMENTOS = [
-  "Consulta", "Retorno", "Ultrassom Micro e Macrofocado", "Toxina Botulínica",
-  "Skinbooster", "Preenchimento", "PEIM", "Peeling", "PDRN", "Microagulhamento",
-  "Mesoterapia", "Limpeza de Pele Profunda", "Lavieen", "Jato de Plasma",
-  "Fios de PDO", "Bioestimulador", "Intradermoterapia local", "Intradermoterapia IM"
+  "Consulta",
+  "Retorno",
+  "Ultrassom Micro e Macrofocado",
+  "Toxina Botulínica",
+  "Skinbooster",
+  "Preenchimento",
+  "PEIM",
+  "Peeling",
+  "PDRN",
+  "Microagulhamento",
+  "Mesoterapia",
+  "Limpeza de Pele Profunda",
+  "Lavieen",
+  "Jato de Plasma",
+  "Fios de PDO",
+  "Bioestimulador",
+  "Intradermoterapia local",
+  "Intradermoterapia IM",
 ];
 
 const HOURS = Array.from({ length: 25 }, (_, i) => {

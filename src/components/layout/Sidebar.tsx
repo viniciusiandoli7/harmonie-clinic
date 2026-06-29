@@ -6,7 +6,6 @@ import { signOut } from "next-auth/react";
 import {
   BarChart3,
   CalendarDays,
-  ClipboardList,
   FileText,
   MessageCircle,
   ChevronLeft,
@@ -24,7 +23,6 @@ const menu = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
   { label: "Agenda", href: "/appointments", icon: CalendarDays },
   { label: "CRM Pacientes", href: "/patients", icon: Users },
-  { label: "Procedimentos", href: "/procedures", icon: ClipboardList },
   { label: "Financeiro", href: "/finance", icon: DollarSign },
   { label: "Estoque", href: "/inventory", icon: PackageSearch },
   { label: "WhatsApp", href: "/whatsapp", icon: MessageCircle },

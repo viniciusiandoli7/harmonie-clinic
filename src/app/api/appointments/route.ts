@@ -8,6 +8,67 @@ import {
 } from "@/services/appointmentService";
 import { createAppointmentSchema } from "@/validators/appointmentValidator";
 import { z } from "zod";
+import { prisma } from "@/lib/prisma";
+import { reserveInventoryForAppointmentRaw } from "@/lib/inventorySql";
+
+
+function normalizeProcedureName(value?: string | null) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+}
+
+function splitProcedures(value?: string | null) {
+  return String(value || "")
+    .split("+")
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+async function linkInventoryToAppointment(params: {
+  patientId: string;
+  procedureName?: string | null;
+  appointmentDate: Date;
+}) {
+  const procedures = splitProcedures(params.procedureName)
+    .filter((procedure) => !["consulta", "retorno"].includes(normalizeProcedureName(procedure)));
+
+  if (procedures.length === 0) return;
+
+  const patient = await prisma.patient.findUnique({
+    where: { id: params.patientId },
+    select: { name: true },
+  });
+
+  if (!patient) return;
+
+  for (const procedure of procedures) {
+    try {
+      const updated = await reserveInventoryForAppointmentRaw(prisma as any, {
+        patientName: patient.name,
+        procedureName: procedure,
+        appointmentDate: params.appointmentDate,
+      });
+
+      if (updated) {
+        await (prisma as any).auditLog.create({
+          data: {
+            action: "UPDATE",
+            entity: "InventoryItem",
+            entityId: updated.id,
+            description: `Estoque reservado pela agenda: ${updated.product} • ${patient.name}`,
+            userName: "Dra. Mariana",
+            afterJson: updated,
+          },
+        });
+      }
+    } catch (error) {
+      console.warn("Não foi possível vincular estoque ao agendamento:", procedure, error);
+    }
+  }
+}
 
 const statusSchema = z.enum(["SCHEDULED", "CONFIRMED", "COMPLETED", "NO_SHOW", "RESCHEDULED", "CANCELED", "RETURN", "FIT_IN"]);
 
@@ -74,6 +135,12 @@ export async function POST(req: Request) {
       price: parsed.price ?? null,
       paymentStatus: parsed.paymentStatus,
       room: parsed.room ?? "A",
+    });
+
+    await linkInventoryToAppointment({
+      patientId: parsed.patientId,
+      procedureName: parsed.procedureName ?? null,
+      appointmentDate: new Date(parsed.date),
     });
 
     return NextResponse.json(appointment, { status: 201 });

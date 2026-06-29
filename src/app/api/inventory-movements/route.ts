@@ -5,6 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 import { roundMoney } from "@/lib/money";
+import { updateInventoryItemRaw } from "@/lib/inventorySql";
 
 const movementSchema = z.object({
   inventoryItemId: z.string().uuid(),
@@ -53,10 +54,15 @@ export async function POST(req: NextRequest) {
     const item = await tx.inventoryItem.findUnique({ where: { id: data.inventoryItemId } });
     if (!item) throw new Error("Item de estoque não encontrado.");
 
+    const patient = data.patientId
+      ? await tx.patient.findUnique({ where: { id: data.patientId }, select: { name: true } })
+      : null;
+
     const signedQuantity = ["OUT", "LOSS", "EXPIRED", "PROCEDURE_USE"].includes(data.type) ? -data.quantity : data.quantity;
     const nextQuantity = data.type === "ADJUSTMENT" ? data.quantity : item.quantity + signedQuantity;
     if (nextQuantity < 0) throw new Error("Quantidade insuficiente no estoque.");
 
+    const movementDate = data.date ? new Date(data.date) : new Date();
     const unitValue = data.unitValue ?? item.unitValue ?? 0;
     const movement = await (tx as any).inventoryMovement.create({
       data: {
@@ -68,14 +74,27 @@ export async function POST(req: NextRequest) {
         reason: data.reason || null,
         procedureName: data.procedureName || null,
         patientId: data.patientId || null,
-        date: data.date ? new Date(data.date) : new Date(),
+        date: movementDate,
       },
     });
 
-    const updatedItem = await tx.inventoryItem.update({
-      where: { id: data.inventoryItemId },
-      data: { quantity: nextQuantity, ...(data.unitValue !== undefined && data.type === "IN" ? { unitValue } : {}) },
-    });
+    const statusByMovement: Record<string, string> = {
+      IN: "DISPONIVEL",
+      OUT: nextQuantity <= 0 ? "UTILIZADO" : "DISPONIVEL",
+      PROCEDURE_USE: nextQuantity <= 0 ? "UTILIZADO" : "DISPONIVEL",
+      LOSS: "DESCARTADO",
+      EXPIRED: "VENCIDO",
+      ADJUSTMENT: nextQuantity > 0 ? "DISPONIVEL" : "UTILIZADO",
+    };
+
+    const updatedItem = await updateInventoryItemRaw(tx as any, data.inventoryItemId, {
+      quantity: nextQuantity,
+      status: statusByMovement[data.type] || "DISPONIVEL",
+      linkedProcedure: data.procedureName || undefined,
+      patientName: patient?.name || undefined,
+      exitDate: ["OUT", "LOSS", "EXPIRED", "PROCEDURE_USE"].includes(data.type) ? movementDate : undefined,
+      ...(data.unitValue !== undefined && data.type === "IN" ? { unitValue } : {}),
+    } as any);
 
     await (tx as any).auditLog.create({
       data: {

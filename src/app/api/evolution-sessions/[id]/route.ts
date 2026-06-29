@@ -84,12 +84,20 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
      * Deletamos a sessão e atualizamos o plano em uma única operação.
      */
     await prisma.$transaction(async (tx) => {
-      // A. Deleta a sessão
+      // A. Remove retornos automáticos vinculados a essa sessão para não sobrar item na timeline/agenda
+      await tx.appointment.deleteMany({
+        where: {
+          status: "RETURN",
+          notes: { contains: `clinicalEvolutionSession:${id}` },
+        },
+      });
+
+      // B. Deleta a sessão
       await tx.clinicalEvolutionSession.delete({
         where: { id: id },
       });
 
-      // B. Busca o plano para ver quantas sessões RESTARAM
+      // C. Busca o plano para ver quantas sessões RESTARAM
       const plan = await tx.clinicalEvolutionPlan.findUnique({
         where: { id: evolutionSession.planId },
         include: { sessions: true }

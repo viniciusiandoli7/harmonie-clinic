@@ -45,21 +45,21 @@ export default function LoginPage() {
   return (
     <div className="relative flex min-h-screen w-full items-center justify-center overflow-hidden bg-brand-background px-6 py-10 font-sans text-brand-text">
       <div className="absolute inset-0 pointer-events-none">
-        <div className="absolute -left-48 -top-48 h-[520px] w-[520px] rounded-full bg-brand-primary/10 blur-[110px]" />
-        <div className="absolute -bottom-56 right-[-120px] h-[620px] w-[620px] rounded-full bg-brand-background-secondary/40 blur-[120px]" />
-        <div className="absolute inset-0 opacity-[0.22] [background-image:radial-gradient(rgba(90,31,43,.16)_1px,transparent_1px)] [background-size:28px_28px]" />
+        <div className="absolute -left-48 -top-48 h-130 w-130 rounded-full bg-brand-primary/10 blur-[110px]" />
+        <div className="absolute -bottom-56 -right-30 h-155 w-155 rounded-full bg-brand-background-secondary/40 blur-[120px]" />
+        <div className="absolute inset-0 opacity-[0.22] bg-[radial-gradient(rgba(90,31,43,.16)_1px,transparent_1px)] bg-size-[28px_28px]" />
       </div>
 
       <section className="relative z-10 grid w-full max-w-6xl overflow-hidden rounded-[36px] border border-[rgba(90,31,43,.12)] bg-[rgba(251,248,242,.76)] shadow-[0_28px_90px_rgba(63,22,32,.13)] backdrop-blur-2xl lg:grid-cols-[1.05fr_.95fr]">
-        <div className="hidden min-h-[690px] flex-col justify-between bg-[linear-gradient(135deg,rgba(90,31,43,.95),rgba(63,22,32,.94))] p-12 text-[#F7F2EA] lg:flex">
+        <div className="hidden min-h-172.5 flex-col justify-between bg-[linear-gradient(135deg,rgba(90,31,43,.95),rgba(63,22,32,.94))] p-12 text-[#F7F2EA] lg:flex">
           <div>
             <div className="inline-flex items-center gap-2 rounded-full border border-[#F7F2EA]/18 bg-[#F7F2EA]/8 px-4 py-2 text-[10px] font-bold uppercase tracking-[0.22em]">
               <Sparkles size={13} /> Clínica estética premium
             </div>
-            <h1 className="mt-14 max-w-[540px] font-serif text-[72px] leading-[0.9] text-[#F7F2EA]">
+            <h1 className="mt-14 max-w-135 font-serif text-[72px] leading-[0.9] text-[#F7F2EA]">
               Cuidar da beleza é construir confiança, naturalidade e presença.
             </h1>
-            <p className="mt-8 max-w-[450px] text-[14px] leading-7 text-[#F7F2EA]/72">
+            <p className="mt-8 max-w-112.5 text-[14px] leading-7 text-[#F7F2EA]/72">
               Um sistema pensado para organizar a experiência da paciente com acolhimento, precisão clínica e gestão elegante.
             </p>
           </div>
@@ -76,14 +76,14 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <div className="flex min-h-[690px] items-center justify-center p-7 sm:p-12">
-          <div className="w-full max-w-[430px] animate-soft-in">
+        <div className="flex min-h-172.5 items-center justify-center p-7 sm:p-12">
+          <div className="w-full max-w-107.5 animate-soft-in">
             <div className="mb-10 text-center">
-              <div className="mx-auto mb-7 flex min-h-[220px] w-full max-w-[310px] items-center justify-center rounded-[42px] border border-[rgba(90,31,43,.12)] bg-brand-surface px-7 py-6 shadow-card">
+              <div className="mx-auto mb-7 flex min-h-55 w-full max-w-77.5 items-center justify-center rounded-[42px] border border-[rgba(90,31,43,.12)] bg-brand-surface px-7 py-6 shadow-card">
                 <img
                   src={brand.logo}
                   alt="Logo Mariana Thomaz Carmona"
-                  className="h-full max-h-[196px] w-full object-contain"
+                  className="h-full max-h-49 w-full object-contain"
                 />
               </div>
               <p className="text-[10px] font-bold uppercase tracking-[0.36em] text-brand-primary/70">Bem-vinda</p>

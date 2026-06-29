@@ -2,14 +2,14 @@ import { prisma } from "@/lib/prisma";
 import { monthBounds, roundMoney } from "@/lib/money";
 
 export function isPaid(status?: string | null) {
-  return status === "PAID" || status === "COMPLETED";
+  return status === "PAID" || status === "PARTIAL" || status === "COMPLETED";
 }
 
 export async function calculateMonthlyClosing(month?: string | null) {
   const bounds = monthBounds(month);
   const [transactions, sales] = await Promise.all([
     (prisma as any).financialTransaction.findMany({
-      where: { date: { gte: bounds.startDate, lte: bounds.endDate }, status: { in: ["PAID", "COMPLETED"] } },
+      where: { date: { gte: bounds.startDate, lte: bounds.endDate }, status: { in: ["PAID", "PARTIAL", "COMPLETED"] } },
       include: { patient: { select: { id: true, name: true } } },
     }),
     (prisma as any).sale.findMany({

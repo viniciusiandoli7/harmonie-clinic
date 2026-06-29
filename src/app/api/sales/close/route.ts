@@ -1,7 +1,124 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/prisma';
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { buildContractHtml } from "@/lib/contracts";
+
+type RawSaleItem = {
+  description?: string;
+  productName?: string;
+  observation?: string;
+  professional?: string;
+  quantity?: number | string;
+  qty?: number | string;
+  price?: number | string;
+  unitPrice?: number | string;
+  totalPrice?: number | string;
+};
+
+type RawPayment = {
+  method?: string;
+  paymentMethod?: string;
+  amount?: number | string;
+  installments?: number | string;
+};
+
+function toNumber(value: unknown, fallback = 0) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string") {
+    const normalized = value.replace(/\./g, "").replace(",", ".").trim();
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+  return fallback;
+}
+
+function round2(value: number) {
+  return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+function normalizePaymentMethod(method?: string) {
+  const key = String(method || "").trim().toUpperCase();
+  const map: Record<string, "CREDIT_CARD" | "DEBIT_CARD" | "PIX" | "CASH" | "BANK_SLIP" | "BANK_TRANSFER" | "OTHER"> = {
+    PIX: "PIX",
+    CARTAO_CREDITO: "CREDIT_CARD",
+    CARTÃO_CREDITO: "CREDIT_CARD",
+    CARTAO_DE_CREDITO: "CREDIT_CARD",
+    CARTÃO_DE_CRÉDITO: "CREDIT_CARD",
+    CREDIT_CARD: "CREDIT_CARD",
+    CREDITO: "CREDIT_CARD",
+    CRÉDITO: "CREDIT_CARD",
+    CARTAO_DEBITO: "DEBIT_CARD",
+    CARTÃO_DEBITO: "DEBIT_CARD",
+    CARTAO_DE_DEBITO: "DEBIT_CARD",
+    CARTÃO_DE_DÉBITO: "DEBIT_CARD",
+    DEBIT_CARD: "DEBIT_CARD",
+    DEBITO: "DEBIT_CARD",
+    DÉBITO: "DEBIT_CARD",
+    DINHEIRO: "CASH",
+    CASH: "CASH",
+    BOLETO: "BANK_SLIP",
+    BANK_SLIP: "BANK_SLIP",
+    TRANSFERENCIA: "BANK_TRANSFER",
+    TRANSFERÊNCIA: "BANK_TRANSFER",
+    BANK_TRANSFER: "BANK_TRANSFER",
+  };
+  return map[key] || "OTHER";
+}
+
+function normalizePaymentMethodLabel(method?: string) {
+  const enumValue = normalizePaymentMethod(method);
+  const map: Record<string, string> = {
+    CREDIT_CARD: "Cartão de crédito",
+    DEBIT_CARD: "Cartão de débito",
+    PIX: "Pix",
+    CASH: "Dinheiro",
+    BANK_SLIP: "Boleto",
+    BANK_TRANSFER: "Transferência",
+    OTHER: "Outro",
+  };
+  return map[enumValue] || "Outro";
+}
+
+function sanitizeItems(items: RawSaleItem[]) {
+  return items
+    .map((item) => {
+      const description = String(item.description || item.productName || "Procedimento").trim();
+      const quantity = Math.max(1, Math.floor(toNumber(item.quantity ?? item.qty, 1)));
+      const unitPrice = round2(toNumber(item.price ?? item.unitPrice, 0));
+      const totalPrice = round2(toNumber(item.totalPrice, unitPrice * quantity) || unitPrice * quantity);
+      const observation = item.observation ? String(item.observation).trim() : "";
+      return { description, quantity, unitPrice, totalPrice, observation };
+    })
+    .filter((item) => item.description && item.quantity > 0 && item.unitPrice >= 0 && item.totalPrice > 0);
+}
+
+function sanitizePayments(payments: RawPayment[] | undefined, receivedAmount: number | undefined, paymentMethod: string | undefined, total: number) {
+  const explicitPayments = Array.isArray(payments)
+    ? payments
+        .map((payment) => ({
+          method: normalizePaymentMethod(payment.method || payment.paymentMethod),
+          originalMethod: payment.method || payment.paymentMethod || "PIX",
+          amount: round2(toNumber(payment.amount, 0)),
+          installments: Math.max(1, Math.floor(toNumber(payment.installments, 1))),
+        }))
+        .filter((payment) => payment.amount > 0)
+    : [];
+
+  if (explicitPayments.length > 0) return explicitPayments;
+
+  const received = round2(toNumber(receivedAmount, total));
+  if (received > 0) {
+    return [{ method: normalizePaymentMethod(paymentMethod), originalMethod: paymentMethod || "PIX", amount: Math.min(received, total), installments: 1 }];
+  }
+
+  return [];
+}
+
+function dataAtual() {
+  const d = new Date();
+  return `${d.getDate().toString().padStart(2, "0")}/${(d.getMonth() + 1).toString().padStart(2, "0")}/${d.getFullYear()}`;
+}
 
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -9,147 +126,280 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json();
-    
-    // 👈 NOVIDADE: Recebendo o contractToken do frontend
-    const { patientId, items, subtotal, discount, total, payments, contractToken } = body;
+    const patientId = String(body.patientId || "").trim();
 
-    if (!items || items.length === 0) {
-      return NextResponse.json({ error: "Carrinho vazio." }, { status: 400 });
+    if (!patientId) {
+      return NextResponse.json({ error: "Selecione um paciente para fechar a venda." }, { status: 400 });
     }
 
-    const repasse = total * 0.25; 
-    const lucroReal = total - repasse;
-    const generalTreatmentName = items.map((i: any) => i.description).join(" + ").substring(0, 100);
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      select: { id: true, name: true, phone: true, email: true, cpf: true, rg: true, birthDate: true },
+    });
+
+    if (!patient) {
+      return NextResponse.json({ error: "Paciente não encontrado. Atualize a página e tente novamente." }, { status: 404 });
+    }
+
+    const normalizedItems = sanitizeItems(Array.isArray(body.items) ? body.items : []);
+
+    if (normalizedItems.length === 0) {
+      return NextResponse.json({ error: "Adicione pelo menos um procedimento com valor maior que zero." }, { status: 400 });
+    }
+
+    const calculatedSubtotal = round2(normalizedItems.reduce((acc, item) => acc + item.totalPrice, 0));
+    const subtotal = round2(toNumber(body.subtotal, calculatedSubtotal) || calculatedSubtotal);
+    const discount = round2(Math.max(0, toNumber(body.discount, 0)));
+    const finalTotal = round2(Math.max(0, toNumber(body.total, subtotal - discount) || subtotal - discount));
+
+    if (finalTotal <= 0) {
+      return NextResponse.json({ error: "O total da venda precisa ser maior que zero." }, { status: 400 });
+    }
+
+    const payments = sanitizePayments(body.payments, body.receivedAmount, body.paymentMethod, finalTotal);
+    const totalPaid = round2(payments.reduce((acc, payment) => acc + payment.amount, 0));
+
+    if (totalPaid - finalTotal > 0.01) {
+      return NextResponse.json({ error: "O valor pago não pode ser maior que o total da venda." }, { status: 400 });
+    }
+
+    const clinicCommissionPct = Math.max(0, toNumber(body.clinicCommissionPct, 25));
+    const commissionValue = round2(finalTotal * (clinicCommissionPct / 100));
+    const operationalCost = round2(Math.max(0, toNumber(body.operationalCost, 0)));
+    const clinicProfit = round2(commissionValue - operationalCost);
+    const professionalValue = round2(finalTotal - commissionValue);
+    const pendingAmount = round2(Math.max(0, finalTotal - totalPaid));
+    const generalTreatmentName = normalizedItems.map((item) => item.description).join(" + ").substring(0, 120);
+    const contractToken = String(body.contractToken || `CTR-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`).trim();
+    const origin = request.nextUrl.origin;
+    const paymentMethodLabel = payments.length
+      ? payments.map((payment) => `${normalizePaymentMethodLabel(payment.originalMethod)} (${payment.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`).join(" | ")
+      : "Bonificação";
+    const contractItems = normalizedItems.map((item) => ({
+      description: item.description,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      total: item.totalPrice,
+      observation: item.observation,
+    }));
+    const contractHtml = buildContractHtml({
+      patient: {
+        name: patient.name,
+        email: patient.email,
+        phone: patient.phone,
+        birthDate: patient.birthDate,
+        cpf: patient.cpf,
+        rg: patient.rg,
+      },
+      clinic: {
+        companyName: "Mariana Thomaz Carmona",
+        cnpj: "57.007.483/0001-73",
+        address: "Avenida Coronel Sezefredo Fagundes, Nº 2168",
+        email: "contato@marianathomazcarmona.com",
+      },
+      items: contractItems,
+      subtotal,
+      discount,
+      total: finalTotal,
+      paymentMethodLabel,
+      paymentDetails: "Pagamento registrado na data de fechamento da venda.",
+      contractDate: new Date(),
+    });
 
     const result = await prisma.$transaction(async (tx) => {
-      
-      const prof = await tx.professional.upsert({
+      const professional = await tx.professional.upsert({
         where: { id: "mariana_id" },
-        update: {},
-        create: { id: "mariana_id", name: "Dra. Mariana", commission: 0.25 }
+        update: { name: "Dra. Mariana Carmona", commission: clinicCommissionPct / 100, isActive: true },
+        create: { id: "mariana_id", name: "Dra. Mariana Carmona", commission: clinicCommissionPct / 100, isActive: true },
       });
 
-      const treat = await tx.treatment.upsert({
+      const treatment = await tx.treatment.upsert({
         where: { name: "Procedimentos Estéticos" },
         update: {},
-        create: { name: "Procedimentos Estéticos", template: `Contrato Múltiplo` }
+        create: {
+          name: "Procedimentos Estéticos",
+          template: "Contrato de prestação de serviços estéticos.",
+          standardPrice: 0,
+          averageCost: 0,
+          averageDurationMinutes: 60,
+          requiresTerm: true,
+        },
       });
 
       const sale = await tx.sale.create({
         data: {
-          patientId, serviceId: treat.id, professionalId: prof.id, price: subtotal,
-          discount: discount || 0, finalPrice: total,
+          patientId,
+          serviceId: treatment.id,
+          professionalId: professional.id,
+          price: subtotal,
+          discount,
+          finalPrice: finalTotal,
           payments: {
-            create: payments && payments.length > 0 ? payments.map((p: any) => ({ amount: p.amount, method: p.method })) : []
-          }
+            create: payments.map((payment) => ({
+              amount: payment.amount,
+              method: payment.method,
+            })),
+          },
         },
       });
 
-      await Promise.all(
-        items.map((item: any) => 
-          tx.saleItem.create({
-            data: {
-              saleId: sale.id, productName: `${item.description} ${item.observation ? `(${item.observation})` : ''}`,
-              quantity: item.quantity, unitPrice: item.price, totalPrice: item.price * item.quantity,
-              commission: (item.price * item.quantity) * 0.25, 
-            }
-          })
-        )
-      );
+      await tx.saleItem.createMany({
+        data: normalizedItems.map((item) => ({
+          saleId: sale.id,
+          professionalId: professional.id,
+          productName: `${item.description}${item.observation ? ` (${item.observation})` : ""}`,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          totalPrice: item.totalPrice,
+          commission: round2(item.totalPrice * (clinicCommissionPct / 100)),
+        })),
+      });
 
       const financialTransaction = await tx.financialTransaction.create({
         data: {
           type: "INCOME",
           category: "PROCEDIMENTO",
-          description: `Venda Multi: ${generalTreatmentName}`,
-          amount: total,
-          grossAmount: total,
+          description: `Venda: ${generalTreatmentName}`,
+          amount: finalTotal,
+          grossAmount: subtotal,
           feeAmount: 0,
-          netAmount: lucroReal,
-          commissionAmount: repasse,
-          profit: lucroReal,
+          netAmount: finalTotal,
+          commissionAmount: commissionValue,
+          operationalCost,
+          professionalValue,
+          clinicProfit,
+          profit: clinicProfit,
           patientId,
           saleId: sale.id,
           date: new Date(),
-          status: payments && payments.length > 0 ? "PAID" : "PENDING",
-          paidAt: payments && payments.length > 0 ? new Date() : null,
-        }
+          status: pendingAmount <= 0.01 ? "PAID" : "PENDING",
+          paidAt: pendingAmount <= 0.01 ? new Date() : null,
+          paymentMethod: payments.length ? payments.map((payment) => payment.method).join(" + ") : null,
+          notes: body.notes ? String(body.notes) : null,
+        },
       });
 
-      if (payments && payments.length > 0) {
-        await Promise.all(payments.map((p: any, index: number) =>
-          (tx as any).financialInstallment.create({
-            data: {
-              transactionId: financialTransaction.id,
-              saleId: sale.id,
-              patientId,
-              description: `Venda Multi: ${generalTreatmentName} (${index + 1}/${payments.length})`,
-              installmentNumber: index + 1,
-              totalInstallments: payments.length,
-              amount: Number(p.amount || 0),
-              feeAmount: 0,
-              netAmount: Number(p.amount || 0),
-              dueDate: new Date(),
-              status: "PAID",
-              paidAt: new Date(),
-              paymentMethod: p.method || null,
-            }
-          })
-        ));
+      if (payments.length > 0) {
+        await tx.financialInstallment.createMany({
+          data: payments.map((payment, index) => ({
+            transactionId: financialTransaction.id,
+            saleId: sale.id,
+            patientId,
+            description: `Venda: ${generalTreatmentName} (${index + 1}/${payments.length})`,
+            installmentNumber: index + 1,
+            totalInstallments: payments.length,
+            amount: payment.amount,
+            feeAmount: 0,
+            netAmount: payment.amount,
+            dueDate: new Date(),
+            status: "PAID",
+            paidAt: new Date(),
+            paymentMethod: payment.method,
+          })),
+        });
       }
 
-      await tx.patientContract.create({
+      if (pendingAmount > 0.01) {
+        await tx.financialInstallment.create({
+          data: {
+            transactionId: financialTransaction.id,
+            saleId: sale.id,
+            patientId,
+            description: `Saldo pendente: ${generalTreatmentName}`,
+            installmentNumber: payments.length + 1,
+            totalInstallments: payments.length + 1,
+            amount: pendingAmount,
+            feeAmount: 0,
+            netAmount: pendingAmount,
+            dueDate: new Date(),
+            status: "PENDING",
+            paymentMethod: null,
+          },
+        });
+      }
+
+      const contract = await tx.patientContract.create({
         data: {
           patientId,
-          title: `Contrato Múltiplo - ${dataAtual()}`,
-          content: `Contrato de prestação de serviços estéticos gerado via PDV.`,
-          total: total,
-          token: contractToken || `CTR-${Math.random().toString(36).substr(2, 9).toUpperCase()}`, // 👈 Salva o Token do Frontend
-          itemsJson: items,
+          title: `Contrato - ${dataAtual()}`,
+          content: contractHtml,
+          total: finalTotal,
+          token: contractToken,
+          itemsJson: normalizedItems,
           status: "PENDING",
           signatureName: null,
           signatureImage: null,
-        }
+        },
       });
 
       await Promise.all(
-        items.map((item: any) => 
+        normalizedItems.map((item) =>
           tx.clinicalEvolutionPlan.create({
             data: {
-              patientId, treatmentName: item.description, packageName: item.observation || "Sessão Avulsa",
-              totalSessions: item.quantity, completedSessions: 0, status: "ACTIVE",
-              goals: "Definido no fechamento da venda (PDV)."
-            }
+              patientId,
+              treatmentName: item.description,
+              packageName: item.observation || "Sessão avulsa",
+              totalSessions: item.quantity,
+              completedSessions: 0,
+              status: "ACTIVE",
+              goals: body.goals ? String(body.goals) : "Definido no fechamento da venda.",
+              notes: body.notes ? String(body.notes) : null,
+            },
           })
         )
       );
 
       await tx.clinicalEvolution.create({
-        data: { patientId, content: `CONTRATO FECHADO: ${generalTreatmentName}. Valor: R$ ${total.toLocaleString('pt-BR')}. Protocolos iniciados.`, type: "SALE_RECORD", }
+        data: {
+          patientId,
+          content: `VENDA FECHADA: ${generalTreatmentName}. Total: R$ ${finalTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
+          type: "SALE_RECORD",
+          important: true,
+        },
       });
 
-      await (tx as any).auditLog.create({
+      await tx.auditLog.create({
         data: {
           action: "CREATE",
           entity: "Sale",
           entityId: sale.id,
           description: `Venda fechada: ${generalTreatmentName}`,
           userName: "Dra. Mariana",
-          afterJson: { saleId: sale.id, patientId, total, items } as any,
-        }
+          afterJson: { saleId: sale.id, patientId, finalTotal, payments, items: normalizedItems },
+        },
       });
 
-      return sale;
+      return { sale, contract, financialTransaction };
     });
 
-    return NextResponse.json(result);
-  } catch (error: any) {
-    console.error('Erro:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-}
+    const contractLink = `${origin}/assinar-contrato/${result.contract.token}`;
+    const phone = patient.phone ? patient.phone.replace(/\D/g, "") : "";
+    const firstName = patient.name.split(" ")[0] || patient.name;
+    const message = `Olá, ${firstName}! Seu procedimento com a Dra. Mariana Carmona foi registrado com sucesso. Segue o link seguro para assinar o contrato digital: ${contractLink}`;
+    const whatsappContractLink = phone ? `https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}` : null;
 
-function dataAtual() {
-  const d = new Date();
-  return `${d.getDate().toString().padStart(2, '0')}/${(d.getMonth()+1).toString().padStart(2, '0')}/${d.getFullYear()}`;
+    return NextResponse.json({
+      success: true,
+      saleId: result.sale.id,
+      contractId: result.contract.id,
+      contractToken: result.contract.token,
+      contractLink,
+      whatsappContractLink,
+      whatsappReminderLink: null,
+      finance: {
+        grossAmount: finalTotal,
+        receivedAmount: totalPaid,
+        pendingAmount,
+        clinicCommissionPct,
+        clinicCommissionValue: commissionValue,
+        professionalValue,
+        operationalCost,
+        clinicProfit,
+      },
+    });
+  } catch (error) {
+    console.error("Erro ao fechar venda:", error);
+    const message = error instanceof Error ? error.message : "Erro interno ao finalizar a venda.";
+    return NextResponse.json({ error: `Não foi possível finalizar a venda. Detalhe: ${message}` }, { status: 500 });
+  }
 }

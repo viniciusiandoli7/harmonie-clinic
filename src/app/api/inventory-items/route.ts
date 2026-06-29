@@ -3,15 +3,25 @@ import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { createInventoryItemRaw, findInventoryItemsRaw } from "@/lib/inventorySql";
 
 const itemSchema = z.object({
   product: z.string().min(2),
+  category: z.string().optional().nullable(),
+  linkedProcedure: z.string().optional().nullable(),
   supplier: z.string().optional().nullable(),
+  entryQuantity: z.number().int().nonnegative().optional(),
+  quantity: z.number().int().nonnegative(),
+  entryDate: z.string().optional().nullable(),
   batch: z.string().optional().nullable(),
   expiresAt: z.string().optional().nullable(),
-  quantity: z.number().int().nonnegative(),
   minimumQuantity: z.number().int().nonnegative(),
   unitValue: z.number().nonnegative(),
+  applicationMaterials: z.string().optional().nullable(),
+  applicationMaterialsValue: z.number().nonnegative().optional(),
+  status: z.string().optional().nullable(),
+  patientName: z.string().optional().nullable(),
+  exitDate: z.string().optional().nullable(),
   notes: z.string().optional().nullable(),
 });
 
@@ -19,10 +29,7 @@ export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const items = await prisma.inventoryItem.findMany({
-    orderBy: [{ expiresAt: "asc" }, { product: "asc" }],
-    include: { movements: { take: 5, orderBy: { date: "desc" } } },
-  });
+  const items = await findInventoryItemsRaw(prisma as any);
   return NextResponse.json(items);
 }
 
@@ -34,11 +41,10 @@ export async function POST(req: NextRequest) {
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
   const item = await prisma.$transaction(async (tx) => {
-    const created = await tx.inventoryItem.create({
-      data: {
-        ...parsed.data,
-        expiresAt: parsed.data.expiresAt ? new Date(parsed.data.expiresAt) : null,
-      },
+    const created = await createInventoryItemRaw(tx as any, {
+      ...parsed.data,
+      entryQuantity: parsed.data.entryQuantity ?? parsed.data.quantity,
+      status: parsed.data.status || "DISPONIVEL",
     });
 
     if (created.quantity > 0) {

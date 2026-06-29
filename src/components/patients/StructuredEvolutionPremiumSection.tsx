@@ -1,14 +1,18 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Save, ShieldCheck } from "lucide-react";
+import { CalendarClock, Save, ShieldCheck } from "lucide-react";
 
 type Props = { patientId: string };
+
+function FieldHint({ children }: { children: React.ReactNode }) {
+  return <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#5A1F2B]/70">{children}</label>;
+}
 
 export default function StructuredEvolutionPremiumSection({ patientId }: Props) {
   const [evolutions, setEvolutions] = useState<any[]>([]);
   const [treatments, setTreatments] = useState<any[]>([]);
-  const [form, setForm] = useState<any>({ procedurePerformed: "", treatmentId: "", complaint: "", clinicalAssessment: "", productUsed: "", batch: "", expiresAt: "", bodyArea: "", quantity: "", intercurrences: "", guidance: "", recommendedReturn: "", termSigned: false, photosTaken: false, createReturnTask: true });
+  const [form, setForm] = useState<any>({ procedurePerformed: "", treatmentId: "", complaint: "", clinicalAssessment: "", productUsed: "", batch: "", expiresAt: "", bodyArea: "", quantity: "", intercurrences: "", guidance: "", recommendedReturn: "", termSigned: false, photosTaken: false, returnTime: "10:00" });
 
   async function load() {
     const [eRes, tRes] = await Promise.all([fetch(`/api/patients/${patientId}/structured-evolutions`), fetch("/api/treatment-catalog")]);
@@ -21,7 +25,7 @@ export default function StructuredEvolutionPremiumSection({ patientId }: Props) 
     e.preventDefault();
     const res = await fetch(`/api/patients/${patientId}/structured-evolutions`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) });
     if (res.ok) {
-      setForm({ procedurePerformed: "", treatmentId: "", complaint: "", clinicalAssessment: "", productUsed: "", batch: "", expiresAt: "", bodyArea: "", quantity: "", intercurrences: "", guidance: "", recommendedReturn: "", termSigned: false, photosTaken: false, createReturnTask: true });
+      setForm({ procedurePerformed: "", treatmentId: "", complaint: "", clinicalAssessment: "", productUsed: "", batch: "", expiresAt: "", bodyArea: "", quantity: "", intercurrences: "", guidance: "", recommendedReturn: "", termSigned: false, photosTaken: false, returnTime: "10:00" });
       load();
     }
   }
@@ -45,22 +49,56 @@ export default function StructuredEvolutionPremiumSection({ patientId }: Props) 
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#5A1F2B]/70">Registro técnico</p>
             <h3 className="font-serif text-2xl uppercase tracking-widest mt-2">Evolução estruturada</h3>
-            <p className="mt-3 max-w-2xl text-sm leading-7 text-[#5B3A2E]/64">Modelo clínico com produto, lote, região, quantidade, intercorrências, orientações e retorno recomendado.</p>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-[#5B3A2E]/64">Modelo clínico com produto, lote, região, quantidade, intercorrências, orientações e retorno automático na agenda quando houver data preenchida.</p>
           </div>
         </div>
 
         <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2">
-          <select value={form.treatmentId} onChange={e => chooseTreatment(e.target.value)} className="input-premium">
-            <option value="">Procedimento cadastrado...</option>
-            {treatments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
-          <input required value={form.procedurePerformed} onChange={e => setForm({ ...form, procedurePerformed: e.target.value })} className="input-premium" placeholder="Procedimento realizado" />
-          <input value={form.productUsed} onChange={e => setForm({ ...form, productUsed: e.target.value })} className="input-premium" placeholder="Produto utilizado" />
-          <input value={form.batch} onChange={e => setForm({ ...form, batch: e.target.value })} className="input-premium" placeholder="Lote" />
-          <input type="date" value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })} className="input-premium" placeholder="Validade" />
-          <input value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="input-premium" placeholder="Quantidade / ml / unidades" />
-          <input value={form.bodyArea} onChange={e => setForm({ ...form, bodyArea: e.target.value })} className="input-premium" placeholder="Região tratada" />
-          <input type="date" value={form.recommendedReturn} onChange={e => setForm({ ...form, recommendedReturn: e.target.value })} className="input-premium" placeholder="Retorno recomendado" />
+          <div>
+            <FieldHint>Procedimento cadastrado</FieldHint>
+            <select value={form.treatmentId} onChange={e => chooseTreatment(e.target.value)} className="input-premium">
+              <option value="">Procedimento cadastrado...</option>
+              {treatments.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <FieldHint>Procedimento realizado no atendimento</FieldHint>
+            <input required value={form.procedurePerformed} onChange={e => setForm({ ...form, procedurePerformed: e.target.value })} className="input-premium" placeholder="Procedimento realizado" />
+          </div>
+          <div>
+            <FieldHint>Produto utilizado</FieldHint>
+            <input value={form.productUsed} onChange={e => setForm({ ...form, productUsed: e.target.value })} className="input-premium" placeholder="Produto utilizado" />
+          </div>
+          <div>
+            <FieldHint>Lote</FieldHint>
+            <input value={form.batch} onChange={e => setForm({ ...form, batch: e.target.value })} className="input-premium" placeholder="Lote" />
+          </div>
+          <div>
+            <FieldHint>Validade do produto</FieldHint>
+            <input type="date" value={form.expiresAt} onChange={e => setForm({ ...form, expiresAt: e.target.value })} className="input-premium" />
+          </div>
+          <div>
+            <FieldHint>Quantidade / ml / unidades</FieldHint>
+            <input value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })} className="input-premium" placeholder="Quantidade / ml / unidades" />
+          </div>
+          <div>
+            <FieldHint>Região tratada</FieldHint>
+            <input value={form.bodyArea} onChange={e => setForm({ ...form, bodyArea: e.target.value })} className="input-premium" placeholder="Região tratada" />
+          </div>
+          <div className="rounded-3xl border border-[rgba(90,31,43,.12)] bg-[#F7F2EA]/45 p-4">
+            <div className="mb-3 flex items-center gap-2 text-[#5A1F2B]"><CalendarClock size={16} /><FieldHint>Retorno automático na agenda</FieldHint></div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <FieldHint>Data do retorno</FieldHint>
+                <input type="date" value={form.recommendedReturn} onChange={e => setForm({ ...form, recommendedReturn: e.target.value })} className="input-premium" />
+              </div>
+              <div>
+                <FieldHint>Horário</FieldHint>
+                <input type="time" value={form.returnTime || "10:00"} onChange={e => setForm({ ...form, returnTime: e.target.value || "10:00" })} className="input-premium" />
+              </div>
+            </div>
+            <p className="mt-2 text-[11px] leading-5 text-[#5B3A2E]/70">Preencheu a data? O retorno entra direto na agenda como <strong>Sala B</strong>. Deixe vazio se não quiser agendar retorno.</p>
+          </div>
         </div>
         <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
           <textarea value={form.complaint} onChange={e => setForm({ ...form, complaint: e.target.value })} className="input-premium min-h-24 py-3" placeholder="Queixa principal" />
@@ -72,7 +110,7 @@ export default function StructuredEvolutionPremiumSection({ patientId }: Props) 
           <div className="flex flex-wrap gap-3 text-[12px]">
             <label className="rounded-2xl border border-[rgba(90,31,43,.12)] bg-[#F7F2EA]/60 px-4 py-3"><input type="checkbox" checked={form.termSigned} onChange={e => setForm({ ...form, termSigned: e.target.checked })} className="mr-2 accent-[#5A1F2B]"/> Termo assinado</label>
             <label className="rounded-2xl border border-[rgba(90,31,43,.12)] bg-[#F7F2EA]/60 px-4 py-3"><input type="checkbox" checked={form.photosTaken} onChange={e => setForm({ ...form, photosTaken: e.target.checked })} className="mr-2 accent-[#5A1F2B]"/> Fotos feitas</label>
-            <label className="rounded-2xl border border-[rgba(90,31,43,.12)] bg-[#F7F2EA]/60 px-4 py-3"><input type="checkbox" checked={form.createReturnTask} onChange={e => setForm({ ...form, createReturnTask: e.target.checked })} className="mr-2 accent-[#5A1F2B]"/> Criar alerta de retorno</label>
+
           </div>
           <button className="btn-primary"><Save size={14}/> Salvar evolução</button>
         </div>

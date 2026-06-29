@@ -700,118 +700,394 @@ export function buildContractHtml(params: {
   subtotal: number; discount: number; total: number;
   paymentMethodLabel: string; paymentDetails?: string | null; contractDate?: string | Date | null;
 }) {
-  
+  const contractDate = formatDate(params.contractDate ?? new Date());
+  const patientCpf = params.patient.cpf || "Não informado";
+  const patientRg = params.patient.rg || "Não informado";
+  const patientPhone = params.patient.phone || "Não informado";
+  const patientBirthDate = formatDate(params.patient.birthDate) || "Não informado";
+
   const itemsRows = params.items.map((item, index) => `
     <tr>
-      <td style="padding:8px; border:1px solid #ddd; text-align:center;">${index + 1}</td>
-      <td style="padding:8px; border:1px solid #ddd;">${item.description} ${item.observation ? `<br/><small style="color: #555;">Obs: ${item.observation}</small>` : ''}</td>
-      <td style="padding:8px; border:1px solid #ddd; text-align:center;">${item.quantity}</td>
-      <td style="padding:8px; border:1px solid #ddd; text-align:right;">${formatCurrency(item.unitPrice)}</td>
-      <td style="padding:8px; border:1px solid #ddd; text-align:right;">${formatCurrency(item.total)}</td>
+      <td>${index + 1}</td>
+      <td>
+        <strong>${item.description}</strong>
+        ${item.observation ? `<div class="muted small">Observação: ${item.observation}</div>` : ""}
+      </td>
+      <td class="center">${item.quantity}</td>
+      <td class="right">${formatCurrency(item.unitPrice)}</td>
+      <td class="right"><strong>${formatCurrency(item.total)}</strong></td>
     </tr>
   `).join("");
 
-  const specificTreatmentsHtml = params.items.map(item => {
+  const specificTreatmentsHtml = params.items.map((item) => {
     const normalizedDesc = item.description.toUpperCase().trim();
-    const foundKey = Object.keys(TREATMENT_TEXTS).find(key => 
-        normalizedDesc.includes(key) || key.includes(normalizedDesc)
+    const foundKey = Object.keys(TREATMENT_TEXTS).find((key) =>
+      normalizedDesc.includes(key) || key.includes(normalizedDesc)
     );
-    
+
     const clauseText = foundKey ? TREATMENT_TEXTS[foundKey] : null;
-    
-    if (clauseText) {
-      return `<div style="margin-bottom: 20px; padding: 15px; background-color: #f9f9f9; border-left: 3px solid #C8A35F; font-size: 11px; line-height: 1.6; page-break-inside: auto;">
-                ${clauseText}
-              </div>`;
-    }
-    return '';
+
+    if (!clauseText) return "";
+
+    return `
+      <section class="contract-section procedure-section">
+        <h3>Termo específico — ${foundKey}</h3>
+        <div class="procedure-text">${clauseText}</div>
+      </section>
+    `;
   }).join("");
 
   return `
-    <div style="font-family: Arial, sans-serif; color:#111; line-height:1.5; font-size: 13px; padding: 10px;">
-      <h2 style="text-align:center; color:#111; font-size: 16px; text-transform: uppercase;">CONTRATO DE PRESTAÇÃO DE SERVIÇOS ESTÉTICOS</h2>
+    <div class="contract-document">
+      <style>
+        @page {
+          size: A4;
+          margin: 16mm 14mm;
+        }
 
-      <div style="margin-bottom: 20px; font-size: 12px;">
-        <p><strong>CONTRATANTE:</strong> ${params.patient.name} - CPF: ${params.patient.cpf ?? "Não informado"} - RG: ${params.patient.rg ?? "Não informado"} - Nasc: ${formatDate(params.patient.birthDate)} - Tel: ${params.patient.phone ?? "Não informado"}</p>
+        .contract-document {
+          width: 100%;
+          max-width: 172mm;
+          margin: 0 auto;
+          background: #FDFBF7;
+          color: #1E1A18;
+          font-family: Arial, Helvetica, sans-serif;
+          font-size: 10.5px;
+          line-height: 1.52;
+          box-sizing: border-box;
+          overflow: hidden;
+          overflow-wrap: break-word;
+        }
 
-        <p><strong>CONTRATADA:</strong><br/>
-        Nome: ${params.clinic.companyName}<br/>
-        CNPJ: ${params.clinic.cnpj}<br/>
-        Endereço: ${params.clinic.address}<br/>
-        Email: ${params.clinic.email}</p>
-      </div>
+        .contract-document * {
+          box-sizing: border-box;
+        }
 
-      <hr style="border: 0; border-top: 1px solid #ddd; margin: 20px 0;" />
+        .contract-header {
+          text-align: center;
+          border-bottom: 1px solid #D8C4AE;
+          padding-bottom: 14px;
+          margin-bottom: 18px;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
 
-      <p style="font-size: 12px;">As partes acima identificadas firmam o presente CONTRATO DE PRESTAÇÃO DE SERVIÇOS ESTÉTICOS.</p>
-      <p style="font-size: 12px;">Para execução do tratamento contratado, a CONTRATANTE adquire os seguintes itens:</p>
+        .brand-name {
+          font-size: 12px;
+          letter-spacing: 0.26em;
+          text-transform: uppercase;
+          color: #5A1F2B;
+          font-weight: 700;
+          margin-bottom: 6px;
+        }
 
-      <table style="width:100%; border-collapse:collapse; margin-top:16px; font-size: 11px;">
-        <thead>
-          <tr style="background-color: #f1f1f1;">
-            <th style="padding:8px; border:1px solid #ddd; text-align:center; width: 5%;">#</th>
-            <th style="padding:8px; border:1px solid #ddd; text-align:left; width: 40%;">Produto / Serviço</th>
-            <th style="padding:8px; border:1px solid #ddd; text-align:center; width: 10%;">Qtd.</th>
-            <th style="padding:8px; border:1px solid #ddd; text-align:right; width: 20%;">Vlr. Unitário</th>
-            <th style="padding:8px; border:1px solid #ddd; text-align:right; width: 25%;">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsRows}
-        </tbody>
-      </table>
+        .contract-title {
+          margin: 0;
+          font-size: 17px;
+          letter-spacing: 0.08em;
+          text-transform: uppercase;
+          color: #1E1A18;
+          font-weight: 700;
+        }
 
-      <div style="margin-top:20px; font-size: 12px; text-align: right;">
-        <p style="margin: 4px 0;"><strong>SubTotal:</strong> ${formatCurrency(params.subtotal)}</p>
-        <p style="margin: 4px 0;"><strong>Desconto:</strong> ${formatCurrency(params.discount)}</p>
-        <p style="margin: 4px 0; font-size: 14px;"><strong>Total a Pagar:</strong> ${formatCurrency(params.total)}</p>
-      </div>
+        .contract-subtitle {
+          margin-top: 6px;
+          font-size: 10px;
+          color: #5B3A2E;
+        }
 
-      <div style="margin-top:20px; font-size: 11px; background-color: #f9f9f9; padding: 10px; border: 1px solid #ddd;">
-        <p style="margin: 0 0 5px 0;"><strong>Forma de Pagamento:</strong> ${params.paymentMethodLabel}</p>
-        <p style="margin: 0;"><strong>Detalhes:</strong> Pagamento processado na data de fechamento.</p>
-      </div>
+        .info-grid {
+          display: grid;
+          grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+          gap: 10px;
+          margin: 18px 0;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
 
-      <div style="page-break-inside: auto;">
-        <h3 style="margin-top:32px; font-size: 13px; color: #C8A35F; text-transform: uppercase;">CLÁUSULAS GERAIS E TERMOS</h3>
-        <div style="font-size: 11px; line-height: 1.6; text-align: justify;">
-          <p><strong>1. OBJETO E VIGÊNCIA:</strong> O presente contrato tem por objeto a prestação de serviços estéticos pela CONTRATADA, incluindo os tratamentos descritos neste documento. A CONTRATANTE declara estar ciente de que todas as sessões contratadas devem ser utilizadas dentro do prazo de vigência deste contrato, que é de 3 (três) meses.</p>
-          <p><strong>2. AGENDAMENTOS E FALTAS:</strong> As sessões somente se realizam mediante agendamento prévio. O atraso ou não comparecimento poderá implicar na perda da sessão.</p>
-          <p><strong>3. DESISTÊNCIA E RESULTADOS:</strong> A simples insatisfação com os serviços não ensejará devolução dos valores pagos. Em caso de desistência ou interrupção do tratamento, haverá cobrança de despesas administrativas fixadas em 15% sobre o valor do contrato, além das sessões já realizadas.</p>
-          <p><strong>4. ANAMNESE:</strong> A CONTRATANTE declara ter preenchido integralmente a ficha de anamnese e que as informações são verdadeiras.</p>
-          
-          <br/>
-          <p><strong>5. TERMO DE CONSENTIMENTO E PROTEÇÃO DE DADOS:</strong> Estamos empenhados em salvaguardar a sua privacidade ao estabelecer esta relação conosco. Este termo tem a finalidade de deixar o mais claro possível a nossa política de coleta e compartilhamento de dados, informando sobre os dados coletados e como os utilizamos. Ao utilizar os nossos serviços e assinar o presente termo, você declara o seu EXPRESSO CONSENTIMENTO para coletarmos, tratarmos e armazenarmos dados sobre você quando julgarmos necessários à prestação de nossos serviços, tais como: Informações que você oferece: coletamos os dados fornecidos por você no cadastro, tais como nome e sobrenome, endereço para correspondência, endereço de e-mail, informações de pagamento, bem como outras informações de contato on-line ou número de telefone, foto e demais informações requeridas no cadastro. Comunicação: podemos registrar e gravar todos os dados fornecidos em toda comunicação realizada com nossa equipe, seja por correio eletrônico, mensagens, telefone ou qualquer outro meio. Redes sociais: podemos utilizar e publicar suas fotos registradas antes e após o procedimento estético na rede social da clínica, por tempo indeterminado. Todos os dados que você nos fornece são tratados unicamente para atingir as finalidades acima listadas. Nós manteremos as informações que coletamos de você até que ocorra a solicitação de exclusão definitiva por sua parte. Neste caso, nós cessaremos imediatamente a utilização dos seus dados para fins comerciais, porém armazenaremos os seus dados enquanto tenhamos obrigações legais, tributárias ou judiciais a cumprir com tais dados. Você pode solicitar informações, alteração, esclarecimentos ou exclusão de seus dados por meio do contato (11) 96723-9595. Vamos exercer imediatamente as solicitações, nos termos da lei de proteção de dados aplicável.</p>
+        .info-card {
+          border: 1px solid #E4D8CA;
+          background: #F7F2EA;
+          padding: 12px;
+          min-height: 94px;
+        }
 
-          <br/>
-          <p><strong>6. TERMO DE AUTORIZAÇÃO DE USO DE IMAGEM:</strong> Eu, ${params.patient.name}, CPF nº ${params.patient.cpf ?? "Não informado"}, RG nº ${params.patient.rg ?? "Não informado"}, declaro, de forma livre, consciente e informada, que AUTORIZO a empresa Thomaz & Carmona LTDA, CNPJ nº 57.007.483/0001-73, a utilizar, a título gratuito, minha imagem (fotografias, vídeos ou gravações), captadas antes, durante ou após a realização de procedimentos estéticos, para os seguintes fins: Divulgação em redes sociais (Instagram, Facebook, TikTok, etc.); Materiais publicitários impressos e/ou digitais; Apresentações em eventos, palestras ou cursos; Registro para fins clínicos e comparativos. Estou ciente de que: A minha imagem poderá ser utilizada por tempo indeterminado; A autorização é concedida sem qualquer remuneração; A identidade poderá ser preservada, mediante solicitação. Declaro, ainda, que fui devidamente esclarecido(a) sobre o uso da imagem e que esta autorização é opcional, podendo ser revogada a qualquer tempo mediante solicitação por escrito, sem prejuízo dos usos anteriores à revogação.</p>
+        .info-card h3,
+        .contract-section h3 {
+          margin: 0 0 8px 0;
+          color: #5A1F2B;
+          font-size: 10px;
+          letter-spacing: 0.18em;
+          text-transform: uppercase;
+        }
+
+        .info-card p {
+          margin: 3px 0;
+        }
+
+        .intro {
+          margin: 18px 0 14px 0;
+          text-align: justify;
+        }
+
+        table {
+          width: 100%;
+          max-width: 100%;
+          border-collapse: collapse;
+          margin-top: 10px;
+          table-layout: fixed;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        th {
+          background: #EFE5DA;
+          color: #1E1A18;
+          font-size: 8.5px;
+          text-transform: uppercase;
+          letter-spacing: 0.06em;
+          padding: 7px;
+          border: 1px solid #D8C4AE;
+          overflow-wrap: anywhere;
+        }
+
+        td {
+          padding: 7px;
+          border: 1px solid #E4D8CA;
+          vertical-align: top;
+          overflow-wrap: anywhere;
+          word-break: normal;
+        }
+
+        .center {
+          text-align: center;
+        }
+
+        .right {
+          text-align: right;
+        }
+
+        .small {
+          font-size: 9px;
+        }
+
+        .muted {
+          color: #5B3A2E;
+          opacity: 0.75;
+        }
+
+        .totals {
+          margin-top: 12px;
+          margin-left: auto;
+          width: 240px;
+          max-width: 100%;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        .totals-row {
+          display: flex;
+          justify-content: space-between;
+          gap: 14px;
+          padding: 3px 0;
+        }
+
+        .totals-row.final {
+          border-top: 1px solid #D8C4AE;
+          margin-top: 6px;
+          padding-top: 8px;
+          font-size: 13px;
+          font-weight: 700;
+        }
+
+        .payment-box {
+          margin-top: 16px;
+          border: 1px solid #E4D8CA;
+          background: #F7F2EA;
+          padding: 12px;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        .contract-section {
+          margin-top: 20px;
+        }
+
+        .general-clauses p {
+          margin: 7px 0;
+          text-align: justify;
+        }
+
+        .procedure-section {
+          page-break-before: auto;
+        }
+
+        .procedure-text {
+          border-left: 3px solid #C9A227;
+          padding: 4px 0 4px 12px;
+          line-height: 1.58;
+        }
+
+        .procedure-text b {
+          color: #1E1A18;
+        }
+
+        .signature-section {
+          margin-top: 28px;
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        .signature-date {
+          text-align: center;
+          margin-bottom: 42px;
+          font-style: italic;
+        }
+
+        .signature-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 40px;
+          text-align: center;
+        }
+
+        .signature-line {
+          border-top: 1px solid #1E1A18;
+          padding-top: 8px;
+          min-height: 42px;
+        }
+
+        .footer-note {
+          margin-top: 20px;
+          text-align: center;
+          font-size: 9px;
+          color: #5B3A2E;
+        }
+
+        .avoid-break {
+          page-break-inside: avoid;
+          break-inside: avoid;
+        }
+
+        @media print {
+          .contract-document {
+            background: #fff;
+          }
+
+          .contract-section,
+          .procedure-section {
+            page-break-inside: auto;
+            break-inside: auto;
+          }
+
+          .info-grid,
+          table,
+          .totals,
+          .payment-box,
+          .signature-section {
+            page-break-inside: avoid;
+            break-inside: avoid;
+          }
+        }
+      </style>
+
+      <header class="contract-header">
+        <div class="brand-name">Mariana Thomaz Carmona</div>
+        <h1 class="contract-title">Contrato de prestação de serviços estéticos</h1>
+        <div class="contract-subtitle">Documento emitido em ${contractDate}</div>
+      </header>
+
+      <section class="info-grid">
+        <div class="info-card">
+          <h3>Contratante</h3>
+          <p><strong>Nome:</strong> ${params.patient.name}</p>
+          <p><strong>CPF:</strong> ${patientCpf}</p>
+          <p><strong>RG:</strong> ${patientRg}</p>
+          <p><strong>Nascimento:</strong> ${patientBirthDate}</p>
+          <p><strong>Telefone:</strong> ${patientPhone}</p>
         </div>
-      </div>
 
-      <div style="page-break-inside: auto;">
-        <h3 style="margin-top:32px; font-size: 13px; color: #C8A35F; text-transform: uppercase;">ESPECIFICAÇÕES DOS PROCEDIMENTOS</h3>
-        <p style="font-size: 11px; color: #333; margin-bottom: 15px;">O paciente declara estar ciente das indicações, contraindicações e cuidados pós-procedimento descritos abaixo para cada serviço adquirido:</p>
-        
-        ${specificTreatmentsHtml || "<p style='font-size: 11px; font-style: italic;'>* Especificações gerais de consultório repassadas pela profissional responsável.</p>"}
-      </div>
+        <div class="info-card">
+          <h3>Contratada</h3>
+          <p><strong>Nome:</strong> ${params.clinic.companyName}</p>
+          <p><strong>CNPJ:</strong> ${params.clinic.cnpj}</p>
+          <p><strong>Endereço:</strong> ${params.clinic.address}</p>
+          <p><strong>E-mail:</strong> ${params.clinic.email}</p>
+        </div>
+      </section>
 
-      <div style="page-break-inside: avoid;">
-        <p style="margin-top:40px; text-align: center; font-style: italic; font-size: 11px;">São Paulo, ${formatDate(params.contractDate ?? new Date())}</p>
+      <section class="intro">
+        <p>
+          As partes identificadas acima firmam o presente contrato para prestação de serviços estéticos,
+          conforme procedimentos, valores, condições de pagamento, orientações e termos de consentimento descritos neste documento.
+        </p>
+      </section>
 
-        <table style="width: 100%; margin-top: 60px; text-align: center; border: none;">
-          <tr>
-            <td style="width: 45%; padding: 0 10px; border: none;">
-              <hr style="border: 0; border-top: 1px solid #111; margin-bottom: 5px;" />
-              <p style="font-size: 11px; margin: 0;">${params.clinic.companyName}<br/>Contratada</p>
-            </td>
-            <td style="width: 10%; border: none;"></td>
-            <td style="width: 45%; padding: 0 10px; border: none;">
-              <hr style="border: 0; border-top: 1px solid #111; margin-bottom: 5px;" />
-              <p style="font-size: 11px; margin: 0;">${params.patient.name}<br/>Contratante</p>
-            </td>
-          </tr>
+      <section class="contract-section avoid-break">
+        <h3>Procedimentos contratados</h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 7%;">#</th>
+              <th style="width: 43%; text-align: left;">Produto / Serviço</th>
+              <th style="width: 10%;">Qtd.</th>
+              <th style="width: 20%; text-align: right;">Valor unitário</th>
+              <th style="width: 20%; text-align: right;">Total</th>
+            </tr>
+          </thead>
+          <tbody>${itemsRows}</tbody>
         </table>
-      </div>
+
+        <div class="totals">
+          <div class="totals-row"><span>Subtotal</span><strong>${formatCurrency(params.subtotal)}</strong></div>
+          <div class="totals-row"><span>Desconto</span><strong>${formatCurrency(params.discount)}</strong></div>
+          <div class="totals-row final"><span>Total a pagar</span><span>${formatCurrency(params.total)}</span></div>
+        </div>
+
+        <div class="payment-box">
+          <p style="margin: 0 0 5px 0;"><strong>Forma de pagamento:</strong> ${params.paymentMethodLabel}</p>
+          <p style="margin: 0;"><strong>Detalhes:</strong> ${params.paymentDetails || "Pagamento registrado na data de fechamento da venda."}</p>
+        </div>
+      </section>
+
+      <section class="contract-section general-clauses">
+        <h3>Cláusulas gerais e termos</h3>
+        <p><strong>1. Objeto e vigência:</strong> O presente contrato tem por objeto a prestação de serviços estéticos pela CONTRATADA, incluindo os tratamentos descritos neste documento. A CONTRATANTE declara estar ciente de que as sessões contratadas devem ser utilizadas dentro do prazo de vigência deste contrato, salvo orientação diversa registrada pela profissional.</p>
+        <p><strong>2. Agendamentos e faltas:</strong> As sessões serão realizadas mediante agendamento prévio. Atrasos, faltas ou cancelamentos em desacordo com a política da clínica poderão implicar perda da sessão, conforme previamente informado à CONTRATANTE.</p>
+        <p><strong>3. Resultados:</strong> A CONTRATANTE declara ciência de que procedimentos estéticos apresentam resposta individual, podendo variar conforme idade, metabolismo, hábitos, cuidados domiciliares, condição clínica, aderência às orientações e características próprias do organismo.</p>
+        <p><strong>4. Desistência:</strong> A desistência ou interrupção do tratamento não implica, por si só, devolução integral de valores. Caso haja necessidade de análise de reembolso, serão considerados procedimentos já realizados, produtos reservados/utilizados, custos administrativos e demais despesas relacionadas ao serviço contratado.</p>
+        <p><strong>5. Anamnese e informações clínicas:</strong> A CONTRATANTE declara ter informado corretamente seus dados pessoais, histórico de saúde, uso de medicações, alergias, procedimentos anteriores, condições clínicas e demais informações relevantes para segurança do atendimento.</p>
+        <p><strong>6. Consentimento e proteção de dados:</strong> A CONTRATANTE autoriza o tratamento dos seus dados pessoais e clínicos para fins de cadastro, prontuário, execução dos serviços, emissão de documentos, comunicação, organização interna, cumprimento de obrigações legais e acompanhamento pós-procedimento, nos termos da legislação aplicável.</p>
+        <p><strong>7. Uso de imagem:</strong> Imagens clínicas poderão ser registradas para acompanhamento interno da evolução. O uso de imagem para divulgação externa somente deverá ocorrer mediante autorização específica da CONTRATANTE.</p>
+      </section>
+
+      <section class="contract-section">
+        <h3>Especificações dos procedimentos</h3>
+        <p class="muted">
+          A CONTRATANTE declara estar ciente das indicações, contraindicações, possíveis efeitos colaterais e orientações pré e pós-procedimento aplicáveis ao(s) serviço(s) contratado(s).
+        </p>
+        ${specificTreatmentsHtml || "<p class='muted'><em>Orientações gerais repassadas pela profissional responsável.</em></p>"}
+      </section>
+
+      <section class="signature-section">
+        <p class="signature-date">São Paulo, ${contractDate}</p>
+
+        <div class="signature-grid">
+          <div class="signature-line">
+            <strong>${params.clinic.companyName}</strong><br/>
+            Contratada
+          </div>
+          <div class="signature-line">
+            <strong>${params.patient.name}</strong><br/>
+            Contratante
+          </div>
+        </div>
+
+        <div class="footer-note">
+          Documento gerado pelo sistema de gestão da Mariana Thomaz Carmona.
+        </div>
+      </section>
     </div>
   `.trim();
 }
+

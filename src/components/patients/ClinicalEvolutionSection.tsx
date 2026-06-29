@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import {
-  Activity, Camera, FileText, Pencil, Plus, Trash2, 
-  X, CheckCircle2, ShieldCheck, Stethoscope
+  Activity, Camera, FileText, Plus, Trash2, 
+  X, CheckCircle2, ShieldCheck
 } from "lucide-react";
 
 type Patient = { id: string; name: string; phone?: string | null; };
@@ -80,12 +80,6 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
   const [loading, setLoading] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
-  // Estados para Prontuário Manual (SEM VENDA)
-  const [showManualForm, setShowManualForm] = useState(false);
-  const [manualTreatmentName, setManualTreatmentName] = useState("");
-  const [manualSessions, setManualSessions] = useState(1);
-  const [creatingManual, setCreatingManual] = useState(false);
-
   // Estados para nova sessão dentro do prontuário
   const [sessionNumber, setSessionNumber] = useState(1);
   const [performedProcedure, setPerformedProcedure] = useState("");
@@ -93,6 +87,8 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
   const [clinicalNotes, setClinicalNotes] = useState("");
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
+  const [recommendedReturn, setRecommendedReturn] = useState("");
+  const [returnTime, setReturnTime] = useState("10:00");
 
   async function loadPlans() {
     setLoading(true);
@@ -108,36 +104,6 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
   }
 
   useEffect(() => { loadPlans(); }, [patient.id]);
-
-  // 🛡️ REFINAMENTO: Função para criar Prontuário Manual direto pela Médica
-  async function handleCreateManualPlan(e: React.FormEvent) {
-    e.preventDefault();
-    if (!manualTreatmentName) return alert("Digite o nome da avaliação ou tratamento.");
-    
-    setCreatingManual(true);
-    try {
-      const res = await fetch(`/api/patients/${patient.id}/evolution`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          treatmentName: manualTreatmentName,
-          totalSessions: manualSessions,
-          notes: "Criado manualmente no prontuário."
-        })
-      });
-
-      if (res.ok) {
-        setManualTreatmentName("");
-        setManualSessions(1);
-        setShowManualForm(false);
-        loadPlans();
-      } else {
-        alert("Erro ao criar prontuário manual.");
-      }
-    } finally {
-      setCreatingManual(false);
-    }
-  }
 
   async function removePlan(planId: string) {
     if (!window.confirm("Excluir este histórico e todas as sessões associadas?")) return;
@@ -170,11 +136,27 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
     const res = await fetch(`/api/evolution-plans/${planId}/sessions`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ sessionNumber, performedProcedure, bodyMeasurements, clinicalNotes, images: uploadedImages }),
+      body: JSON.stringify({
+        sessionNumber,
+        performedProcedure,
+        bodyMeasurements,
+        clinicalNotes,
+        images: uploadedImages,
+        recommendedReturn,
+        returnTime,
+      }),
     });
     if (res.ok) {
-      setPerformedProcedure(""); setBodyMeasurements(""); setClinicalNotes(""); setUploadedImages([]);
+      setPerformedProcedure("");
+      setBodyMeasurements("");
+      setClinicalNotes("");
+      setUploadedImages([]);
+      setRecommendedReturn("");
+      setReturnTime("10:00");
       loadPlans();
+    } else {
+      const data = await res.json().catch(() => null);
+      alert(data?.error || "Erro ao salvar o registro da sessão.");
     }
   }
 
@@ -185,78 +167,30 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
   }
 
   const activePlan = useMemo(() => plans.find(p => p.id === expandedPlanId) ?? null, [plans, expandedPlanId]);
-  useEffect(() => { if (activePlan) setSessionNumber((activePlan.completedSessions || 0) + 1); }, [activePlan]);
+  useEffect(() => {
+    if (activePlan) {
+      setSessionNumber((activePlan.completedSessions || 0) + 1);
+      setRecommendedReturn("");
+      setReturnTime("10:00");
+    }
+  }, [activePlan]);
 
   return (
     <div className="space-y-6 font-sans">
       
-      {/* 🛡️ REFINAMENTO: Cabeçalho com o botão de Criar Prontuário Manual */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between bg-white border border-[#ECE7DD] p-5 rounded-sm shadow-sm gap-4">
-        <div>
-          <h3 className="font-serif text-lg text-[#111]">Histórico Clínico</h3>
-          <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
-            Pacotes vendidos e avaliações manuais
-          </p>
-        </div>
-        <button 
-          onClick={() => setShowManualForm(!showManualForm)}
-          className="h-10 bg-[#111] text-white px-6 text-[10px] font-bold uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-[#C8A35F] transition-all whitespace-nowrap"
-        >
-          {showManualForm ? <X size={14} /> : <Plus size={14} />}
-          {showManualForm ? "Cancelar" : "Iniciar Prontuário"}
-        </button>
+      <div className="bg-white border border-[#ECE7DD] p-5 rounded-sm shadow-sm">
+        <h3 className="font-serif text-lg text-[#111]">Histórico Clínico</h3>
+        <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
+          Pacotes vendidos e registros de atendimento
+        </p>
       </div>
 
-      {/* FORMULÁRIO DE PRONTUÁRIO MANUAL */}
-      {showManualForm && (
-        <form onSubmit={handleCreateManualPlan} className="bg-white border-l-4 border-l-[#C8A35F] border-t border-b border-r border-[#ECE7DD] p-6 shadow-sm animate-in fade-in slide-in-from-top-4 duration-300">
-          <div className="flex items-center gap-3 mb-6 border-b border-gray-100 pb-4">
-            <Stethoscope size={18} className="text-[#C8A35F]" />
-            <h4 className="font-serif text-lg uppercase text-[#111]">Nova Linha de Prontuário</h4>
-          </div>
-          
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-            <div className="md:col-span-3">
-              <FieldLabel>Nome da Avaliação ou Tratamento *</FieldLabel>
-              <input 
-                value={manualTreatmentName} 
-                onChange={(e) => setManualTreatmentName(e.target.value)} 
-                placeholder="Ex: Avaliação Facial, Acompanhamento Pós-Cirúrgico..."
-                className="h-11 w-full border border-[#ECE7DD] bg-[#FCFAF6] px-3 text-sm outline-none focus:border-[#C8A35F] focus:bg-white transition-colors" 
-                required
-              />
-            </div>
-            <div>
-              <FieldLabel>Qtd. Prevista de Sessões</FieldLabel>
-              <input 
-                type="number" 
-                min="1"
-                value={manualSessions} 
-                onChange={(e) => setManualSessions(Number(e.target.value))} 
-                className="h-11 w-full border border-[#ECE7DD] bg-[#FCFAF6] px-3 text-sm outline-none focus:border-[#C8A35F] focus:bg-white transition-colors" 
-                required
-              />
-            </div>
-          </div>
-
-          <div className="mt-6 flex justify-end">
-            <button 
-              type="submit" 
-              disabled={creatingManual}
-              className="h-10 bg-[#C8A35F] text-white px-8 text-[10px] font-bold uppercase tracking-widest hover:bg-[#b08d4e] transition-all disabled:opacity-50"
-            >
-              {creatingManual ? "Iniciando..." : "Iniciar Histórico"}
-            </button>
-          </div>
-        </form>
-      )}
-
-      {/* MENSAGEM SE TIVER VAZIO E O FORMULÁRIO FECHADO */}
-      {plans.length === 0 && !loading && !showManualForm && (
+      {/* MENSAGEM SE TIVER VAZIO */}
+      {plans.length === 0 && !loading && (
         <div className="bg-white border border-[#ECE7DD] rounded-sm p-10 text-center shadow-sm">
-           <h3 className="font-serif text-lg text-[#111] mb-2">Nenhum Histórico</h3>
+           <h3 className="font-serif text-lg text-[#111] mb-2">Nenhum histórico clínico</h3>
            <p className="text-[11px] text-gray-400 uppercase tracking-widest">
-             Inicie um prontuário manualmente ou feche uma venda no financeiro.
+             Feche uma venda no caixa para iniciar o prontuário da paciente.
            </p>
         </div>
       )}
@@ -285,7 +219,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
                   <FileText size={14} /> PDF
                 </button>
                 <button onClick={() => setExpandedPlanId(expandedPlanId === plan.id ? null : plan.id)} className={`h-9 px-6 text-[10px] font-bold uppercase transition-all shadow-sm ${expandedPlanId === plan.id ? 'bg-gray-100 text-gray-600' : 'bg-[#111] text-white hover:bg-[#C8A35F]'}`}>
-                  {expandedPlanId === plan.id ? "Fechar" : "Registrar Sessão"}
+                  {expandedPlanId === plan.id ? "Fechar" : "Abrir Atendimento"}
                 </button>
                 <button onClick={() => removePlan(plan.id)} className="h-9 border border-red-50 px-2 text-red-200 hover:text-red-500 transition-colors">
                   <Trash2 size={16} />
@@ -317,26 +251,63 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
                       <textarea value={clinicalNotes} onChange={(e) => setClinicalNotes(e.target.value)} className="min-h-24 w-full border border-[#ECE7DD] bg-white p-3 text-sm outline-none focus:border-[#C8A35F] resize-none" />
                     </div>
                   </div>
-                  <div className="flex justify-between items-end gap-8 border-t border-[#ECE7DD] pt-6">
-                    <div className="flex-1">
-                      <FieldLabel>Fotos da Sessão</FieldLabel>
-                      <label className={`flex h-12 cursor-pointer items-center justify-center gap-3 border-2 border-dashed rounded transition-all ${uploadingImages ? 'border-gray-200 bg-gray-50' : 'border-[#C8A35F]/30 bg-white hover:border-[#C8A35F] hover:bg-[#FCFAF6]'}`}>
-                        {uploadingImages ? <Activity size={18} className="animate-spin text-gray-400" /> : <Camera size={18} className="text-[#C8A35F]" />}
-                        <span className="text-[10px] font-bold uppercase text-[#C8A35F]">{uploadingImages ? "Subindo..." : "Selecionar Fotos"}</span>
-                        <input type="file" accept="image/*" multiple className="hidden" disabled={uploadingImages} onChange={(e) => handleCreateImagesUpload(e.target.files)} />
-                      </label>
-                      <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
-                        {uploadedImages.map((img, i) => (
-                          <div key={i} className="h-16 w-16 border rounded overflow-hidden relative shadow-sm group shrink-0">
-                            <img src={img} className="h-full w-full object-cover" />
-                            <button onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><X size={14}/></button>
+                  <div className="flex flex-col gap-6 border-t border-[#ECE7DD] pt-6">
+                    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+                      <div className="flex-1">
+                        <FieldLabel>Fotos da Sessão</FieldLabel>
+                        <label className={`flex h-12 cursor-pointer items-center justify-center gap-3 border-2 border-dashed rounded transition-all ${uploadingImages ? 'border-gray-200 bg-gray-50' : 'border-[#C8A35F]/30 bg-white hover:border-[#C8A35F] hover:bg-[#FCFAF6]'}`}>
+                          {uploadingImages ? <Activity size={18} className="animate-spin text-gray-400" /> : <Camera size={18} className="text-[#C8A35F]" />}
+                          <span className="text-[10px] font-bold uppercase text-[#C8A35F]">{uploadingImages ? "Subindo..." : "Selecionar Fotos"}</span>
+                          <input type="file" accept="image/*" multiple className="hidden" disabled={uploadingImages} onChange={(e) => handleCreateImagesUpload(e.target.files)} />
+                        </label>
+                        <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
+                          {uploadedImages.map((img, i) => (
+                            <div key={i} className="h-16 w-16 border rounded overflow-hidden relative shadow-sm group shrink-0">
+                              <img src={img} className="h-full w-full object-cover" />
+                              <button onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><X size={14}/></button>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="rounded-sm border border-[#ECE7DD] bg-white p-4">
+                        <FieldLabel>Retorno automático na agenda</FieldLabel>
+                        <p className="text-[12px] leading-5 text-gray-500">
+                          Preencheu a data? O sistema já agenda o retorno automaticamente na <strong className="text-[#5A1F2B]">Sala B</strong>.
+                        </p>
+
+                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                          <div>
+                            <FieldLabel>Data do retorno</FieldLabel>
+                            <input
+                              type="date"
+                              value={recommendedReturn}
+                              onChange={(e) => setRecommendedReturn(e.target.value)}
+                              className="h-11 w-full border border-[#ECE7DD] bg-[#FCFAF6] px-3 text-sm outline-none focus:border-[#C8A35F] focus:bg-white transition-colors"
+                            />
                           </div>
-                        ))}
+                          <div>
+                            <FieldLabel>Horário</FieldLabel>
+                            <input
+                              type="time"
+                              value={returnTime}
+                              onChange={(e) => setReturnTime(e.target.value || "10:00")}
+                              className="h-11 w-full border border-[#ECE7DD] bg-[#FCFAF6] px-3 text-sm outline-none focus:border-[#C8A35F] focus:bg-white transition-colors"
+                            />
+                          </div>
+                        </div>
+
+                        <div className="mt-4 rounded-sm border border-dashed border-[#ECE7DD] bg-[#FCFAF6] p-3 text-[11px] leading-5 text-gray-500">
+                          Deixe a data vazia apenas quando não quiser marcar retorno. Se a Sala B estiver ocupada no horário escolhido, o sistema tenta encaixar no próximo horário livre do mesmo dia.
+                        </div>
                       </div>
                     </div>
-                    <button onClick={() => createSession(plan.id)} className="h-12 bg-[#111] text-white px-10 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-3 hover:bg-[#C8A35F] shadow-lg active:scale-95 transition-all">
-                      <Plus size={18} /> Salvar Registro
-                    </button>
+
+                    <div className="flex justify-end">
+                      <button onClick={() => createSession(plan.id)} className="h-12 bg-[#111] text-white px-10 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-3 hover:bg-[#C8A35F] shadow-lg active:scale-95 transition-all">
+                        <Plus size={18} /> Salvar Registro
+                      </button>
+                    </div>
                   </div>
                 </div>
 

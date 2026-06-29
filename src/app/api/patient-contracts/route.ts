@@ -15,6 +15,26 @@ function paymentMethodLabel(value: string) {
   return "Outro";
 }
 
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  try {
+    const contracts = await prisma.patientContract.findMany({
+      orderBy: { createdAt: "desc" },
+      include: {
+        patient: { select: { id: true, name: true, phone: true } },
+      },
+    });
+
+    return NextResponse.json(contracts);
+  } catch (error) {
+    console.error("Erro ao listar contratos:", error);
+    return NextResponse.json({ error: "Erro ao listar contratos." }, { status: 500 });
+  }
+}
+
 export async function POST(req: NextRequest) {
   // BLOQUEIO DE SEGURANÇA
   const session = await getServerSession(authOptions);

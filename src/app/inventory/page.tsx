@@ -169,7 +169,10 @@ export default function InventoryPage() {
 
     if (!res.ok) {
       const data = await res.json().catch(() => null);
-      alert(data?.error?.formErrors?.join?.(", ") || data?.error || "Erro ao salvar item no estoque.");
+      const message = typeof data?.error === "string"
+        ? data.error
+        : data?.error?.formErrors?.join?.(", ") || "Erro ao salvar item no estoque.";
+      alert(message);
     } else {
       setForm(emptyForm);
       await loadItems();

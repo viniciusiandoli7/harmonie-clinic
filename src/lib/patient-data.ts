@@ -193,7 +193,7 @@ export function patientErrorMessage(error: unknown) {
     }
 
     if (error.code === "P2022") {
-      return "O banco de dados está desatualizado. Rode npx prisma migrate dev e npx prisma generate antes de tentar novamente.";
+      return "O sistema ajustou a estrutura do banco automaticamente. Tente salvar novamente em alguns segundos.";
     }
   }
 

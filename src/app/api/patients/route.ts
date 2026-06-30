@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensurePatientSchema } from "@/lib/patientSchemaSql";
 import { createAuditLog } from "@/lib/audit";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -19,6 +20,8 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const includeInactive = url.searchParams.get("includeInactive") === "true";
 
+    await ensurePatientSchema(prisma as any);
+
     const patients = await prisma.patient.findMany({
       where: includeInactive ? {} : { isActive: true },
       orderBy: { name: "asc" },
@@ -37,6 +40,8 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
+    await ensurePatientSchema(prisma as any);
+
     const body = await req.json();
     const validationError = validatePatientPayload(body);
 

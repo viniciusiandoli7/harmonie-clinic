@@ -37,42 +37,55 @@ export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
-  const parsed = itemSchema.safeParse(await req.json());
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+  try {
+    const parsed = itemSchema.safeParse(await req.json());
+    if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
 
-  const item = await prisma.$transaction(async (tx) => {
-    const created = await createInventoryItemRaw(tx as any, {
+    const created = await createInventoryItemRaw(prisma as any, {
       ...parsed.data,
       entryQuantity: parsed.data.entryQuantity ?? parsed.data.quantity,
       status: parsed.data.status || "DISPONIVEL",
     });
 
-    if (created.quantity > 0) {
-      await (tx as any).inventoryMovement.create({
-        data: {
-          inventoryItemId: created.id,
-          type: "IN",
-          quantity: created.quantity,
-          unitValue: created.unitValue,
-          totalValue: created.quantity * created.unitValue,
-          reason: "Cadastro inicial do item",
-        },
-      });
+    if (created?.quantity > 0) {
+      try {
+        await (prisma as any).inventoryMovement.create({
+          data: {
+            inventoryItemId: created.id,
+            type: "IN",
+            quantity: created.quantity,
+            unitValue: created.unitValue,
+            totalValue: created.quantity * created.unitValue,
+            reason: "Cadastro inicial do item",
+          },
+        });
+      } catch (movementError) {
+        console.warn("Item salvo, mas movimento inicial de estoque não foi registrado:", movementError);
+      }
     }
 
-    await (tx as any).auditLog.create({
-      data: {
-        action: "CREATE",
-        entity: "InventoryItem",
-        entityId: created.id,
-        description: `Item cadastrado no estoque: ${created.product}`,
-        userName: "Dra. Mariana",
-        afterJson: created as any,
-      },
-    });
+    try {
+      await (prisma as any).auditLog.create({
+        data: {
+          action: "CREATE",
+          entity: "InventoryItem",
+          entityId: created.id,
+          description: `Item cadastrado no estoque: ${created.product}`,
+          userName: "Dra. Mariana",
+          afterJson: created as any,
+        },
+      });
+    } catch (auditError) {
+      console.warn("Item salvo, mas auditoria não foi registrada:", auditError);
+    }
 
-    return created;
-  });
-
-  return NextResponse.json(item, { status: 201 });
+    return NextResponse.json(created, { status: 201 });
+  } catch (error: any) {
+    console.error("POST /api/inventory-items error:", error);
+    return NextResponse.json(
+      { error: error?.message || "Erro ao salvar item no estoque." },
+      { status: 500 }
+    );
+  }
 }
+

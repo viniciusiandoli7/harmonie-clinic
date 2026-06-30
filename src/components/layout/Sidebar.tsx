@@ -39,7 +39,7 @@ export default function Sidebar() {
   return (
     <>
       <aside
-        className={`hidden min-h-screen flex-col justify-between border-r border-[rgba(90,31,43,.12)] bg-[rgba(251,248,242,.86)] text-brand-text shadow-[18px_0_55px_rgba(63,22,32,.06)] backdrop-blur-2xl transition-all duration-300 lg:flex ${
+        className={`sticky top-0 hidden h-screen min-h-screen flex-col justify-between border-r border-[rgba(90,31,43,.12)] bg-[rgba(251,248,242,.86)] text-brand-text shadow-[18px_0_55px_rgba(63,22,32,.06)] backdrop-blur-2xl transition-all duration-300 lg:flex ${
           collapsed ? "w-[92px]" : "w-[308px]"
         }`}
         aria-label="Navegação principal"
@@ -141,26 +141,46 @@ export default function Sidebar() {
         </div>
       </aside>
 
-      <header className="fixed inset-x-3 top-3 z-50 flex items-center justify-between rounded-3xl border border-[rgba(90,31,43,.12)] bg-[rgba(251,248,242,.92)] px-4 py-3 shadow-card backdrop-blur-2xl lg:hidden">
-        <Link href="/dashboard" className="flex items-center gap-3">
-          <img src={brand.symbol} alt="Logo Mariana Thomaz Carmona" className="h-11 w-11 object-contain" />
-          <div>
-            <p className="font-serif text-[18px] leading-none text-brand-primary">Mariana</p>
-            <p className="text-[8px] font-bold uppercase tracking-[0.28em] text-brand-text/55">Thomaz Carmona</p>
+      <header className="fixed inset-x-3 top-3 z-50 flex items-center justify-between rounded-3xl border border-[rgba(90,31,43,.12)] bg-[rgba(251,248,242,.94)] px-4 py-3 shadow-card backdrop-blur-2xl lg:hidden">
+        <Link href="/dashboard" className="flex min-w-0 items-center gap-3">
+          <img src={brand.symbol} alt="Logo Mariana Thomaz Carmona" className="h-11 w-11 shrink-0 object-contain" />
+          <div className="min-w-0">
+            <p className="truncate font-serif text-[18px] leading-none text-brand-primary">Mariana</p>
+            <p className="truncate text-[8px] font-bold uppercase tracking-[0.28em] text-brand-text/55">Thomaz Carmona</p>
           </div>
         </Link>
-        <nav className="flex items-center gap-1" aria-label="Navegação rápida mobile">
-          {menu.slice(0, 5).map((item) => {
-            const Icon = item.icon;
-            const active = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(item.href));
-            return (
-              <Link key={item.href} href={item.href} aria-label={item.label} className={`rounded-2xl p-2 transition ${active ? "bg-[rgba(90,31,43,.10)] text-brand-primary" : "text-brand-text/55"}`}>
-                <Icon size={17} />
-              </Link>
-            );
-          })}
-        </nav>
+
+        <button
+          onClick={() => signOut({ callbackUrl: "/login" })}
+          className="rounded-2xl border border-[rgba(90,31,43,.10)] px-3 py-2 text-[9px] font-bold uppercase tracking-[0.16em] text-brand-primary"
+          aria-label="Encerrar sessão"
+        >
+          Sair
+        </button>
       </header>
+
+      <nav
+        className="fixed inset-x-3 bottom-3 z-50 flex gap-2 overflow-x-auto rounded-[26px] border border-[rgba(90,31,43,.12)] bg-[rgba(251,248,242,.95)] p-2 shadow-[0_18px_55px_rgba(63,22,32,.16)] backdrop-blur-2xl lg:hidden"
+        aria-label="Menu principal mobile e tablet"
+      >
+        {menu.map((item) => {
+          const Icon = item.icon;
+          const active = pathname === item.href || (item.href !== "/dashboard" && pathname?.startsWith(item.href));
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-label={item.label}
+              className={`flex min-w-[86px] flex-col items-center justify-center gap-1 rounded-2xl px-3 py-2 text-center transition ${
+                active ? "bg-[rgba(90,31,43,.12)] text-brand-primary" : "text-brand-text/58"
+              }`}
+            >
+              <Icon size={18} strokeWidth={1.8} />
+              <span className="text-[9px] font-bold uppercase tracking-[0.08em]">{item.label}</span>
+            </Link>
+          );
+        })}
+      </nav>
     </>
   );
 }

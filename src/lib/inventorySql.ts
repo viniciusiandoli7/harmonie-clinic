@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { ensureInventorySchema } from "@/lib/productionSchemaSql";
 
 type PrismaLike = {
   $executeRawUnsafe: (query: string, ...values: any[]) => Promise<any>;
@@ -32,6 +33,8 @@ function toDateOrNull(value?: string | Date | null) {
 }
 
 export async function ensureInventoryItemExtendedColumns(client: PrismaLike) {
+  await ensureInventorySchema(client);
+
   await client.$executeRawUnsafe(`
     ALTER TABLE "InventoryItem"
     ADD COLUMN IF NOT EXISTS "category" TEXT,

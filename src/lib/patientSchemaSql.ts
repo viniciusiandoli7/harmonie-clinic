@@ -1,8 +1,12 @@
+import { ensurePatientFeatureTables } from "@/lib/productionSchemaSql";
+
 type PrismaLike = {
   $executeRawUnsafe: (query: string, ...values: any[]) => Promise<any>;
 };
 
 export async function ensurePatientSchema(client: PrismaLike) {
+  await ensurePatientFeatureTables(client);
+
   await client.$executeRawUnsafe(`
     ALTER TABLE "Patient"
     ADD COLUMN IF NOT EXISTS "birthDate" TIMESTAMP(3),

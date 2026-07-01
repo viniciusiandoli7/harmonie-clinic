@@ -1,6 +1,6 @@
 # QA / Teste rápido
 
-Depois de substituir os arquivos, rode:
+Depois de substituir os arquivos e subir no Vercel/GitHub, rode localmente:
 
 ```powershell
 npx prisma db push
@@ -16,15 +16,20 @@ npm run qa
 QA OK
 ```
 
-Teste manual sugerido:
+Teste manual sugerido em produção:
 
-1. Abrir o sistema no celular ou tablet.
-2. Conferir se aparece:
-   - barra superior com logo;
-   - menu inferior com todas as abas: Dashboard, Agenda, CRM, Financeiro, Estoque, WhatsApp, Relatórios e Executivo.
-3. Abrir **Estoque** e cadastrar um item.
-4. Confirmar se o item salva sem erro.
-5. Abrir **CRM Pacientes > Novo Paciente**.
-6. Preencher a aba **Relacionamento / CRM** e salvar.
-7. Confirmar se não aparece mais o aviso de banco desatualizado.
-8. Abrir **Financeiro** e confirmar se **Lançar venda/custos** continua funcionando.
+1. Abrir **Estoque**.
+2. Cadastrar um produto.
+3. Confirmar se não aparece mais:
+   - relation "InventoryItem" does not exist
+   - erro ao salvar item no estoque
+4. Abrir uma paciente.
+5. Clicar em **Prontuário & Evolução**.
+6. Confirmar se a tela abre sem cair em “Application error”.
+7. Testar novamente no celular/tablet:
+   - barra superior mobile;
+   - menu inferior com todas as abas;
+   - navegação entre Dashboard, Agenda, CRM, Financeiro, Estoque, WhatsApp, Relatórios e Executivo.
+
+Observação:
+Essa versão cria automaticamente, em produção, as tabelas novas necessárias caso o banco ainda não tenha recebido todas as migrations.

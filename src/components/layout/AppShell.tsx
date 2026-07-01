@@ -15,11 +15,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const isFullScreenPage = isLoginPage || isPublicSignaturePage;
 
   useEffect(() => {
-    if (isFullScreenPage) return;
+    if (isFullScreenPage || typeof window === "undefined") return;
 
-    fetch("/api/system/repair", { cache: "no-store" }).catch(() => {
-      // A tela não deve quebrar se a verificação automática falhar.
-    });
+    const key = "mariana-schema-repair-ok";
+    if (sessionStorage.getItem(key) === "1") return;
+
+    fetch("/api/system/repair", { cache: "no-store" })
+      .then((res) => {
+        if (res.ok) sessionStorage.setItem(key, "1");
+      })
+      .catch(() => {
+        // A tela não deve quebrar se a verificação automática falhar.
+      });
   }, [isFullScreenPage]);
 
   return (

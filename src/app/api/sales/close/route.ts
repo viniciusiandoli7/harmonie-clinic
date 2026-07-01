@@ -4,6 +4,8 @@ import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { buildContractHtml } from "@/lib/contracts";
+import { closeSaleRaw } from "@/lib/salesCloseSql";
+import { getPatientDetailRaw } from "@/lib/patientRaw";
 
 type RawSaleItem = {
   description?: string;
@@ -135,10 +137,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Selecione um paciente para fechar a venda." }, { status: 400 });
     }
 
-    const patient = await prisma.patient.findUnique({
-      where: { id: patientId },
-      select: { id: true, name: true, phone: true, email: true, cpf: true, rg: true, birthDate: true },
-    });
+    const patient = await getPatientDetailRaw(prisma as any, patientId);
 
     if (!patient) {
       return NextResponse.json({ error: "Paciente não encontrado. Atualize a página e tente novamente." }, { status: 404 });
@@ -209,170 +208,24 @@ export async function POST(request: NextRequest) {
       contractDate: new Date(),
     });
 
-    const result = await prisma.$transaction(async (tx) => {
-      const professional = await tx.professional.upsert({
-        where: { id: "mariana_id" },
-        update: { name: "Dra. Mariana Carmona", commission: clinicCommissionPct / 100, isActive: true },
-        create: { id: "mariana_id", name: "Dra. Mariana Carmona", commission: clinicCommissionPct / 100, isActive: true },
-      });
-
-      const treatment = await tx.treatment.upsert({
-        where: { name: "Procedimentos Estéticos" },
-        update: {},
-        create: {
-          name: "Procedimentos Estéticos",
-          template: "Contrato de prestação de serviços estéticos.",
-          standardPrice: 0,
-          averageCost: 0,
-          averageDurationMinutes: 60,
-          requiresTerm: true,
-        },
-      });
-
-      const sale = await tx.sale.create({
-        data: {
-          patientId,
-          serviceId: treatment.id,
-          professionalId: professional.id,
-          price: subtotal,
-          discount,
-          finalPrice: finalTotal,
-          payments: {
-            create: payments.map((payment) => ({
-              amount: payment.amount,
-              method: payment.method,
-            })),
-          },
-        },
-      });
-
-      await tx.saleItem.createMany({
-        data: normalizedItems.map((item) => ({
-          saleId: sale.id,
-          professionalId: professional.id,
-          productName: `${item.description}${item.observation ? ` (${item.observation})` : ""}`,
-          quantity: item.quantity,
-          unitPrice: item.unitPrice,
-          totalPrice: item.totalPrice,
-          commission: round2(item.totalPrice * (clinicCommissionPct / 100)),
-        })),
-      });
-
-      const financialTransaction = await tx.financialTransaction.create({
-        data: {
-          type: "INCOME",
-          category: "PROCEDIMENTO",
-          description: `Venda: ${generalTreatmentName}`,
-          amount: finalTotal,
-          grossAmount: subtotal,
-          feeAmount: 0,
-          netAmount: finalTotal,
-          commissionAmount: commissionValue,
-          operationalCost,
-          professionalValue,
-          clinicProfit,
-          profit: clinicProfit,
-          patientId,
-          saleId: sale.id,
-          date: new Date(),
-          status: pendingAmount <= 0.01 ? "PAID" : "PENDING",
-          paidAt: pendingAmount <= 0.01 ? new Date() : null,
-          paymentMethod: payments.length ? payments.map((payment) => payment.method).join(" + ") : null,
-          notes: body.notes ? String(body.notes) : null,
-        },
-      });
-
-      if (payments.length > 0) {
-        await tx.financialInstallment.createMany({
-          data: payments.map((payment, index) => ({
-            transactionId: financialTransaction.id,
-            saleId: sale.id,
-            patientId,
-            description: `Venda: ${generalTreatmentName} (${index + 1}/${payments.length})`,
-            installmentNumber: index + 1,
-            totalInstallments: payments.length,
-            amount: payment.amount,
-            feeAmount: 0,
-            netAmount: payment.amount,
-            dueDate: new Date(),
-            status: "PAID",
-            paidAt: new Date(),
-            paymentMethod: payment.method,
-          })),
-        });
-      }
-
-      if (pendingAmount > 0.01) {
-        await tx.financialInstallment.create({
-          data: {
-            transactionId: financialTransaction.id,
-            saleId: sale.id,
-            patientId,
-            description: `Saldo pendente: ${generalTreatmentName}`,
-            installmentNumber: payments.length + 1,
-            totalInstallments: payments.length + 1,
-            amount: pendingAmount,
-            feeAmount: 0,
-            netAmount: pendingAmount,
-            dueDate: new Date(),
-            status: "PENDING",
-            paymentMethod: null,
-          },
-        });
-      }
-
-      const contract = await tx.patientContract.create({
-        data: {
-          patientId,
-          title: `Contrato - ${dataAtual()}`,
-          content: contractHtml,
-          total: finalTotal,
-          token: contractToken,
-          itemsJson: normalizedItems,
-          status: "PENDING",
-          signatureName: null,
-          signatureImage: null,
-        },
-      });
-
-      await Promise.all(
-        normalizedItems.map((item) =>
-          tx.clinicalEvolutionPlan.create({
-            data: {
-              patientId,
-              treatmentName: item.description,
-              packageName: item.observation || "Sessão avulsa",
-              totalSessions: item.quantity,
-              completedSessions: 0,
-              status: "ACTIVE",
-              goals: body.goals ? String(body.goals) : "Definido no fechamento da venda.",
-              notes: body.notes ? String(body.notes) : null,
-            },
-          })
-        )
-      );
-
-      await tx.clinicalEvolution.create({
-        data: {
-          patientId,
-          content: `VENDA FECHADA: ${generalTreatmentName}. Total: R$ ${finalTotal.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}.`,
-          type: "SALE_RECORD",
-          important: true,
-        },
-      });
-
-      await tx.auditLog.create({
-        data: {
-          action: "CREATE",
-          entity: "Sale",
-          entityId: sale.id,
-          description: `Venda fechada: ${generalTreatmentName}`,
-          userName: "Dra. Mariana",
-          afterJson: { saleId: sale.id, patientId, finalTotal, payments, items: normalizedItems },
-        },
-      });
-
-      return { sale, contract, financialTransaction };
+    const result = await closeSaleRaw(prisma as any, {
+      patientId,
+      subtotal,
+      discount,
+      finalTotal,
+      payments,
+      normalizedItems,
+      clinicCommissionPct,
+      commissionValue,
+      operationalCost,
+      clinicProfit,
+      professionalValue,
+      pendingAmount,
+      generalTreatmentName,
+      contractToken,
+      contractHtml,
+      bodyNotes: body.notes ? String(body.notes) : null,
+      goals: body.goals ? String(body.goals) : null,
     });
 
     const contractLink = `${origin}/assinar-contrato/${result.contract.token}`;

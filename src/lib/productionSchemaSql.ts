@@ -1,9 +1,11 @@
+import { safeExecute } from "@/lib/safeSql";
+
 type PrismaLike = {
   $executeRawUnsafe: (query: string, ...values: any[]) => Promise<any>;
 };
 
 export async function ensureInventorySchema(client: PrismaLike) {
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "InventoryItem" (
       "id" TEXT PRIMARY KEY,
       "product" TEXT NOT NULL,
@@ -28,7 +30,7 @@ export async function ensureInventorySchema(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "InventoryMovement" (
       "id" TEXT PRIMARY KEY,
       "inventoryItemId" TEXT NOT NULL,
@@ -44,7 +46,7 @@ export async function ensureInventorySchema(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     ALTER TABLE "InventoryItem"
     ADD COLUMN IF NOT EXISTS "category" TEXT,
     ADD COLUMN IF NOT EXISTS "linkedProcedure" TEXT,
@@ -58,20 +60,20 @@ export async function ensureInventorySchema(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "exitDate" TIMESTAMP(3)
   `);
 
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryItem_product_idx" ON "InventoryItem"("product")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryItem_category_idx" ON "InventoryItem"("category")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryItem_linkedProcedure_idx" ON "InventoryItem"("linkedProcedure")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryItem_status_idx" ON "InventoryItem"("status")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryItem_patientName_idx" ON "InventoryItem"("patientName")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryItem_expiresAt_idx" ON "InventoryItem"("expiresAt")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryMovement_inventoryItemId_idx" ON "InventoryMovement"("inventoryItemId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryMovement_patientId_idx" ON "InventoryMovement"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryMovement_date_idx" ON "InventoryMovement"("date")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "InventoryMovement_type_idx" ON "InventoryMovement"("type")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryItem_product_idx" ON "InventoryItem"("product")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryItem_category_idx" ON "InventoryItem"("category")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryItem_linkedProcedure_idx" ON "InventoryItem"("linkedProcedure")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryItem_status_idx" ON "InventoryItem"("status")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryItem_patientName_idx" ON "InventoryItem"("patientName")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryItem_expiresAt_idx" ON "InventoryItem"("expiresAt")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryMovement_inventoryItemId_idx" ON "InventoryMovement"("inventoryItemId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryMovement_patientId_idx" ON "InventoryMovement"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryMovement_date_idx" ON "InventoryMovement"("date")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "InventoryMovement_type_idx" ON "InventoryMovement"("type")`);
 }
 
 export async function ensureAuditSchema(client: PrismaLike) {
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "AuditLog" (
       "id" TEXT PRIMARY KEY,
       "action" TEXT NOT NULL,
@@ -86,12 +88,12 @@ export async function ensureAuditSchema(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "AuditLog_entity_idx" ON "AuditLog"("entity")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "AuditLog_createdAt_idx" ON "AuditLog"("createdAt")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "AuditLog_entity_idx" ON "AuditLog"("entity")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "AuditLog_createdAt_idx" ON "AuditLog"("createdAt")`);
 }
 
 export async function ensurePatientFeatureTables(client: PrismaLike) {
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "Treatment" (
       "id" TEXT PRIMARY KEY,
       "name" TEXT NOT NULL,
@@ -111,7 +113,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     ALTER TABLE "Treatment"
     ADD COLUMN IF NOT EXISTS "template" TEXT NOT NULL DEFAULT '',
     ADD COLUMN IF NOT EXISTS "standardPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -128,7 +130,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "Professional" (
       "id" TEXT PRIMARY KEY,
       "name" TEXT NOT NULL,
@@ -141,7 +143,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     ALTER TABLE "Professional"
     ADD COLUMN IF NOT EXISTS "email" TEXT,
     ADD COLUMN IF NOT EXISTS "phone" TEXT,
@@ -151,7 +153,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "Sale" (
       "id" TEXT PRIMARY KEY,
       "patientId" TEXT NOT NULL,
@@ -165,7 +167,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     ALTER TABLE "Sale"
     ADD COLUMN IF NOT EXISTS "patientId" TEXT,
     ADD COLUMN IF NOT EXISTS "professionalId" TEXT,
@@ -177,7 +179,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "SalePayment" (
       "id" TEXT PRIMARY KEY,
       "saleId" TEXT NOT NULL,
@@ -187,7 +189,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     ALTER TABLE "SalePayment"
     ADD COLUMN IF NOT EXISTS "saleId" TEXT,
     ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION NOT NULL DEFAULT 0,
@@ -195,7 +197,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "SaleItem" (
       "id" TEXT PRIMARY KEY,
       "saleId" TEXT NOT NULL,
@@ -208,7 +210,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     ALTER TABLE "SaleItem"
     ADD COLUMN IF NOT EXISTS "saleId" TEXT,
     ADD COLUMN IF NOT EXISTS "professionalId" TEXT,
@@ -219,7 +221,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "commission" DOUBLE PRECISION NOT NULL DEFAULT 0
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "TreatmentCostItem" (
       "id" TEXT PRIMARY KEY,
       "treatmentId" TEXT NOT NULL,
@@ -234,7 +236,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "PatientConsentDocument" (
       "id" TEXT PRIMARY KEY,
       "token" TEXT NOT NULL,
@@ -251,7 +253,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "Appointment" (
       "id" TEXT PRIMARY KEY,
       "date" TIMESTAMP(3) NOT NULL,
@@ -268,7 +270,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "FinancialTransaction" (
       "id" TEXT PRIMARY KEY,
       "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -298,7 +300,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "FinancialInstallment" (
       "id" TEXT PRIMARY KEY,
       "transactionId" TEXT,
@@ -321,7 +323,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "PatientContract" (
       "id" TEXT PRIMARY KEY,
       "token" TEXT NOT NULL,
@@ -340,7 +342,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     ALTER TABLE "PatientContract"
     ADD COLUMN IF NOT EXISTS "token" TEXT,
     ADD COLUMN IF NOT EXISTS "patientId" TEXT,
@@ -357,7 +359,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "ClinicalEvolution" (
       "id" TEXT PRIMARY KEY,
       "patientId" TEXT NOT NULL,
@@ -370,7 +372,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
   `);
 
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "PatientPhoto" (
       "id" TEXT PRIMARY KEY,
       "patientId" TEXT NOT NULL,
@@ -387,7 +389,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "TreatmentPlan" (
       "id" TEXT PRIMARY KEY,
       "patientId" TEXT NOT NULL,
@@ -401,7 +403,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "TreatmentPlanStep" (
       "id" TEXT PRIMARY KEY,
       "planId" TEXT NOT NULL,
@@ -418,7 +420,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "StructuredClinicalEvolution" (
       "id" TEXT PRIMARY KEY,
       "patientId" TEXT NOT NULL,
@@ -441,7 +443,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "PostProcedureTask" (
       "id" TEXT PRIMARY KEY,
       "patientId" TEXT NOT NULL,
@@ -457,7 +459,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "EvaluationConversion" (
       "id" TEXT PRIMARY KEY,
       "patientId" TEXT NOT NULL,
@@ -474,7 +476,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "ClinicalEvolutionPlan" (
       "id" TEXT PRIMARY KEY,
       "patientId" TEXT NOT NULL,
@@ -492,7 +494,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "ClinicalEvolutionSession" (
       "id" TEXT PRIMARY KEY,
       "planId" TEXT NOT NULL,
@@ -510,35 +512,35 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Treatment_name_key" ON "Treatment"("name")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Professional_name_idx" ON "Professional"("name")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Sale_patientId_idx" ON "Sale"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Sale_createdAt_idx" ON "Sale"("createdAt")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Sale_professionalId_idx" ON "Sale"("professionalId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SaleItem_saleId_idx" ON "SaleItem"("saleId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "TreatmentCostItem_treatmentId_idx" ON "TreatmentCostItem"("treatmentId")`);
-  await client.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "PatientConsentDocument_token_key" ON "PatientConsentDocument"("token")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PatientConsentDocument_patientId_idx" ON "PatientConsentDocument"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PatientConsentDocument_treatmentId_idx" ON "PatientConsentDocument"("treatmentId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Appointment_patientId_idx" ON "Appointment"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Appointment_date_idx" ON "Appointment"("date")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialTransaction_patientId_idx" ON "FinancialTransaction"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialTransaction_date_idx" ON "FinancialTransaction"("date")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialInstallment_patientId_idx" ON "FinancialInstallment"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialInstallment_dueDate_idx" ON "FinancialInstallment"("dueDate")`);
-  await client.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "PatientContract_token_key" ON "PatientContract"("token")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PatientContract_patientId_idx" ON "PatientContract"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ClinicalEvolution_patientId_idx" ON "ClinicalEvolution"("patientId")`);
+  await safeExecute(client, `CREATE UNIQUE INDEX IF NOT EXISTS "Treatment_name_key" ON "Treatment"("name")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "Professional_name_idx" ON "Professional"("name")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "Sale_patientId_idx" ON "Sale"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "Sale_createdAt_idx" ON "Sale"("createdAt")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "Sale_professionalId_idx" ON "Sale"("professionalId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "SaleItem_saleId_idx" ON "SaleItem"("saleId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "TreatmentCostItem_treatmentId_idx" ON "TreatmentCostItem"("treatmentId")`);
+  await safeExecute(client, `CREATE UNIQUE INDEX IF NOT EXISTS "PatientConsentDocument_token_key" ON "PatientConsentDocument"("token")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "PatientConsentDocument_patientId_idx" ON "PatientConsentDocument"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "PatientConsentDocument_treatmentId_idx" ON "PatientConsentDocument"("treatmentId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "Appointment_patientId_idx" ON "Appointment"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "Appointment_date_idx" ON "Appointment"("date")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialTransaction_patientId_idx" ON "FinancialTransaction"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialTransaction_date_idx" ON "FinancialTransaction"("date")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialInstallment_patientId_idx" ON "FinancialInstallment"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialInstallment_dueDate_idx" ON "FinancialInstallment"("dueDate")`);
+  await safeExecute(client, `CREATE UNIQUE INDEX IF NOT EXISTS "PatientContract_token_key" ON "PatientContract"("token")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "PatientContract_patientId_idx" ON "PatientContract"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "ClinicalEvolution_patientId_idx" ON "ClinicalEvolution"("patientId")`);
 
-    await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PatientPhoto_patientId_idx" ON "PatientPhoto"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "TreatmentPlan_patientId_idx" ON "TreatmentPlan"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "TreatmentPlanStep_planId_idx" ON "TreatmentPlanStep"("planId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "StructuredClinicalEvolution_patientId_idx" ON "StructuredClinicalEvolution"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PostProcedureTask_patientId_idx" ON "PostProcedureTask"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "EvaluationConversion_patientId_idx" ON "EvaluationConversion"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ClinicalEvolutionPlan_patientId_idx" ON "ClinicalEvolutionPlan"("patientId")`);
-  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "ClinicalEvolutionSession_planId_idx" ON "ClinicalEvolutionSession"("planId")`);
+    await safeExecute(client, `CREATE INDEX IF NOT EXISTS "PatientPhoto_patientId_idx" ON "PatientPhoto"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "TreatmentPlan_patientId_idx" ON "TreatmentPlan"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "TreatmentPlanStep_planId_idx" ON "TreatmentPlanStep"("planId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "StructuredClinicalEvolution_patientId_idx" ON "StructuredClinicalEvolution"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "PostProcedureTask_patientId_idx" ON "PostProcedureTask"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "EvaluationConversion_patientId_idx" ON "EvaluationConversion"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "ClinicalEvolutionPlan_patientId_idx" ON "ClinicalEvolutionPlan"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "ClinicalEvolutionSession_planId_idx" ON "ClinicalEvolutionSession"("planId")`);
 }
 
 export async function ensureProductionSchema(client: PrismaLike) {

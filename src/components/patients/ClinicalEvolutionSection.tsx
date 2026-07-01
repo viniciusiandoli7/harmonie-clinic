@@ -313,8 +313,15 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
 
                 {/* HISTÓRICO DE SESSÕES DAQUELE PRONTUÁRIO */}
                 <div className="space-y-6">
-                  {plan.sessions.map((session) => {
-                    const sessionImages = Array.isArray(session.imagesJson) ? session.imagesJson : (typeof session.imagesJson === 'string' ? JSON.parse(session.imagesJson) : []);
+                  {(plan.sessions || []).map((session) => {
+                    let sessionImages: string[] = [];
+                    try {
+                      sessionImages = Array.isArray(session.imagesJson)
+                        ? session.imagesJson
+                        : (typeof session.imagesJson === "string" ? JSON.parse(session.imagesJson || "[]") : []);
+                    } catch {
+                      sessionImages = [];
+                    }
                     return (
                       <div key={session.id} className="border border-[#ECE7DD] bg-white p-6 rounded-sm flex flex-col md:flex-row gap-8 relative group">
                         <button onClick={() => removeSession(session.id)} className="absolute top-4 right-4 text-gray-200 hover:text-red-500 no-print opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16} /></button>

@@ -6,8 +6,9 @@ import { prisma } from "@/lib/prisma";
 import { ensurePatientSchema } from "@/lib/patientSchemaSql";
 import { createAuditLog } from "@/lib/audit";
 import { buildPatientUpdateData, patientErrorMessage, patientErrorStatus, toAuditJson } from "@/lib/patient-data";
+import { getPatientDetailRaw } from "@/lib/patientRaw";
 
-const paramsSchema = z.object({ id: z.string().uuid("ID inválido") });
+const paramsSchema = z.object({ id: z.string().min(1, "ID inválido") });
 type Ctx = { params: Promise<{ id: string }> };
 
 export async function GET(_: Request, context: Ctx) {
@@ -15,31 +16,14 @@ export async function GET(_: Request, context: Ctx) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    await ensurePatientSchema(prisma as any);
-
     const { id } = paramsSchema.parse(await context.params);
-    const patient = await prisma.patient.findUnique({
-      where: { id },
-      include: {
-        anamnesis: true,
-        appointments: { orderBy: { date: "desc" } },
-        transactions: { orderBy: { date: "desc" }, include: { installments: true } },
-        installments: { orderBy: { dueDate: "desc" } },
-        photos: { orderBy: { takenAt: "desc" } },
-        inventoryMovements: { orderBy: { date: "desc" }, include: { inventoryItem: true } },
-        contracts: { orderBy: { createdAt: "desc" } },
-        evolutionPlans: { include: { sessions: true }, orderBy: { createdAt: "desc" } },
-        evolutions: { orderBy: { createdAt: "desc" } },
-        treatmentPlans: { include: { steps: { include: { treatment: true }, orderBy: { priority: "asc" } } }, orderBy: { createdAt: "desc" } },
-        structuredEvolutions: { include: { treatment: true }, orderBy: { createdAt: "desc" } },
-        postProcedureTasks: { include: { treatment: true }, orderBy: { dueDate: "asc" } },
-        evaluationConversions: { orderBy: { evaluationDate: "desc" } },
-      },
-    });
+    const patient = await getPatientDetailRaw(prisma as any, id);
+
     if (!patient) return NextResponse.json({ error: "Paciente não encontrado" }, { status: 404 });
     return NextResponse.json(patient);
-  } catch {
-    return NextResponse.json({ error: "Erro ao buscar paciente" }, { status: 400 });
+  } catch (error) {
+    console.error("GET /api/patients/[id] error:", error);
+    return NextResponse.json({ error: patientErrorMessage(error) || "Erro ao buscar paciente" }, { status: patientErrorStatus(error) || 500 });
   }
 }
 

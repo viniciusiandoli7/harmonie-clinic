@@ -1,4 +1,5 @@
 import { randomUUID } from "crypto";
+import { safeExecute, safeQuery } from "@/lib/safeSql";
 
 type PrismaLike = {
   $executeRawUnsafe: (query: string, ...values: any[]) => Promise<any>;
@@ -18,7 +19,7 @@ export type BusinessGoalPayload = {
 };
 
 export async function ensureBusinessGoalPeriodColumns(client: PrismaLike) {
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "BusinessGoal" (
       "id" TEXT PRIMARY KEY,
       "month" TEXT NOT NULL,
@@ -35,21 +36,21 @@ export async function ensureBusinessGoalPeriodColumns(client: PrismaLike) {
     )
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE UNIQUE INDEX IF NOT EXISTS "BusinessGoal_month_key" ON "BusinessGoal"("month")
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     ALTER TABLE "BusinessGoal"
     ADD COLUMN IF NOT EXISTS "startDate" TIMESTAMP(3),
     ADD COLUMN IF NOT EXISTS "endDate" TIMESTAMP(3)
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE INDEX IF NOT EXISTS "BusinessGoal_startDate_idx" ON "BusinessGoal"("startDate")
   `);
 
-  await client.$executeRawUnsafe(`
+  await safeExecute(client, `
     CREATE INDEX IF NOT EXISTS "BusinessGoal_endDate_idx" ON "BusinessGoal"("endDate")
   `);
 }
@@ -57,17 +58,9 @@ export async function ensureBusinessGoalPeriodColumns(client: PrismaLike) {
 export async function getBusinessGoalByMonthRaw(client: PrismaLike, month: string) {
   await ensureBusinessGoalPeriodColumns(client);
 
-  const rows = await client.$queryRawUnsafe(
-    `
-      SELECT *
-      FROM "BusinessGoal"
-      WHERE "month" = $1
-      LIMIT 1
-    `,
-    month
-  );
+  const rows = await safeQuery<any>(client, `SELECT * FROM "BusinessGoal" WHERE "month" = $1 LIMIT 1`, month);
 
-  return Array.isArray(rows) ? rows[0] : null;
+  return rows[0] || null;
 }
 
 export async function createBusinessGoalRaw(client: PrismaLike, payload: BusinessGoalPayload) {

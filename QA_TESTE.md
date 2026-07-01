@@ -16,28 +16,19 @@ npm run qa
 QA OK
 ```
 
-Teste manual em produção:
+Teste em produção logo após o deploy ficar **Ready**:
 
-1. Depois do deploy ficar **Ready**, abra o site e faça login.
-2. Acesse uma página interna para disparar a verificação automática do banco.
-3. Abra diretamente:
-   `/api/system/repair`
-   Deve retornar `ok: true`.
-4. Teste **Executivo > Editar metas > Salvar metas**.
-5. Teste **CRM > Caixa/Ponto de venda > Finalizar venda**.
-6. Teste abrir paciente e clicar em **Prontuário & Evolução**.
-7. Teste **Estoque > Salvar item**.
+1. Acesse `/api/system/repair` logada. Deve retornar `ok: true`.
+2. Abra **CRM Pacientes** e clique em **Abrir ficha** de uma paciente.
+3. Clique em **Prontuário & Evolução**.
+4. Clique em **Fechar venda** e finalize uma venda.
+5. Abra **Executivo > Editar metas > Salvar metas**.
+6. Abra **Estoque** e salve um produto.
 
 Correções desta versão:
 
-- Cria/ajusta automaticamente tabelas e colunas de produção usadas por:
-  - Estoque
-  - Tratamentos
-  - Venda/Caixa
-  - Financeiro
-  - Contratos
-  - Prontuário & Evolução
-  - Metas/Executivo
-- Corrige erro de `Treatment.standardPrice`.
-- Corrige erro de `InventoryItem does not exist`.
-- Evita tela branca no prontuário caso a paciente não carregue.
+- A ficha da paciente agora usa uma leitura resiliente por SQL bruto, sem depender de includes do Prisma que estavam quebrando quando o banco de produção estava incompleto.
+- O caixa/fechamento de venda não usa mais `prisma.treatment.upsert`, que estava quebrando em produção por causa da coluna `Treatment.standardPrice` ausente.
+- A venda agora grava por SQL bruto resiliente: venda, pagamentos, itens, financeiro, contrato e plano de evolução.
+- A verificação automática do banco roda uma vez por sessão para reduzir travamento/lentidão.
+- Corrigido possível erro de tela branca no prontuário quando `imagesJson` vinha inválido ou sessões vinham sem array.

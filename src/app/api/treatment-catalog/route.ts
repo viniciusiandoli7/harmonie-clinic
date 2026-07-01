@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { createAuditLog } from "@/lib/audit";
 
 function numberOrZero(value: unknown) {
@@ -25,6 +26,7 @@ function mapCostItem(item: any) {
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
 
   const url = new URL(req.url);
   const includeInactive = url.searchParams.get("includeInactive") === "true";
@@ -49,6 +51,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
 
   const body = await req.json();
   const name = String(body.name || "").trim();

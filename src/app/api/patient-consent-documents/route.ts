@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
@@ -10,8 +11,10 @@ export async function GET(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
+  await ensureProductionSchema(prisma as any);
 
   try {
+    await ensureProductionSchema(prisma as any);
     const { searchParams } = new URL(req.url);
     const patientId = searchParams.get("patientId");
 
@@ -40,6 +43,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
+  await ensureProductionSchema(prisma as any);
 
   try {
     const body = await req.json();

@@ -1,6 +1,6 @@
 # QA / Teste rápido
 
-Depois de substituir os arquivos e subir no Vercel/GitHub, rode localmente:
+Depois de substituir os arquivos e subir no GitHub/Vercel, rode localmente:
 
 ```powershell
 npx prisma db push
@@ -16,20 +16,28 @@ npm run qa
 QA OK
 ```
 
-Teste manual sugerido em produção:
+Teste manual em produção:
 
-1. Abrir **Estoque**.
-2. Cadastrar um produto.
-3. Confirmar se não aparece mais:
-   - relation "InventoryItem" does not exist
-   - erro ao salvar item no estoque
-4. Abrir uma paciente.
-5. Clicar em **Prontuário & Evolução**.
-6. Confirmar se a tela abre sem cair em “Application error”.
-7. Testar novamente no celular/tablet:
-   - barra superior mobile;
-   - menu inferior com todas as abas;
-   - navegação entre Dashboard, Agenda, CRM, Financeiro, Estoque, WhatsApp, Relatórios e Executivo.
+1. Depois do deploy ficar **Ready**, abra o site e faça login.
+2. Acesse uma página interna para disparar a verificação automática do banco.
+3. Abra diretamente:
+   `/api/system/repair`
+   Deve retornar `ok: true`.
+4. Teste **Executivo > Editar metas > Salvar metas**.
+5. Teste **CRM > Caixa/Ponto de venda > Finalizar venda**.
+6. Teste abrir paciente e clicar em **Prontuário & Evolução**.
+7. Teste **Estoque > Salvar item**.
 
-Observação:
-Essa versão cria automaticamente, em produção, as tabelas novas necessárias caso o banco ainda não tenha recebido todas as migrations.
+Correções desta versão:
+
+- Cria/ajusta automaticamente tabelas e colunas de produção usadas por:
+  - Estoque
+  - Tratamentos
+  - Venda/Caixa
+  - Financeiro
+  - Contratos
+  - Prontuário & Evolução
+  - Metas/Executivo
+- Corrige erro de `Treatment.standardPrice`.
+- Corrige erro de `InventoryItem does not exist`.
+- Evita tela branca no prontuário caso a paciente não carregue.

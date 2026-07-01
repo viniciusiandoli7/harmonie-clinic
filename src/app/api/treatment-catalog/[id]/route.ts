@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { createAuditLog } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -23,6 +24,7 @@ function mapCostItem(item: any) {
 export async function GET(_: NextRequest, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
   const { id } = await ctx.params;
   const treatment = await prisma.treatment.findUnique({ where: { id }, include: { costItems: true, sales: true } });
   if (!treatment) return NextResponse.json({ error: "Procedimento não encontrado." }, { status: 404 });
@@ -32,6 +34,7 @@ export async function GET(_: NextRequest, ctx: Ctx) {
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
   const { id } = await ctx.params;
   const body = await req.json();
   const before = await prisma.treatment.findUnique({ where: { id }, include: { costItems: true } });
@@ -72,6 +75,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
 export async function DELETE(_: NextRequest, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
   const { id } = await ctx.params;
   const before = await prisma.treatment.findUnique({ where: { id } });
   if (!before) return NextResponse.json({ error: "Procedimento não encontrado." }, { status: 404 });

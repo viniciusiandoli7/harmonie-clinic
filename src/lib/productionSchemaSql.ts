@@ -112,6 +112,146 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
   `);
 
   await client.$executeRawUnsafe(`
+    ALTER TABLE "Treatment"
+    ADD COLUMN IF NOT EXISTS "template" TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS "standardPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "averageCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "averageDurationMinutes" INTEGER NOT NULL DEFAULT 60,
+    ADD COLUMN IF NOT EXISTS "defaultReturnDays" INTEGER,
+    ADD COLUMN IF NOT EXISTS "requiresTerm" BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN IF NOT EXISTS "requiresPhotos" BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS "requiresBatch" BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS "postCareInstructions" TEXT,
+    ADD COLUMN IF NOT EXISTS "defaultWhatsAppMessage" TEXT,
+    ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Professional" (
+      "id" TEXT PRIMARY KEY,
+      "name" TEXT NOT NULL,
+      "email" TEXT,
+      "phone" TEXT,
+      "commission" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "isActive" BOOLEAN NOT NULL DEFAULT true,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.$executeRawUnsafe(`
+    ALTER TABLE "Professional"
+    ADD COLUMN IF NOT EXISTS "email" TEXT,
+    ADD COLUMN IF NOT EXISTS "phone" TEXT,
+    ADD COLUMN IF NOT EXISTS "commission" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "isActive" BOOLEAN NOT NULL DEFAULT true,
+    ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "Sale" (
+      "id" TEXT PRIMARY KEY,
+      "patientId" TEXT NOT NULL,
+      "professionalId" TEXT NOT NULL,
+      "serviceId" TEXT NOT NULL,
+      "price" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "discount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "finalPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.$executeRawUnsafe(`
+    ALTER TABLE "Sale"
+    ADD COLUMN IF NOT EXISTS "patientId" TEXT,
+    ADD COLUMN IF NOT EXISTS "professionalId" TEXT,
+    ADD COLUMN IF NOT EXISTS "serviceId" TEXT,
+    ADD COLUMN IF NOT EXISTS "price" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "discount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "finalPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SalePayment" (
+      "id" TEXT PRIMARY KEY,
+      "saleId" TEXT NOT NULL,
+      "amount" DOUBLE PRECISION NOT NULL,
+      "method" TEXT NOT NULL,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.$executeRawUnsafe(`
+    ALTER TABLE "SalePayment"
+    ADD COLUMN IF NOT EXISTS "saleId" TEXT,
+    ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "method" TEXT NOT NULL DEFAULT 'OTHER',
+    ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "SaleItem" (
+      "id" TEXT PRIMARY KEY,
+      "saleId" TEXT NOT NULL,
+      "professionalId" TEXT,
+      "productName" TEXT NOT NULL,
+      "quantity" INTEGER NOT NULL DEFAULT 1,
+      "unitPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "commission" DOUBLE PRECISION NOT NULL DEFAULT 0
+    )
+  `);
+
+  await client.$executeRawUnsafe(`
+    ALTER TABLE "SaleItem"
+    ADD COLUMN IF NOT EXISTS "saleId" TEXT,
+    ADD COLUMN IF NOT EXISTS "professionalId" TEXT,
+    ADD COLUMN IF NOT EXISTS "productName" TEXT NOT NULL DEFAULT 'Procedimento',
+    ADD COLUMN IF NOT EXISTS "quantity" INTEGER NOT NULL DEFAULT 1,
+    ADD COLUMN IF NOT EXISTS "unitPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "totalPrice" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "commission" DOUBLE PRECISION NOT NULL DEFAULT 0
+  `);
+
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "TreatmentCostItem" (
+      "id" TEXT PRIMARY KEY,
+      "treatmentId" TEXT NOT NULL,
+      "name" TEXT NOT NULL,
+      "type" TEXT NOT NULL DEFAULT 'Produto',
+      "quantity" DOUBLE PRECISION NOT NULL DEFAULT 1,
+      "unitCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "totalCost" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "notes" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "PatientConsentDocument" (
+      "id" TEXT PRIMARY KEY,
+      "token" TEXT NOT NULL,
+      "patientId" TEXT NOT NULL,
+      "treatmentId" TEXT NOT NULL,
+      "title" TEXT NOT NULL,
+      "content" TEXT NOT NULL,
+      "status" TEXT NOT NULL DEFAULT 'PENDING',
+      "signedAt" TIMESTAMP(3),
+      "signatureName" TEXT,
+      "signatureIp" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS "Appointment" (
       "id" TEXT PRIMARY KEY,
       "date" TIMESTAMP(3) NOT NULL,
@@ -198,6 +338,23 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
       "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
       "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
     )
+  `);
+
+  await client.$executeRawUnsafe(`
+    ALTER TABLE "PatientContract"
+    ADD COLUMN IF NOT EXISTS "token" TEXT,
+    ADD COLUMN IF NOT EXISTS "patientId" TEXT,
+    ADD COLUMN IF NOT EXISTS "title" TEXT NOT NULL DEFAULT 'Contrato',
+    ADD COLUMN IF NOT EXISTS "content" TEXT NOT NULL DEFAULT '',
+    ADD COLUMN IF NOT EXISTS "total" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'PENDING',
+    ADD COLUMN IF NOT EXISTS "itemsJson" JSONB NOT NULL DEFAULT '[]'::jsonb,
+    ADD COLUMN IF NOT EXISTS "signatureName" TEXT,
+    ADD COLUMN IF NOT EXISTS "signatureImage" TEXT,
+    ADD COLUMN IF NOT EXISTS "signatureIp" TEXT,
+    ADD COLUMN IF NOT EXISTS "signedAt" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
   `);
 
   await client.$executeRawUnsafe(`
@@ -354,6 +511,16 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
   `);
 
   await client.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "Treatment_name_key" ON "Treatment"("name")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Professional_name_idx" ON "Professional"("name")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Sale_patientId_idx" ON "Sale"("patientId")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Sale_createdAt_idx" ON "Sale"("createdAt")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Sale_professionalId_idx" ON "Sale"("professionalId")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SalePayment_saleId_idx" ON "SalePayment"("saleId")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "SaleItem_saleId_idx" ON "SaleItem"("saleId")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "TreatmentCostItem_treatmentId_idx" ON "TreatmentCostItem"("treatmentId")`);
+  await client.$executeRawUnsafe(`CREATE UNIQUE INDEX IF NOT EXISTS "PatientConsentDocument_token_key" ON "PatientConsentDocument"("token")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PatientConsentDocument_patientId_idx" ON "PatientConsentDocument"("patientId")`);
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PatientConsentDocument_treatmentId_idx" ON "PatientConsentDocument"("treatmentId")`);
   await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Appointment_patientId_idx" ON "Appointment"("patientId")`);
   await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "Appointment_date_idx" ON "Appointment"("date")`);
   await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "FinancialTransaction_patientId_idx" ON "FinancialTransaction"("patientId")`);

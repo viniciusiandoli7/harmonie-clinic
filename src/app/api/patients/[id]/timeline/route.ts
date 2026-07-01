@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -149,6 +150,7 @@ function cleanTimelineText(value?: string | null) {
 export async function GET(_: NextRequest, context: Context) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
 
   const { id } = await context.params;
   const patient = await prisma.patient.findUnique({ where: { id }, select: { id: true, name: true, createdAt: true } });

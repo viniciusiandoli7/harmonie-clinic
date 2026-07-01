@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 
 type Ctx = {
   params: Promise<{ id: string }>;
@@ -10,8 +11,10 @@ type Ctx = {
 export async function DELETE(_: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
 
   try {
+    await ensureProductionSchema(prisma as any);
     const { id } = await ctx.params;
 
     const plan = await prisma.clinicalEvolutionPlan.findUnique({

@@ -32,12 +32,14 @@ export default function PatientDetailPage() {
   const [insights, setInsights] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
 
   // CARREGAMENTO INTEGRADO
   useEffect(() => {
     async function load() {
       try {
         setLoading(true);
+        setLoadError("");
         
         const [pRes, aRes, iRes, planRes, salesRes, contractsRes, timelineRes] = await Promise.all([
           fetch(`/api/patients/${id}`),
@@ -50,6 +52,12 @@ export default function PatientDetailPage() {
         ]);
         
         const patientData = pRes.ok ? await pRes.json() : null;
+        if (!pRes.ok || !patientData?.id) {
+          const err = await pRes.json().catch(() => null);
+          setLoadError(err?.error || "Não foi possível carregar a paciente. A estrutura do banco pode estar sendo atualizada; atualize a página em alguns segundos.");
+          setPatient(null);
+          return;
+        }
         const appointmentsData = aRes.ok ? await aRes.json() : [];
         const insightsData = iRes.ok ? await iRes.json() : null;
         const salesData = salesRes.ok ? await salesRes.json() : [];
@@ -191,11 +199,27 @@ export default function PatientDetailPage() {
     </div>
   );
 
+  if (!patient?.id) return (
+    <div className="flex min-h-screen items-center justify-center bg-[#F7F2EA] p-6">
+      <div className="max-w-xl rounded-3xl border border-[#5A1F2B]/15 bg-white p-8 text-center shadow-sm">
+        <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#5A1F2B]/70">Prontuário indisponível</p>
+        <h1 className="mt-3 font-serif text-3xl text-[#1E1A18]">Não foi possível carregar esta paciente</h1>
+        <p className="mt-4 text-sm leading-7 text-[#5B3A2E]/70">
+          {loadError || "Atualize a página. Se o banco estava sendo preparado agora, a próxima tentativa deve carregar normalmente."}
+        </p>
+        <div className="mt-6 flex justify-center gap-3">
+          <button onClick={() => window.location.reload()} className="btn-primary">Atualizar página</button>
+          <button onClick={() => router.push("/patients")} className="btn-secondary">Voltar ao CRM</button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-[#F7F2EA] font-sans antialiased text-[#1E1A18]">
       
       {/* HEADER FIXO */}
-      <div className="bg-white/90 backdrop-blur-md border-b border-[#EEE] px-10 py-5 sticky top-0 z-40 flex justify-between items-center shadow-sm">
+      <div className="bg-white/90 backdrop-blur-md border-b border-[#EEE] px-4 py-4 sm:px-6 lg:px-10 lg:py-5 sticky top-0 z-40 flex justify-between items-center shadow-sm">
         <div className="flex items-center gap-6">
           <button onClick={() => router.push('/patients')} className="p-2 hover:bg-[#F7F2EA] rounded-full transition-all text-[#5B3A2E99] hover:text-[#1E1A18]">
             <ChevronLeft size={22} />
@@ -225,8 +249,8 @@ export default function PatientDetailPage() {
       </div>
 
       {/* SUB-NAVEGAÇÃO */}
-      <div className="px-10 mt-8 border-b border-[#EEE]">
-        <div className="flex gap-12">
+      <div className="px-4 sm:px-6 lg:px-10 mt-8 border-b border-[#EEE] overflow-x-auto">
+        <div className="flex min-w-max gap-6 lg:gap-12">
           {[
             { id: "GERAL", label: "Informações", icon: <User size={14}/> },
             { id: "TIMELINE", label: "Timeline", icon: <Clock3 size={14}/> },
@@ -252,7 +276,7 @@ export default function PatientDetailPage() {
         </div>
       </div>
 
-      <div className="px-10 py-10 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-12">
+      <div className="px-4 py-8 sm:px-6 lg:px-10 lg:py-10 max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-8 lg:gap-12">
         
         <main className="min-h-[60vh]">
           {/* ABA INFORMAÇÕES */}
@@ -343,10 +367,10 @@ export default function PatientDetailPage() {
           )}
 
           {/* ABA PRONTUÁRIO COM ASSINATURA AUTOMÁTICA */}
-          {activeTab === "PRONTUARIO" && (
+          {activeTab === "PRONTUARIO" && patient?.id && (
               <div className="animate-in fade-in duration-500">
                 <ClinicalEvolutionSection 
-                  patient={{ id: patient.id, name: patient.name, phone: patient.phone }} 
+                  patient={{ id: patient.id, name: patient.name || "Paciente", phone: patient.phone }} 
                   contractSignature={contracts.find(c => c.status === "SIGNED")?.signatureImage}
                 />
                 <StructuredEvolutionPremiumSection patientId={patient.id} />
@@ -365,7 +389,7 @@ export default function PatientDetailPage() {
 
           {/* ABA WHATSAPP E PÓS */}
           {activeTab === "WHATSAPP" && patient?.id && (
-            <PatientPostCareSection patient={{ id: patient.id, name: patient.name, phone: patient.phone }} />
+            <PatientPostCareSection patient={{ id: patient.id, name: patient.name || "Paciente", phone: patient.phone }} />
           )}
 
           {/* ABA PROTOCOLO LEGADO */}

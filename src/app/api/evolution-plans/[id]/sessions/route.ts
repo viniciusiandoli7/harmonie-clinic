@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { schedulePatientReturn } from "@/services/returnSchedulingService";
 
 type Ctx = {
@@ -16,8 +17,10 @@ function nullableText(value: unknown) {
 export async function POST(req: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
 
   try {
+    await ensureProductionSchema(prisma as any);
     const { id } = await ctx.params;
     const body = await req.json().catch(() => ({}));
 

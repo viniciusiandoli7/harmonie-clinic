@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { buildContractHtml } from "@/lib/contracts";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -19,8 +20,10 @@ function paymentMethodLabel(value: string) {
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+  await ensureProductionSchema(prisma as any);
 
   try {
+    await ensureProductionSchema(prisma as any);
     const contracts = await prisma.patientContract.findMany({
       orderBy: { createdAt: "desc" },
       include: {
@@ -41,6 +44,7 @@ export async function POST(req: NextRequest) {
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
+  await ensureProductionSchema(prisma as any);
 
   try {
     const body = await req.json();

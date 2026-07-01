@@ -19,6 +19,27 @@ export type BusinessGoalPayload = {
 
 export async function ensureBusinessGoalPeriodColumns(client: PrismaLike) {
   await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "BusinessGoal" (
+      "id" TEXT PRIMARY KEY,
+      "month" TEXT NOT NULL,
+      "startDate" TIMESTAMP(3),
+      "endDate" TIMESTAMP(3),
+      "revenueGoal" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "patientGoal" INTEGER NOT NULL DEFAULT 0,
+      "evaluationGoal" INTEGER NOT NULL DEFAULT 0,
+      "conversionGoal" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "averageTicketGoal" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "notes" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await client.$executeRawUnsafe(`
+    CREATE UNIQUE INDEX IF NOT EXISTS "BusinessGoal_month_key" ON "BusinessGoal"("month")
+  `);
+
+  await client.$executeRawUnsafe(`
     ALTER TABLE "BusinessGoal"
     ADD COLUMN IF NOT EXISTS "startDate" TIMESTAMP(3),
     ADD COLUMN IF NOT EXISTS "endDate" TIMESTAMP(3)

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 
@@ -12,6 +13,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/assinar/") ||
     pathname.startsWith("/assinar-contrato/");
   const isFullScreenPage = isLoginPage || isPublicSignaturePage;
+
+  useEffect(() => {
+    if (isFullScreenPage) return;
+
+    fetch("/api/system/repair", { cache: "no-store" }).catch(() => {
+      // A tela não deve quebrar se a verificação automática falhar.
+    });
+  }, [isFullScreenPage]);
 
   return (
     <div className="flex min-h-screen w-full">

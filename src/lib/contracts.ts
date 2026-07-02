@@ -693,6 +693,66 @@ const TREATMENT_TEXTS: Record<string, string> = {
   `
 };
 
+const TREATMENT_ALIASES: Record<string, string> = {
+  "PEELING RETINOL": "PEELING",
+  "PEELING LÁCTICO": "PEELING",
+  "PEELING LACTICO": "PEELING",
+  "PEELING MANDÉLICO": "PEELING",
+  "PEELING MANDELICO": "PEELING",
+  "PEELING ATA": "PEELING",
+
+  "BIOESTIMULADOR ELLEVA X": "BIOESTIMULADOR",
+  "BIOESTIMULADOR ÁCIDO POLILÁTICO": "BIOESTIMULADOR",
+  "BIOESTIMULADOR ACIDO POLILATICO": "BIOESTIMULADOR",
+  "BIOESTIMULADOR HIDROXIAPATITA DE CÁLCIO": "BIOESTIMULADOR",
+  "BIOESTIMULADOR HIDROXIAPATITA DE CALCIO": "BIOESTIMULADOR",
+
+  "PREENCHEDOR RESTYLANE KYSSE": "PREENCHIMENTO",
+  "PREENCHEDOR RESTYLANE GEL": "PREENCHIMENTO",
+  "PREENCHEDOR BIOGELIS VOLUME": "PREENCHIMENTO",
+  "PREENCHEDOR BIOGELIS VOLUMAX": "PREENCHIMENTO",
+  "PREENCHIMENTO DE GLÚTEO": "PREENCHIMENTO",
+  "PREENCHIMENTO DE GLUTEOS": "PREENCHIMENTO",
+  "PREENCHIMENTO DE GLÚTEOS": "PREENCHIMENTO",
+  "PREENCHIMENTO DE GLUTEO": "PREENCHIMENTO",
+
+  "SKINBOOSTER RESTYLANE VITAL": "SKINBOOSTER",
+  "SKINBOOSTER VITAMINAS": "SKINBOOSTER",
+
+  "MICROAGULHAMENTO COM ATIVOS": "MICROAGULHAMENTO",
+  "MICROAGULHAMENTO BIORREGENERADOR": "MICROAGULHAMENTO",
+
+  "JATO DE PLASMA": "JATO DE PLASMA",
+  "ULTRASSOM MICROFOCADO E MACROFOCADO": "ULTRASSOM MICRO E MACROFOCADO",
+  "ULTRASSOM MICRO E MACROFOCADO": "ULTRASSOM MICRO E MACROFOCADO",
+};
+
+function normalizeTreatmentKey(value: string) {
+  return String(value || "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+}
+
+function findTreatmentClauseKey(description: string) {
+  const normalizedDescription = normalizeTreatmentKey(description);
+
+  const aliasKey = Object.keys(TREATMENT_ALIASES).find((key) => {
+    const normalizedAlias = normalizeTreatmentKey(key);
+    return normalizedDescription.includes(normalizedAlias) || normalizedAlias.includes(normalizedDescription);
+  });
+
+  if (aliasKey) return TREATMENT_ALIASES[aliasKey];
+
+  return Object.keys(TREATMENT_TEXTS).find((key) => {
+    const normalizedKey = normalizeTreatmentKey(key);
+    return normalizedDescription.includes(normalizedKey) || normalizedKey.includes(normalizedDescription);
+  }) || null;
+}
+
+
+
 export function buildContractHtml(params: {
   patient: { name: string; email?: string | null; phone?: string | null; birthDate?: string | Date | null; cpf?: string | null; rg?: string | null; };
   clinic: { companyName: string; cnpj: string; address: string; email: string; };
@@ -720,10 +780,7 @@ export function buildContractHtml(params: {
   `).join("");
 
   const specificTreatmentsHtml = params.items.map((item) => {
-    const normalizedDesc = item.description.toUpperCase().trim();
-    const foundKey = Object.keys(TREATMENT_TEXTS).find((key) =>
-      normalizedDesc.includes(key) || key.includes(normalizedDesc)
-    );
+    const foundKey = findTreatmentClauseKey(item.description);
 
     const clauseText = foundKey ? TREATMENT_TEXTS[foundKey] : null;
 

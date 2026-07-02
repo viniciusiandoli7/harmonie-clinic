@@ -11,7 +11,8 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/consent/") ||
     pathname.startsWith("/contracts/") ||
     pathname.startsWith("/assinar/") ||
-    pathname.startsWith("/assinar-contrato/");
+    pathname.startsWith("/assinar-contrato/") ||
+    pathname.startsWith("/anamnese/");
   const isFullScreenPage = isLoginPage || isPublicSignaturePage;
 
   useEffect(() => {

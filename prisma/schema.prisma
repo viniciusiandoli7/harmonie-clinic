@@ -140,6 +140,11 @@ model PatientAnamnesis {
   profession               String?
   sunExposure              Boolean  @default(false)
   mainComplaint            String?
+  previousAestheticProcedures String?
+  roacutanDetails          String?
+  waterIntake              String?
+  cancerHistory            Boolean  @default(false)
+  circulationProblems      String?
   
   // Campos da Anamnese
   previousFillers          String?

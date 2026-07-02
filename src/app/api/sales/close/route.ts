@@ -196,8 +196,8 @@ export async function POST(request: NextRequest) {
       clinic: {
         companyName: "Mariana Thomaz Carmona",
         cnpj: "57.007.483/0001-73",
-        address: "Avenida Coronel Sezefredo Fagundes, Nº 2168",
-        email: "contato@marianathomazcarmona.com",
+        address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista",
+        email: "marianacarmona447@gmail.com",
       },
       items: contractItems,
       subtotal,

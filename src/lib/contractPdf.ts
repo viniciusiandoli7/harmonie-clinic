@@ -169,8 +169,8 @@ export async function generateContractPdf(params: ContractPdfParams) {
   const clinic = {
     companyName: params.clinic?.companyName || "Mariana Thomaz Carmona",
     cnpj: params.clinic?.cnpj || "57.007.483/0001-73",
-    address: params.clinic?.address || "Avenida Coronel Sezefredo Fagundes, Nº 2168",
-    email: params.clinic?.email || "contato@marianathomazcarmona.com",
+    address: params.clinic?.address || "Rua Itapeva, 518 - conjunto 1507 - Bela Vista",
+    email: params.clinic?.email || "marianacarmona447@gmail.com",
   };
 
   const items = normalizeItems(params.items);

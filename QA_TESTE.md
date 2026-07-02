@@ -16,19 +16,37 @@ npm run qa
 QA OK
 ```
 
-Teste em produção logo após o deploy ficar **Ready**:
+Teste manual sugerido:
 
-1. Acesse `/api/system/repair` logada. Deve retornar `ok: true`.
-2. Abra **CRM Pacientes** e clique em **Abrir ficha** de uma paciente.
-3. Clique em **Prontuário & Evolução**.
-4. Clique em **Fechar venda** e finalize uma venda.
-5. Abra **Executivo > Editar metas > Salvar metas**.
-6. Abra **Estoque** e salve um produto.
+1. Abrir uma paciente já cadastrada.
+2. Na aba **Informações**, conferir o bloco **Ficha de anamnese**.
+3. Clicar em **Copiar link** e abrir o link em outra aba:
+   `/anamnese/ID_DA_PACIENTE`
+4. Preencher a anamnese on-line e salvar.
+5. Voltar para a ficha da paciente e atualizar a página.
+6. Confirmar se as respostas aparecem salvas em **Informações > Ficha de anamnese**.
+7. Testar **Enviar pelo WhatsApp** para conferir se a mensagem leva ao link da anamnese.
+8. Abrir **Editar paciente > Ficha de Anamnese** e conferir se as perguntas também aparecem para edição interna.
 
-Correções desta versão:
+Depois do deploy em produção, abrir logado:
 
-- A ficha da paciente agora usa uma leitura resiliente por SQL bruto, sem depender de includes do Prisma que estavam quebrando quando o banco de produção estava incompleto.
-- O caixa/fechamento de venda não usa mais `prisma.treatment.upsert`, que estava quebrando em produção por causa da coluna `Treatment.standardPrice` ausente.
-- A venda agora grava por SQL bruto resiliente: venda, pagamentos, itens, financeiro, contrato e plano de evolução.
-- A verificação automática do banco roda uma vez por sessão para reduzir travamento/lentidão.
-- Corrigido possível erro de tela branca no prontuário quando `imagesJson` vinha inválido ou sessões vinham sem array.
+```txt
+https://harmonie-clinic.vercel.app/api/system/repair
+```
+
+O retorno esperado é `ok: true`.
+
+Alterações desta versão:
+
+- Anamnese com as perguntas novas solicitadas.
+- Anamnese salva e visível dentro da ficha da paciente.
+- Link público para a paciente preencher on-line.
+- Botão para copiar link da anamnese.
+- Botão para enviar anamnese pelo WhatsApp.
+- Campos novos no banco:
+  - previousAestheticProcedures
+  - roacutanDetails
+  - waterIntake
+  - cancerHistory
+  - circulationProblems
+- Alertas clínicos também consideram histórico de câncer e trombose/circulação.

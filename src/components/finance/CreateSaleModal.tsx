@@ -9,9 +9,36 @@ import { generateContractPdf } from "@/lib/contractPdf";
 interface Props { open: boolean; onClose: () => void; patient: any; }
 
 const TREATMENTS = [
-  "ULTRASSOM MICRO E MACROFOCADO", "TOXINA BOTULÍNICA", "SKINBOOSTER", "PREENCHIMENTO",
-  "PEIM", "PEELING", "PDRN", "MICROAGULHAMENTO", "MESOTERAPIA", "LIMPEZA DE PELE PROFUNDA",
-  "LAVIEEN", "JATO DE PLASMA", "FIOS DE PDO", "BIOESTIMULADOR", "INTRADERMOTERAPIA LOCAL", "INTRADERMOTERAPIA IM"
+  "Peeling Retinol",
+  "Peeling Láctico",
+  "Peeling Mandélico",
+  "Peeling ATA",
+  "Bioestimulador elleva X",
+  "Bioestimulador ácido polilático",
+  "Bioestimulador hidroxiapatita de cálcio",
+  "Preenchedor restylane kysse",
+  "Preenchedor restylane gel",
+  "Preenchedor biogelis volume",
+  "Preenchedor biogelis volumax",
+  "Skinbooster restylane vital",
+  "Skinbooster vitaminas",
+  "Consulta",
+  "Retorno",
+  "Toxina botulínica",
+  "PEIM",
+  "Preenchimento de glúteo",
+  "PDRN",
+  "Microagulhamento com ativos",
+  "Microagulhamento biorregenerador",
+  "Mesoterapia",
+  "Jato de plasma",
+  "Ultrassom microfocado e macrofocado",
+  "Laser CO2",
+  "Laser",
+  "Fios de PDO",
+  "Intradermoterapia local",
+  "Intradermoterapia IM",
+  "Preparação de pele",
 ];
 const PROFESSIONALS = ["Dra. Mariana Carmona"];
 
@@ -119,7 +146,7 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
 
       const htmlContent = buildContractHtml({
         patient: { name: patient.name, cpf: patient.cpf, rg: patient.rg, phone: patient.phone, birthDate: patient.birthDate },
-        clinic: { companyName: "Mariana Thomaz Carmona", cnpj: "57.007.483/0001-73", address: "Avenida Coronel Sezefredo Fagundes, Nº 2168", email: "contato@marianathomazcarmona.com" },
+        clinic: { companyName: "Mariana Thomaz Carmona", cnpj: "57.007.483/0001-73", address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista", email: "marianacarmona447@gmail.com" },
         items: contractItems, subtotal, discount: numDiscount, total: finalTotal,
         paymentMethodLabel, signatureImage: null 
       } as any); 
@@ -128,7 +155,7 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
         filename: `Contrato_${patient.name.replace(/\s/g, "_")}.pdf`,
         title: "Contrato de Prestação de Serviços Estéticos",
         patient: { name: patient.name, cpf: patient.cpf, rg: patient.rg, phone: patient.phone, birthDate: patient.birthDate },
-        clinic: { companyName: "Mariana Thomaz Carmona", cnpj: "57.007.483/0001-73", address: "Avenida Coronel Sezefredo Fagundes, Nº 2168", email: "contato@marianathomazcarmona.com" },
+        clinic: { companyName: "Mariana Thomaz Carmona", cnpj: "57.007.483/0001-73", address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista", email: "marianacarmona447@gmail.com" },
         items: contractItems,
         subtotal,
         discount: numDiscount,

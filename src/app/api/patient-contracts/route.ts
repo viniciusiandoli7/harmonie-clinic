@@ -86,10 +86,10 @@ export async function POST(req: NextRequest) {
         rg: (body.rg as string) || "",
       },
       clinic: {
-        companyName: "Thomaz & Carmona LTDA",
+        companyName: "Mariana Thomaz Carmona",
         cnpj: "57.007.483/0001-73",
-        address: "Avenida Coronel Sezefredo Fagundes, Nº 2168 - Jardim Leonor",
-        email: "thomazcarmona1@gmail.com",
+        address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista",
+        email: "marianacarmona447@gmail.com",
       },
       items,
       subtotal,

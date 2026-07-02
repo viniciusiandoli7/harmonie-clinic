@@ -7,6 +7,62 @@ type PrismaLike = {
 export async function ensurePatientSchema(client: PrismaLike) {
   await ensurePatientFeatureTables(client);
 
+
+  await client.$executeRawUnsafe(`
+    CREATE TABLE IF NOT EXISTS "PatientAnamnesis" (
+      "id" TEXT PRIMARY KEY,
+      "patientId" TEXT NOT NULL UNIQUE,
+      "profession" TEXT,
+      "sunExposure" BOOLEAN NOT NULL DEFAULT false,
+      "mainComplaint" TEXT,
+      "previousAestheticProcedures" TEXT,
+      "previousFillers" TEXT,
+      "previousBotox" TEXT,
+      "takingRoacutan" BOOLEAN NOT NULL DEFAULT false,
+      "roacutanDetails" TEXT,
+      "medications" TEXT,
+      "allergicToEgg" BOOLEAN NOT NULL DEFAULT false,
+      "allergicToSeafood" TEXT,
+      "dentalAnesthesia" BOOLEAN NOT NULL DEFAULT false,
+      "dentalAnesthesiaReaction" BOOLEAN NOT NULL DEFAULT false,
+      "procedureReaction" TEXT,
+      "keloidTendency" BOOLEAN NOT NULL DEFAULT false,
+      "degenerativeDisease" TEXT,
+      "diseases" TEXT,
+      "allergies" TEXT,
+      "hasHerpes" BOOLEAN NOT NULL DEFAULT false,
+      "usesAspirin" BOOLEAN NOT NULL DEFAULT false,
+      "usesCorticosteroids" BOOLEAN NOT NULL DEFAULT false,
+      "smoker" BOOLEAN NOT NULL DEFAULT false,
+      "drinksAlcohol" BOOLEAN NOT NULL DEFAULT false,
+      "bloodPressure" TEXT,
+      "waterIntake" TEXT,
+      "pregnantOrNursing" BOOLEAN NOT NULL DEFAULT false,
+      "previousPregnancies" BOOLEAN NOT NULL DEFAULT false,
+      "exercises" BOOLEAN NOT NULL DEFAULT false,
+      "skinCareRoutine" TEXT,
+      "weightLoss" TEXT,
+      "intendsToLoseWeight" TEXT,
+      "intendsSurgery" TEXT,
+      "surgeries" TEXT,
+      "recentTreatmentOrVaccine" TEXT,
+      "permanentImplants" TEXT,
+      "consentSigned" BOOLEAN NOT NULL DEFAULT false,
+      "usesAnticoagulant" BOOLEAN NOT NULL DEFAULT false,
+      "hasAutoimmuneDisease" BOOLEAN NOT NULL DEFAULT false,
+      "cancerHistory" BOOLEAN NOT NULL DEFAULT false,
+      "hasDiabetes" BOOLEAN NOT NULL DEFAULT false,
+      "hasEpilepsy" BOOLEAN NOT NULL DEFAULT false,
+      "activeInfection" BOOLEAN NOT NULL DEFAULT false,
+      "recentDentalProcedure" BOOLEAN NOT NULL DEFAULT false,
+      "circulationProblems" TEXT,
+      "fillerComplicationHistory" TEXT,
+      "clinicalRiskNotes" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
   await client.$executeRawUnsafe(`
     ALTER TABLE "Patient"
     ADD COLUMN IF NOT EXISTS "birthDate" TIMESTAMP(3),
@@ -41,6 +97,11 @@ export async function ensurePatientSchema(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "profession" TEXT,
     ADD COLUMN IF NOT EXISTS "sunExposure" BOOLEAN NOT NULL DEFAULT false,
     ADD COLUMN IF NOT EXISTS "mainComplaint" TEXT,
+    ADD COLUMN IF NOT EXISTS "circulationProblems" TEXT,
+    ADD COLUMN IF NOT EXISTS "cancerHistory" BOOLEAN NOT NULL DEFAULT false,
+    ADD COLUMN IF NOT EXISTS "waterIntake" TEXT,
+    ADD COLUMN IF NOT EXISTS "roacutanDetails" TEXT,
+    ADD COLUMN IF NOT EXISTS "previousAestheticProcedures" TEXT,
     ADD COLUMN IF NOT EXISTS "previousFillers" TEXT,
     ADD COLUMN IF NOT EXISTS "previousBotox" TEXT,
     ADD COLUMN IF NOT EXISTS "takingRoacutan" BOOLEAN NOT NULL DEFAULT false,
@@ -80,4 +141,6 @@ export async function ensurePatientSchema(client: PrismaLike) {
     ADD COLUMN IF NOT EXISTS "fillerComplicationHistory" TEXT,
     ADD COLUMN IF NOT EXISTS "clinicalRiskNotes" TEXT
   `);
+
+  await client.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "PatientAnamnesis_patientId_idx" ON "PatientAnamnesis"("patientId")`);
 }

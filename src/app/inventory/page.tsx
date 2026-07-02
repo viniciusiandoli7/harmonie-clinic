@@ -6,24 +6,36 @@ import { AlertTriangle, CalendarClock, PackagePlus, Search, Trash2 } from "lucid
 const CATEGORIES = ["Injetável", "Peeling", "Anestésico", "Descartável", "Bioestimulador", "Equipamento", "Outros"];
 
 const PROCEDURE_OPTIONS = [
+  "Peeling Retinol",
+  "Peeling Láctico",
+  "Peeling Mandélico",
+  "Peeling ATA",
+  "Bioestimulador elleva X",
+  "Bioestimulador ácido polilático",
+  "Bioestimulador hidroxiapatita de cálcio",
+  "Preenchedor restylane kysse",
+  "Preenchedor restylane gel",
+  "Preenchedor biogelis volume",
+  "Preenchedor biogelis volumax",
+  "Skinbooster restylane vital",
+  "Skinbooster vitaminas",
   "Consulta",
   "Retorno",
-  "Ultrassom Micro e Macrofocado",
-  "Toxina Botulínica",
-  "Skinbooster",
-  "Preenchimento",
+  "Toxina botulínica",
   "PEIM",
-  "Peeling",
+  "Preenchimento de glúteo",
   "PDRN",
-  "Microagulhamento",
+  "Microagulhamento com ativos",
+  "Microagulhamento biorregenerador",
   "Mesoterapia",
-  "Limpeza de Pele Profunda",
-  "Lavieen",
-  "Jato de Plasma",
+  "Jato de plasma",
+  "Ultrassom microfocado e macrofocado",
+  "Laser CO2",
+  "Laser",
   "Fios de PDO",
-  "Bioestimulador",
   "Intradermoterapia local",
   "Intradermoterapia IM",
+  "Preparação de pele",
 ];
 const STATUSES = [
   { value: "DISPONIVEL", label: "Disponível" },
@@ -233,10 +245,10 @@ export default function InventoryPage() {
             <label className="block sm:col-span-2">
               <span>3. Procedimento vinculado</span>
               <select value={form.linkedProcedure} onChange={(e) => setForm({ ...form, linkedProcedure: e.target.value })} className="h-12 w-full border px-4 text-sm">
-                <option value="">Selecione uma opção da agenda...</option>
+                <option value="">Selecione o procedimento específico...</option>
                 {PROCEDURE_OPTIONS.map((procedure) => <option key={procedure} value={procedure}>{procedure}</option>)}
               </select>
-              <p className="mt-1 text-[10px] text-brand-text/50">Quando esse procedimento for agendado, o sistema vincula automaticamente paciente e data.</p>
+              <p className="mt-1 text-[10px] text-brand-text/50">Escolha o procedimento específico para evitar baixar o item errado no financeiro/agenda.</p>
             </label>
             <Field label="4. Quantidade de entrada" type="number" value={form.entryQuantity} onChange={(v: string) => setForm({ ...form, entryQuantity: v })} required />
             <ReadOnlyField label="5. Quantidade disponível" value={`${entryQuantity}`} hint="Automático no cadastro" />

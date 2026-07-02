@@ -17,6 +17,49 @@ import PatientPostCareSection from "@/components/patients/PatientPostCareSection
 import StructuredEvolutionPremiumSection from "@/components/patients/StructuredEvolutionPremiumSection";
 import { generateContractPdf } from "@/lib/contractPdf";
 
+
+function answerText(value: any) {
+  if (value === true) return "Sim";
+  if (value === false) return "Não";
+  if (value === null || value === undefined || value === "") return "—";
+  return String(value);
+}
+
+function buildAnamneseRows(anamnesis: any) {
+  return [
+    ["Qual motivo te trouxe até essa consulta?", anamnesis?.mainComplaint],
+    ["Qual a sua profissão?", anamnesis?.profession],
+    ["Se expõe ao sol sem uso do filtro solar?", anamnesis?.sunExposure],
+    ["Já realizou algum procedimento estético antes? Qual e há quanto tempo?", anamnesis?.previousAestheticProcedures || [anamnesis?.previousFillers, anamnesis?.previousBotox].filter(Boolean).join(" • ")],
+    ["Já tomou Roacutan? Há quanto tempo?", [answerText(Boolean(anamnesis?.takingRoacutan)), anamnesis?.roacutanDetails].filter((v) => v && v !== "—").join(" — ")],
+    ["Está tomando algum medicamento ou suplementação?", anamnesis?.medications],
+    ["Possui alguma alergia?", anamnesis?.allergies],
+    ["Possui alergia a albumina (ovo) ou frutos do mar?", [anamnesis?.allergicToEgg ? "Ovo/albumina" : "", anamnesis?.allergicToSeafood].filter(Boolean).join(" • ")],
+    ["Já levou anestesia de dentista?", anamnesis?.dentalAnesthesia],
+    ["Teve alguma reação à anestesia do dentista?", anamnesis?.dentalAnesthesiaReaction],
+    ["Já teve alguma reação indesejada a algum procedimento?", anamnesis?.procedureReaction],
+    ["Tem tendência a cicatriz ou a queloide?", anamnesis?.keloidTendency],
+    ["Possui alguma condição de saúde física, psíquica ou emocional?", anamnesis?.diseases],
+    ["Possui herpes?", anamnesis?.hasHerpes],
+    ["Fumante?", anamnesis?.smoker],
+    ["Pressão", anamnesis?.bloodPressure],
+    ["Ingere uma boa quantidade de água durante o dia?", anamnesis?.waterIntake],
+    ["Está grávida ou amamentando?", anamnesis?.pregnantOrNursing],
+    ["Faz exercícios físicos?", anamnesis?.exercises],
+    ["Tem cuidados com a pele em casa? O que usa?", anamnesis?.skinCareRoutine],
+    ["Passou ou pretende passar por processo de emagrecimento com perda maior de 5kg?", anamnesis?.weightLoss],
+    ["Já fez ou pretende passar por alguma cirurgia?", anamnesis?.surgeries || anamnesis?.intendsSurgery],
+    ["Tomou vacina nos últimos 30 dias?", anamnesis?.recentTreatmentOrVaccine],
+    ["Possui doença autoimune?", anamnesis?.hasAutoimmuneDisease],
+    ["Tem histórico de câncer?", anamnesis?.cancerHistory],
+    ["Possui diabetes?", anamnesis?.hasDiabetes],
+    ["Usa anticoagulantes ou medicamentos que afinam o sangue?", anamnesis?.usesAnticoagulant],
+    ["Usa aspirina/AAS com frequência?", anamnesis?.usesAspirin],
+    ["Possui trombose ou algum problema de circulação?", anamnesis?.circulationProblems],
+    ["Possui implantes permanentes? (PMMA, silicone, hidrogel)", anamnesis?.permanentImplants],
+  ];
+}
+
 export default function PatientDetailPage() {
   const { id } = useParams();
   const router = useRouter();
@@ -171,8 +214,8 @@ export default function PatientDetailPage() {
         clinic: {
           companyName: "Mariana Thomaz Carmona",
           cnpj: "57.007.483/0001-73",
-          address: "Avenida Coronel Sezefredo Fagundes, Nº 2168",
-          email: "contato@marianathomazcarmona.com",
+          address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista",
+          email: "marianacarmona447@gmail.com",
         },
         items,
         subtotal,
@@ -192,6 +235,19 @@ export default function PatientDetailPage() {
       alert("Não foi possível gerar o PDF do contrato.");
     }
   };
+
+
+  const anamnesis = patient?.anamnesis || {};
+  const onlineAnamneseLink = typeof window !== "undefined" && patient?.id ? `${window.location.origin}/anamnese/${patient.id}` : "";
+  const anamneseMessage = onlineAnamneseLink
+    ? `Olá${patient?.name ? `, ${String(patient.name).split(" ")[0]}` : ""}! Tudo bem? 😊\n\nSegue a sua ficha de anamnese on-line para preencher antes da consulta com a Dra. Mariana:\n\n${onlineAnamneseLink}`
+    : "";
+  const phoneDigits = String(patient?.phone || "").replace(/\D/g, "");
+  const whatsappAnamneseLink = anamneseMessage
+    ? `https://api.whatsapp.com/send?${phoneDigits ? `phone=${phoneDigits.startsWith("55") ? phoneDigits : `55${phoneDigits}`}&` : ""}text=${encodeURIComponent(anamneseMessage)}`
+    : "";
+  const anamneseRows = buildAnamneseRows(anamnesis);
+  const anamnesePreenchida = Boolean(anamnesis?.consentSigned || anamnesis?.mainComplaint || anamnesis?.profession);
 
   if (loading) return (
     <div className="flex items-center justify-center min-h-screen bg-[#F7F2EA]">
@@ -292,6 +348,66 @@ export default function PatientDetailPage() {
                    <DataField label="Imagem autorizada" value={patient?.imageAuthorized ? "Sim" : "Não"} />
                 </div>
                 
+
+                <div className="mt-8 bg-white border border-[rgba(90,31,43,.10)] rounded-sm shadow-sm p-8">
+                  <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-[#5A1F2B]">Ficha de anamnese</p>
+                      <h3 className="mt-2 font-serif text-2xl text-[#1E1A18]">
+                        {anamnesePreenchida ? "Anamnese salva na ficha" : "Anamnese pendente"}
+                      </h3>
+                      <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[#5B3A2E]/70">
+                        Envie a ficha on-line para a paciente preencher antes da sessão. Assim que ela salvar, as respostas ficam registradas aqui na ficha dela.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-col gap-2 sm:flex-row xl:flex-col">
+                      {whatsappAnamneseLink && (
+                        <a href={whatsappAnamneseLink} target="_blank" rel="noreferrer" className="inline-flex items-center justify-center rounded-xl bg-[#5A1F2B] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-sm">
+                          Enviar pelo WhatsApp
+                        </a>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!onlineAnamneseLink) return;
+                          navigator.clipboard?.writeText(onlineAnamneseLink);
+                          alert("Link da anamnese copiado.");
+                        }}
+                        className="inline-flex items-center justify-center rounded-xl border border-[#5A1F2B]/20 bg-[#F7F2EA] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5A1F2B]"
+                      >
+                        Copiar link
+                      </button>
+                      <Link href={`/patients/${patient.id}/edit`} className="inline-flex items-center justify-center rounded-xl border border-[#E9DEC9] bg-white px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[#5B3A2E]">
+                        Editar ficha
+                      </Link>
+                    </div>
+                  </div>
+
+                  <div className="mt-8 grid gap-3 md:grid-cols-2">
+                    {anamneseRows.slice(0, 12).map(([question, value]) => (
+                      <div key={question} className="rounded-2xl border border-[#F0E6D8] bg-[#FDFBF7] p-4">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#5A1F2B]/65">{question}</p>
+                        <p className="mt-2 text-[13px] leading-5 text-[#1E1A18]">{answerText(value)}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {anamneseRows.length > 12 && (
+                    <details className="mt-4 rounded-2xl border border-dashed border-[#5A1F2B]/20 bg-[#F7F2EA]/60 p-4">
+                      <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-[0.22em] text-[#5A1F2B]">Ver anamnese completa</summary>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        {anamneseRows.slice(12).map(([question, value]) => (
+                          <div key={question} className="rounded-2xl border border-[#F0E6D8] bg-white p-4">
+                            <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-[#5A1F2B]/65">{question}</p>
+                            <p className="mt-2 text-[13px] leading-5 text-[#1E1A18]">{answerText(value)}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </details>
+                  )}
+                </div>
+
                 <h3 className="text-[11px] font-bold uppercase tracking-[0.4em] text-[#5B3A2E99] mt-16 mb-8 flex items-center gap-3">
                   <Calendar size={14} /> Histórico de Visitas
                 </h3>

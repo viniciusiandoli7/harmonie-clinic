@@ -735,8 +735,8 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
       ]);
     }
 
-    if (isModalOpen) loadOptions();
-  }, [isModalOpen]);
+    loadOptions();
+  }, []);
 
   function applyContract(contractId: string) {
     const contract = contracts.find((item) => item.id === contractId);

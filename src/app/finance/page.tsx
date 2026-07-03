@@ -112,6 +112,25 @@ const formatDateLabel = (value?: string | null) => {
   return date.toLocaleDateString("pt-BR");
 };
 
+const dateOnlyInput = (value?: string | Date | null) => {
+  if (!value) return "";
+  if (typeof value === "string") {
+    const match = value.match(/^(\d{4}-\d{2}-\d{2})/);
+    if (match) return match[1];
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+};
+
+const formatDateOnlyLabel = (value?: string | Date | null) => {
+  const iso = dateOnlyInput(value);
+  if (!iso) return "sem data";
+  const [year, month, day] = iso.split("-");
+  return `${day}/${month}/${year}`;
+};
+
 const toDatetimeLocal = (value?: string | Date | null) => {
   const date = value ? new Date(value) : new Date();
   if (Number.isNaN(date.getTime())) return new Date().toISOString().slice(0, 16);
@@ -270,13 +289,16 @@ export default function FinancePage() {
     try {
       setLoading(true);
       const [statsRes, patientsRes, goalRes, transactionsRes] = await Promise.all([
-        fetch("/api/finance/stats"),
-        fetch("/api/patients?includeInactive=true"),
-        fetch("/api/goals"),
-        fetch("/api/financial-transactions"),
+        fetch("/api/finance/stats", { cache: "no-store" }),
+        fetch("/api/patients?includeInactive=true", { cache: "no-store" }),
+        fetch("/api/goals", { cache: "no-store" }),
+        fetch("/api/financial-transactions", { cache: "no-store" }),
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
-      if (patientsRes.ok) setPatients(await patientsRes.json());
+      if (patientsRes.ok) {
+        const patientsData = await patientsRes.json();
+        setPatients(Array.isArray(patientsData) ? patientsData : (patientsData.data || []));
+      }
       if (goalRes.ok) setGoal(await goalRes.json());
       if (transactionsRes.ok) {
         const transactionsData = await transactionsRes.json();
@@ -396,12 +418,35 @@ export default function FinancePage() {
     loadFinance();
   }
 
+  const allMovementsForGoal: FinancialTransaction[] = useMemo(() => {
+    const sourceMovements: FinancialTransaction[] = [
+      ...(Array.isArray(stats?.recentMovements) ? stats.recentMovements : []),
+      ...(Array.isArray(directMovements) ? directMovements : []),
+    ];
+    const map = new Map<string, FinancialTransaction>();
+    for (const movement of sourceMovements) {
+      if (movement?.id && !map.has(movement.id)) map.set(movement.id, movement);
+    }
+    return Array.from(map.values());
+  }, [stats, directMovements]);
+
   const activeRevenueGoal = Number(goal?.revenueGoal || stats?.monthlyGoal || 0);
-  const activeGoalStart = goal?.startDate ? new Date(goal.startDate).toLocaleDateString("pt-BR") : "início do mês";
-  const activeGoalEnd = goal?.endDate ? new Date(goal.endDate).toLocaleDateString("pt-BR") : "fim do mês";
-  const activeGoalPercent = activeRevenueGoal ? Math.min(100, Math.round((Number(stats?.grossIncome || stats?.income || 0) / activeRevenueGoal) * 100)) : 0;
-  const activeGoalRemaining = Math.max(0, activeRevenueGoal - Number(stats?.grossIncome || stats?.income || 0));
-  const activeGoalDaysLeft = goal?.endDate ? Math.max(0, Math.ceil((new Date(goal.endDate).setHours(0,0,0,0) - new Date().setHours(0,0,0,0)) / 86400000)) : 0;
+  const activeGoalStartInput = dateOnlyInput(goal?.startDate || stats?.month?.start) || monthStartInputDate();
+  const activeGoalEndInput = dateOnlyInput(goal?.endDate || stats?.month?.end) || todayInputDate();
+  const activeGoalStart = formatDateOnlyLabel(activeGoalStartInput);
+  const activeGoalEnd = formatDateOnlyLabel(activeGoalEndInput);
+  const activeGoalRevenue = allMovementsForGoal
+    .filter((transaction) => {
+      const status = transaction.status === "COMPLETED" ? "PAID" : transaction.status;
+      const date = new Date(transaction.date);
+      const start = new Date(`${activeGoalStartInput}T00:00:00`);
+      const end = new Date(`${activeGoalEndInput}T23:59:59`);
+      return transaction.type === "INCOME" && ["PAID", "PARTIAL"].includes(status) && date >= start && date <= end;
+    })
+    .reduce((sum, transaction: any) => sum + Number(transaction.grossAmount ?? transaction.amount ?? 0), 0);
+  const activeGoalPercent = activeRevenueGoal ? Math.min(100, Math.round((activeGoalRevenue / activeRevenueGoal) * 100)) : 0;
+  const activeGoalRemaining = Math.max(0, activeRevenueGoal - activeGoalRevenue);
+  const activeGoalDaysLeft = Math.max(0, Math.ceil((new Date(`${activeGoalEndInput}T00:00:00`).getTime() - new Date().setHours(0,0,0,0)) / 86400000));
 
   if (loading) {
     return <div className="min-h-screen p-10 font-serif text-2xl italic text-brand-primary">Sincronizando inteligência financeira...</div>;
@@ -690,8 +735,8 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
       ]);
     }
 
-    loadOptions();
-  }, []);
+    if (isModalOpen) loadOptions();
+  }, [isModalOpen]);
 
   function applyContract(contractId: string) {
     const contract = contracts.find((item) => item.id === contractId);

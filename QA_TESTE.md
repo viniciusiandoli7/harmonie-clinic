@@ -22,36 +22,38 @@ Depois do deploy em produção, abra logado:
 https://harmonie-clinic.vercel.app/api/system/repair
 ```
 
-Depois abra também:
+Depois abra estes endpoints para conferir se a base está retornando dados:
 
 ```txt
+https://harmonie-clinic.vercel.app/api/goals
 https://harmonie-clinic.vercel.app/api/finance/sale-sources
+https://harmonie-clinic.vercel.app/api/financial-transactions
 ```
-
-Esse endpoint precisa retornar uma lista com contratos/vendas lançadas, independentemente da data.
 
 Teste manual obrigatório:
 
-1. Cadastre/agende uma paciente em qualquer data.
-2. Se for consulta, lance a venda/custo pelo Financeiro.
-3. Se ela fechar tratamento pela ficha, feche a venda pela ficha.
-4. Abra **Financeiro**.
-5. A venda deve aparecer em **Movimentações** sem depender da data da meta ativa.
-6. Clique em **Lançar venda/custos**.
-7. No campo **Selecionar contrato lançado**, deve aparecer:
-   - contrato gerado pela ficha;
-   - ou venda lançada como fallback.
-8. Selecione o contrato/venda.
-9. O sistema deve preencher paciente, procedimento, valor, forma de pagamento e valor recebido.
-10. O campo **Data do procedimento / agenda** agora é opcional e só filtra agendamentos daquela paciente.
+1. Abrir **Financeiro** e **Dashboard Executivo**.
+2. Conferir se a **Meta ativa** mostra o mesmo período nos dois lugares.
+3. Confirmar que não aparece mais `30/06` quando a meta é de julho. A data deve respeitar o dia escolhido no cadastro da meta.
+4. Abrir **Agenda**.
+5. No campo **Paciente**, clicar ou digitar. A lista precisa aparecer sem depender de escrever só a inicial.
+6. Selecionar uma paciente e criar um agendamento.
+7. Abrir a ficha da paciente e fechar uma venda.
+8. Abrir **Financeiro**.
+9. A venda deve aparecer em **Movimentações** mesmo se o agendamento for de outra data.
+10. Clicar em **Lançar venda/custos**.
+11. O campo **Selecionar contrato lançado** precisa listar contratos e vendas lançadas, sem depender da data da agenda.
+12. Selecionar contrato/venda e conferir se preenche paciente, procedimento, valor, forma de pagamento e valor recebido.
 
 Correções desta versão:
 
-- Criada rota `/api/finance/sale-sources` para listar contratos e vendas sem filtro de data.
-- Modal de fechamento financeiro agora busca contratos/vendas nessa rota única.
-- Seleção do agendamento deixou de ser obrigatória; agendamento é apenas vínculo opcional.
-- O modal não depende mais da data da agenda para encontrar o contrato/venda.
-- Movimentações financeiras não começam mais escondidas pelo período da meta ativa.
-- `/api/financial-transactions` agora roda reparo/backfill de vendas antes de listar.
-- Schema do banco reforçado com `ALTER TABLE FinancialTransaction`, para bancos Neon/produção que já existiam com colunas antigas.
-- Agenda continua com select real de pacientes, sem depender de digitar inicial.
+- Corrigido bug visual de data da meta ativa no financeiro por causa de fuso horário.
+- Financeiro e Executivo agora usam a mesma meta ativa.
+- Financeiro calcula porcentagem da meta com base nas movimentações do período ativo, não só no resumo mensal.
+- Financeiro busca dados com `cache: no-store` para não ficar preso em resultado antigo.
+- Modal **Lançar venda/custos** recarrega contratos/vendas toda vez que abre.
+- Criada rota robusta `/api/finance/sale-sources` com contratos e vendas sem filtro de data.
+- A seleção de agendamento no modal financeiro é apenas opcional e não limita contratos/vendas.
+- Agenda ganhou busca real de pacientes com dropdown, sem depender do select antigo.
+- `/api/financial-transactions` roda reparo financeiro antes de listar.
+- Schema financeiro reforçado para bancos Neon/produção antigos.

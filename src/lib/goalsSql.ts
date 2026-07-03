@@ -55,6 +55,28 @@ export async function ensureBusinessGoalPeriodColumns(client: PrismaLike) {
   `);
 }
 
+
+export async function getActiveBusinessGoalRaw(client: PrismaLike, date: Date = new Date()) {
+  await ensureBusinessGoalPeriodColumns(client);
+
+  const rows = await safeQuery<any>(
+    client,
+    `
+      SELECT *
+      FROM "BusinessGoal"
+      WHERE "startDate" IS NOT NULL
+        AND "endDate" IS NOT NULL
+        AND "startDate" <= $1
+        AND "endDate" >= $1
+      ORDER BY "endDate" ASC, "updatedAt" DESC
+      LIMIT 1
+    `,
+    date
+  );
+
+  return rows[0] || null;
+}
+
 export async function getBusinessGoalByMonthRaw(client: PrismaLike, month: string) {
   await ensureBusinessGoalPeriodColumns(client);
 

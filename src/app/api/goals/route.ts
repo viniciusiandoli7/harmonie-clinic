@@ -6,6 +6,7 @@ import { createAuditLog } from "@/lib/audit";
 import {
   createBusinessGoalRaw,
   getBusinessGoalByMonthRaw,
+  getActiveBusinessGoalRaw,
   updateBusinessGoalRaw,
   upsertBusinessGoalRaw,
 } from "@/lib/goalsSql";
@@ -31,10 +32,12 @@ export async function GET(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    const month = new URL(req.url).searchParams.get("month") || currentMonth();
+    const explicitMonth = new URL(req.url).searchParams.get("month");
+    const activeGoal = explicitMonth ? null : await getActiveBusinessGoalRaw(prisma as any, new Date());
+    const month = explicitMonth || activeGoal?.month || currentMonth();
     const { start, end } = monthRange(month);
 
-    const existing = await getBusinessGoalByMonthRaw(prisma as any, month);
+    const existing = activeGoal || await getBusinessGoalByMonthRaw(prisma as any, month);
 
     if (existing) {
       if (!existing.startDate || !existing.endDate) {
@@ -42,10 +45,10 @@ export async function GET(req: NextRequest) {
           startDate: existing.startDate || start,
           endDate: existing.endDate || end,
         });
-        return NextResponse.json(updated);
+        return NextResponse.json(updated, { headers: { "Cache-Control": "no-store, max-age=0" } });
       }
 
-      return NextResponse.json(existing);
+      return NextResponse.json(existing, { headers: { "Cache-Control": "no-store, max-age=0" } });
     }
 
     const goal = await createBusinessGoalRaw(prisma as any, {
@@ -60,7 +63,7 @@ export async function GET(req: NextRequest) {
       notes: null,
     });
 
-    return NextResponse.json(goal);
+    return NextResponse.json(goal, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("Erro ao buscar metas:", error);
     return NextResponse.json({ error: "Erro ao buscar metas." }, { status: 500 });

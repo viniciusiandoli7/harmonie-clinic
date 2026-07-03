@@ -3,12 +3,18 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { ensureProductionSchema } from "@/lib/productionSchemaSql";
-import { ensureFinancialTransactionsForSales } from "@/lib/financeRepairSql";
+import { safeQuery } from "@/lib/safeSql";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 function asArray(value: any) {
   return Array.isArray(value) ? value : [];
+}
+
+function normalizePatient(patient: any, fallbackId?: string | null) {
+  if (patient && typeof patient === "object") return patient;
+  return fallbackId ? { id: fallbackId, name: "Paciente" } : null;
 }
 
 export async function GET() {
@@ -17,17 +23,16 @@ export async function GET() {
 
   try {
     await ensureProductionSchema(prisma as any);
-    await ensureFinancialTransactionsForSales(prisma as any);
 
-    const contracts = await (prisma as any).$queryRawUnsafe(`
+    const contracts = await safeQuery<any>(prisma as any, `
       SELECT
         c."id",
         c."patientId",
-        c."title",
-        c."content",
-        c."total",
-        c."status",
-        c."itemsJson",
+        COALESCE(c."title", 'Contrato') AS "title",
+        COALESCE(c."content", '') AS "content",
+        COALESCE(c."total", 0) AS "total",
+        COALESCE(c."status"::text, 'PENDING') AS "status",
+        COALESCE(c."itemsJson", '[]'::jsonb) AS "itemsJson",
         c."createdAt",
         json_build_object('id', p."id", 'name', p."name", 'phone', p."phone") AS "patient"
       FROM "PatientContract" c
@@ -36,13 +41,13 @@ export async function GET() {
       LIMIT 500
     `);
 
-    const sales = await (prisma as any).$queryRawUnsafe(`
+    const sales = await safeQuery<any>(prisma as any, `
       SELECT
         s."id",
         s."patientId",
-        s."price",
-        s."discount",
-        s."finalPrice",
+        COALESCE(s."price", 0) AS "price",
+        COALESCE(s."discount", 0) AS "discount",
+        COALESCE(s."finalPrice", s."price", 0) AS "finalPrice",
         s."createdAt",
         json_build_object('id', p."id", 'name', p."name", 'phone', p."phone") AS "patient",
         COALESCE((
@@ -62,7 +67,7 @@ export async function GET() {
           SELECT json_agg(json_build_object(
             'id', sp."id",
             'amount', sp."amount",
-            'method', sp."method"
+            'method', sp."method"::text
           ))
           FROM "SalePayment" sp
           WHERE sp."saleId" = s."id"
@@ -80,7 +85,7 @@ export async function GET() {
       saleId: null,
       createdAt: contract.createdAt,
       patientId: contract.patientId,
-      patient: contract.patient,
+      patient: normalizePatient(contract.patient, contract.patientId),
       title: contract.title || "Contrato",
       content: contract.content || "",
       total: Number(contract.total || 0),
@@ -96,7 +101,7 @@ export async function GET() {
       saleId: sale.id,
       createdAt: sale.createdAt,
       patientId: sale.patientId,
-      patient: sale.patient,
+      patient: normalizePatient(sale.patient, sale.patientId),
       title: "Venda lançada",
       content: "",
       total: Number(sale.finalPrice ?? sale.price ?? 0),
@@ -105,16 +110,9 @@ export async function GET() {
       payments: asArray(sale.payments),
     }));
 
-    const contractKeys = new Set(
-      normalizedContracts.map((contract: any) => `${contract.patientId}|${Number(contract.total || 0).toFixed(2)}|${new Date(contract.createdAt).toISOString().slice(0, 10)}`)
-    );
-
-    const salesOnlyWhenNeeded = normalizedSales.filter((sale: any) => {
-      const key = `${sale.patientId}|${Number(sale.total || 0).toFixed(2)}|${new Date(sale.createdAt).toISOString().slice(0, 10)}`;
-      return !contractKeys.has(key);
+    return NextResponse.json([...normalizedContracts, ...normalizedSales], {
+      headers: { "Cache-Control": "no-store, max-age=0" },
     });
-
-    return NextResponse.json([...normalizedContracts, ...salesOnlyWhenNeeded]);
   } catch (error: any) {
     console.error("Erro ao listar contratos/vendas para financeiro:", error);
     return NextResponse.json({ error: error?.message || "Erro ao listar contratos/vendas." }, { status: 500 });

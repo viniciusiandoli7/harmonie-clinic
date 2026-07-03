@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { ensureProductionSchema } from "@/lib/productionSchemaSql";
-import { ensureFinancialTransactionsForSales } from "@/lib/financeRepairSql";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { calculateMonthlyClosing, isPaid } from "@/lib/finance-utils";
@@ -15,7 +14,6 @@ export async function GET() {
 
   try {
     await ensureProductionSchema(prisma as any);
-    await ensureFinancialTransactionsForSales(prisma as any);
     const now = new Date();
     const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -127,7 +125,7 @@ export async function GET() {
       closingPreview,
       savedClosing,
       healthScore: netProfit > 0 ? "EXCELENTE" : grossIncome > 0 ? "EM AJUSTE" : "ATENÇÃO",
-    });
+    }, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.error("Erro ao buscar estatísticas financeiras:", error);
     return NextResponse.json({ error: "Erro financeiro" }, { status: 500 });

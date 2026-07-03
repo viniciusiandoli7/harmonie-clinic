@@ -5,6 +5,9 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { ensureFinancialTransactionsForSales } from "@/lib/financeRepairSql";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 import {
   createFinancialTransaction,
   listFinancialTransactions,
@@ -61,11 +64,11 @@ export async function GET() {
     await ensureProductionSchema(prisma as any);
     await ensureFinancialTransactionsForSales(prisma as any);
     const items = await listFinancialTransactions();
-    return NextResponse.json(items);
+    return NextResponse.json(items, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.warn("GET /api/financial-transactions via Prisma falhou; usando consulta segura:", error);
     try {
-      return NextResponse.json(await listFinancialTransactionsRaw());
+      return NextResponse.json(await listFinancialTransactionsRaw(), { headers: { "Cache-Control": "no-store, max-age=0" } });
     } catch (rawError) {
       console.error("GET /api/financial-transactions error:", rawError);
       return NextResponse.json({ error: "Erro ao listar transações." }, { status: 500 });

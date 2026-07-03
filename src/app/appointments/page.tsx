@@ -60,6 +60,7 @@ export default function AgendaPage() {
   
   // --- ESTADO DO FORMULÁRIO LATERAL ---
   const [searchPatient, setSearchPatient] = useState("");
+  const [showPatientDropdown, setShowPatientDropdown] = useState(false);
   const [formData, setFormData] = useState({ 
     patientId: "", 
     procedures: [] as string[], 
@@ -100,6 +101,21 @@ export default function AgendaPage() {
       };
     });
   }, [dbAppointments]);
+
+  const filteredPatientsForSchedule = useMemo(() => {
+    const term = searchPatient.trim().toLowerCase();
+    const list = dbPatients
+      .slice()
+      .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"));
+
+    if (!term) return list;
+
+    return list.filter((patient) =>
+      [patient.name, patient.phone, patient.email]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(term))
+    );
+  }, [dbPatients, searchPatient]);
 
   // --- AUXILIARES DE DATA ---
   function formatDate(date: Date) {
@@ -182,6 +198,7 @@ export default function AgendaPage() {
       }
       
       setSearchPatient("");
+      setShowPatientDropdown(false);
       setFormData(prev => ({ ...prev, patientId: "", procedures: [] }));
       loadData();
     } catch (err: any) {
@@ -241,26 +258,57 @@ export default function AgendaPage() {
         </div>
         
         <div className="space-y-5 flex-1">
-          <div className="space-y-1">
+          <div className="space-y-1 relative">
             <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Paciente</label>
-            <select
-              value={formData.patientId}
+            <input
+              value={searchPatient}
+              onFocus={() => setShowPatientDropdown(true)}
               onChange={e => {
-                const patientId = e.target.value;
-                const found = dbPatients.find(p => p.id === patientId);
-                setSearchPatient(found?.name || "");
-                setFormData({ ...formData, patientId });
+                const value = e.target.value;
+                setSearchPatient(value);
+                setShowPatientDropdown(true);
+
+                const exact = dbPatients.find(p => String(p.name || "").toLowerCase() === value.trim().toLowerCase());
+                setFormData({ ...formData, patientId: exact?.id || "" });
               }}
-              className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none uppercase font-medium focus:border-[#5A1F2B] transition-colors"
-            >
-              <option value="">Selecionar paciente...</option>
-              {dbPatients
-                .slice()
-                .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"))
-                .map(p => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-            </select>
+              placeholder="Buscar ou selecionar paciente..."
+              className="w-full py-2 border-b border-[#EEE] bg-transparent outline-none uppercase font-medium focus:border-[#5A1F2B] transition-colors"
+            />
+            {showPatientDropdown && (
+              <div className="absolute left-0 right-0 top-full z-[80] mt-2 max-h-64 overflow-y-auto rounded-2xl border border-[#E9DEC9] bg-white shadow-[0_18px_45px_rgba(90,31,43,.14)]">
+                {filteredPatientsForSchedule.length === 0 ? (
+                  <div className="px-4 py-3 text-[11px] text-[#5B3A2E]/60">Nenhum paciente encontrado.</div>
+                ) : (
+                  filteredPatientsForSchedule.map((patient) => (
+                    <button
+                      key={patient.id}
+                      type="button"
+                      onClick={() => {
+                        setSearchPatient(patient.name || "");
+                        setFormData({ ...formData, patientId: patient.id });
+                        setShowPatientDropdown(false);
+                      }}
+                      className="block w-full border-b border-[#F4EEE6] px-4 py-3 text-left text-[12px] font-bold uppercase tracking-[0.06em] text-[#1E1A18] hover:bg-[#F7F2EA]"
+                    >
+                      {patient.name}
+                      {patient.phone && <span className="ml-2 font-normal text-[#5B3A2E]/55">{patient.phone}</span>}
+                    </button>
+                  ))
+                )}
+              </div>
+            )}
+            {formData.patientId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchPatient("");
+                  setFormData({ ...formData, patientId: "" });
+                }}
+                className="mt-2 text-[9px] font-bold uppercase tracking-[0.18em] text-[#5A1F2B]/70"
+              >
+                Limpar paciente
+              </button>
+            )}
           </div>
 
           <div className="space-y-2">

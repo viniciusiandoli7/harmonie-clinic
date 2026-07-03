@@ -16,19 +16,7 @@ npm run qa
 QA OK
 ```
 
-Teste manual sugerido:
-
-1. Abrir uma paciente já cadastrada.
-2. Na aba **Informações**, conferir o bloco **Ficha de anamnese**.
-3. Clicar em **Copiar link** e abrir o link em outra aba:
-   `/anamnese/ID_DA_PACIENTE`
-4. Preencher a anamnese on-line e salvar.
-5. Voltar para a ficha da paciente e atualizar a página.
-6. Confirmar se as respostas aparecem salvas em **Informações > Ficha de anamnese**.
-7. Testar **Enviar pelo WhatsApp** para conferir se a mensagem leva ao link da anamnese.
-8. Abrir **Editar paciente > Ficha de Anamnese** e conferir se as perguntas também aparecem para edição interna.
-
-Depois do deploy em produção, abrir logado:
+Depois do deploy em produção, abra logado:
 
 ```txt
 https://harmonie-clinic.vercel.app/api/system/repair
@@ -36,17 +24,29 @@ https://harmonie-clinic.vercel.app/api/system/repair
 
 O retorno esperado é `ok: true`.
 
-Alterações desta versão:
+Teste manual sugerido:
 
-- Anamnese com as perguntas novas solicitadas.
-- Anamnese salva e visível dentro da ficha da paciente.
-- Link público para a paciente preencher on-line.
-- Botão para copiar link da anamnese.
-- Botão para enviar anamnese pelo WhatsApp.
-- Campos novos no banco:
-  - previousAestheticProcedures
-  - roacutanDetails
-  - waterIntake
-  - cancerHistory
-  - circulationProblems
-- Alertas clínicos também consideram histórico de câncer e trombose/circulação.
+1. Fechar uma venda no **Caixa / Ponto de Venda**.
+2. Abrir **Financeiro**.
+3. Conferir se a venda aparece em **Movimentações** automaticamente.
+4. Clicar em **Nova transação**.
+5. No modal **Fechamento da venda**, conferir se aparece:
+   - contrato gerado;
+   - ou, se o contrato não existir, a venda lançada como opção de fallback.
+6. Selecionar o contrato/venda e conferir se preenche:
+   - paciente;
+   - procedimento vendido;
+   - valor cheio;
+   - forma de pagamento quando houver;
+   - valor no banco.
+7. Conferir se o filtro **Categoria > Procedimento** também exibe vendas antigas com categoria `PROCEDIMENTO`.
+
+Correções desta versão:
+
+- Financeiro não quebra mais quando a tabela de fechamento mensal ainda não existe.
+- `/api/finance/stats` agora prepara o schema antes de buscar as movimentações.
+- Sistema cria automaticamente movimentação financeira para vendas antigas que ainda não tinham lançamento financeiro.
+- `/api/system/repair` também faz esse reparo financeiro.
+- Lista de contratos do modal financeiro ganhou fallback por venda lançada.
+- Categoria financeira padronizada como `Procedimento`.
+- Filtro de categoria agora também reconhece registros antigos `PROCEDIMENTO`.

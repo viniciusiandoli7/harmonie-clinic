@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { ensurePatientSchema } from "@/lib/patientSchemaSql";
 import { ensureBusinessGoalPeriodColumns } from "@/lib/goalsSql";
+import { ensureFinancialTransactionsForSales } from "@/lib/financeRepairSql";
 
 export async function GET() {
   const session = await getServerSession(authOptions);
@@ -14,10 +15,12 @@ export async function GET() {
     await ensureProductionSchema(prisma as any);
     await ensurePatientSchema(prisma as any);
     await ensureBusinessGoalPeriodColumns(prisma as any);
+    const financeRepair = await ensureFinancialTransactionsForSales(prisma as any);
 
     return NextResponse.json({
       ok: true,
       message: "Estrutura do banco verificada e corrigida.",
+      financeRepair,
       checkedAt: new Date().toISOString(),
     });
   } catch (error: any) {

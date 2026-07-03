@@ -543,8 +543,59 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "ClinicalEvolutionSession_planId_idx" ON "ClinicalEvolutionSession"("planId")`);
 }
 
+
+export async function ensureMonthlyClosingSchema(client: PrismaLike) {
+  await safeExecute(client, `
+    CREATE TABLE IF NOT EXISTS "MonthlyClosing" (
+      "id" TEXT PRIMARY KEY,
+      "month" TEXT NOT NULL UNIQUE,
+      "startDate" TIMESTAMP(3) NOT NULL,
+      "endDate" TIMESTAMP(3) NOT NULL,
+      "grossIncome" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "expenses" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "fees" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "commissions" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "netProfit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "availableBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "averageTicket" DOUBLE PRECISION NOT NULL DEFAULT 0,
+      "topProcedure" TEXT,
+      "status" TEXT NOT NULL DEFAULT 'OPEN',
+      "closedAt" TIMESTAMP(3),
+      "notes" TEXT,
+      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  await safeExecute(client, `
+    ALTER TABLE "MonthlyClosing"
+    ADD COLUMN IF NOT EXISTS "month" TEXT,
+    ADD COLUMN IF NOT EXISTS "startDate" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "endDate" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "grossIncome" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "expenses" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "fees" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "commissions" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "netProfit" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "availableBalance" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "averageTicket" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "topProcedure" TEXT,
+    ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'OPEN',
+    ADD COLUMN IF NOT EXISTS "closedAt" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "notes" TEXT,
+    ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  await safeExecute(client, `CREATE UNIQUE INDEX IF NOT EXISTS "MonthlyClosing_month_key" ON "MonthlyClosing"("month")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "MonthlyClosing_startDate_endDate_idx" ON "MonthlyClosing"("startDate", "endDate")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "MonthlyClosing_status_idx" ON "MonthlyClosing"("status")`);
+}
+
+
 export async function ensureProductionSchema(client: PrismaLike) {
   await ensureAuditSchema(client);
   await ensureInventorySchema(client);
   await ensurePatientFeatureTables(client);
+  await ensureMonthlyClosingSchema(client);
 }

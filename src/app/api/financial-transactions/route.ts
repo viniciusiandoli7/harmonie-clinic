@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
+import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import {
   createFinancialTransaction,
   listFinancialTransactions,
@@ -39,6 +41,7 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
+    await ensureProductionSchema(prisma as any);
     const items = await listFinancialTransactions();
     return NextResponse.json(items);
   } catch (error) {
@@ -52,6 +55,7 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
+    await ensureProductionSchema(prisma as any);
     const body = await req.json();
     const parsed = createSchema.safeParse(body);
 

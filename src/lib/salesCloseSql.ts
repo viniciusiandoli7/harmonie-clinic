@@ -129,7 +129,7 @@ export async function closeSaleRaw(client: PrismaLike, input: {
   const financialTransactionId = randomUUID();
   await safeExecute(
     client,
-    `INSERT INTO "FinancialTransaction" ("id", "type", "category", "description", "amount", "grossAmount", "feeAmount", "netAmount", "commissionAmount", "operationalCost", "professionalValue", "clinicProfit", "profit", "patientId", "saleId", "date", "status", "paidAt", "paymentMethod", "notes", "createdAt", "updatedAt") VALUES ($1, 'INCOME', 'PROCEDIMENTO', $2, $3, $4, 0, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14, $15, $16, NOW(), NOW())`,
+    `INSERT INTO "FinancialTransaction" ("id", "type", "category", "description", "amount", "grossAmount", "feeAmount", "netAmount", "commissionAmount", "operationalCost", "professionalValue", "clinicProfit", "profit", "patientId", "saleId", "date", "status", "paidAt", "paymentMethod", "notes", "createdAt", "updatedAt") VALUES ($1, 'INCOME', 'Procedimento', $2, $3, $4, 0, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14, $15, $16, NOW(), NOW())`,
     financialTransactionId,
     `Venda: ${input.generalTreatmentName}`,
     input.finalTotal,

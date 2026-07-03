@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
+import { ensureFinancialTransactionsForSales } from "@/lib/financeRepairSql";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { calculateMonthlyClosing, isPaid } from "@/lib/finance-utils";
@@ -12,6 +14,8 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
+    await ensureProductionSchema(prisma as any);
+    await ensureFinancialTransactionsForSales(prisma as any);
     const now = new Date();
     const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
@@ -48,8 +52,11 @@ export async function GET() {
         orderBy: { dueDate: "asc" },
         take: 50,
       }),
-      calculateMonthlyClosing(),
-      (prisma as any).monthlyClosing.findUnique({ where: { month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}` } }),
+      calculateMonthlyClosing().catch((error) => {
+        console.warn("Fechamento mensal indisponível no momento:", error);
+        return null;
+      }),
+      (prisma as any).monthlyClosing.findUnique({ where: { month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}` } }).catch(() => null),
     ]);
 
     const paidMonthTransactions = monthTransactions.filter((t) => isPaid(t.status));

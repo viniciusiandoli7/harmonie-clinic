@@ -284,7 +284,7 @@ export default function FinancePage() {
         matchesTerm &&
         (!start || date >= start) &&
         (!end || date <= end) &&
-        (!filters.category || t.category === filters.category) &&
+        (!filters.category || String(t.category || "").toLowerCase() === String(filters.category || "").toLowerCase() || (filters.category === "Procedimento" && String(t.category || "").toUpperCase() === "PROCEDIMENTO")) &&
         (!filters.type || t.type === filters.type) &&
         (!filters.patientId || t.patientId === filters.patientId) &&
         (!filters.paymentMethod || t.paymentMethod === filters.paymentMethod) &&
@@ -592,15 +592,44 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
 
   useEffect(() => {
     async function loadOptions() {
-      const [inventoryRes, appointmentsRes, contractsRes] = await Promise.all([
+      const [inventoryRes, appointmentsRes, contractsRes, salesRes] = await Promise.all([
         fetch("/api/inventory-items"),
         fetch("/api/appointments"),
         fetch("/api/patient-contracts"),
+        fetch("/api/sales"),
       ]);
 
       if (inventoryRes.ok) setInventoryItems(await inventoryRes.json());
       if (appointmentsRes.ok) setAppointments(await appointmentsRes.json());
-      if (contractsRes.ok) setContracts(await contractsRes.json());
+
+      const loadedContracts: ContractOption[] = contractsRes.ok ? await contractsRes.json() : [];
+      const loadedSales = salesRes.ok ? await salesRes.json() : [];
+
+      const contractIds = new Set(loadedContracts.map((contract) => contract.id));
+      const saleAsContracts: ContractOption[] = Array.isArray(loadedSales)
+        ? loadedSales
+            .filter((sale: any) => !contractIds.has(sale.id))
+            .map((sale: any) => ({
+              id: sale.id,
+              createdAt: sale.createdAt,
+              patientId: sale.patientId,
+              patient: sale.patient,
+              title: `Venda lançada - ${formatDateLabel(sale.createdAt)}`,
+              content: "",
+              total: Number(sale.finalPrice ?? sale.price ?? 0),
+              status: "SALE",
+              itemsJson: Array.isArray(sale.saleItems)
+                ? sale.saleItems.map((item: any) => ({
+                    description: item.productName,
+                    quantity: item.quantity,
+                    unitPrice: item.unitPrice,
+                    total: item.totalPrice,
+                  }))
+                : [],
+            }))
+        : [];
+
+      setContracts([...loadedContracts, ...saleAsContracts]);
     }
 
     loadOptions();

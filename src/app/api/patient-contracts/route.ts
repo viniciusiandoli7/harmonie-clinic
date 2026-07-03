@@ -17,6 +17,20 @@ function paymentMethodLabel(value: string) {
 }
 
 
+
+async function listContractsRaw() {
+  const rows = await (prisma as any).$queryRawUnsafe(`
+    SELECT
+      c.*,
+      json_build_object('id', p."id", 'name', p."name", 'phone', p."phone") AS "patient"
+    FROM "PatientContract" c
+    LEFT JOIN "Patient" p ON p."id" = c."patientId"
+    ORDER BY c."createdAt" DESC
+  `);
+
+  return Array.isArray(rows) ? rows : [];
+}
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
@@ -33,8 +47,13 @@ export async function GET() {
 
     return NextResponse.json(contracts);
   } catch (error) {
-    console.error("Erro ao listar contratos:", error);
-    return NextResponse.json({ error: "Erro ao listar contratos." }, { status: 500 });
+    console.warn("Listagem de contratos via Prisma falhou; usando consulta segura:", error);
+    try {
+      return NextResponse.json(await listContractsRaw());
+    } catch (rawError) {
+      console.error("Erro ao listar contratos:", rawError);
+      return NextResponse.json({ error: "Erro ao listar contratos." }, { status: 500 });
+    }
   }
 }
 
@@ -107,6 +126,7 @@ export async function POST(req: NextRequest) {
         patientId,
         title,
         content,
+        total,
         token: token,
         itemsJson: items,
       },

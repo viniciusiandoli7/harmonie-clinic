@@ -300,6 +300,39 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     )
   `);
 
+
+  await safeExecute(client, `
+    ALTER TABLE "FinancialTransaction"
+    ADD COLUMN IF NOT EXISTS "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS "description" TEXT NOT NULL DEFAULT 'Lançamento financeiro',
+    ADD COLUMN IF NOT EXISTS "category" TEXT NOT NULL DEFAULT 'Procedimento',
+    ADD COLUMN IF NOT EXISTS "amount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    ADD COLUMN IF NOT EXISTS "grossAmount" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "feeAmount" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "netAmount" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "cardFeePercent" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "commissionAmount" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "type" TEXT NOT NULL DEFAULT 'INCOME',
+    ADD COLUMN IF NOT EXISTS "status" TEXT NOT NULL DEFAULT 'PENDING',
+    ADD COLUMN IF NOT EXISTS "paymentMethod" TEXT,
+    ADD COLUMN IF NOT EXISTS "notes" TEXT,
+    ADD COLUMN IF NOT EXISTS "attachmentsJson" JSONB,
+    ADD COLUMN IF NOT EXISTS "paidAt" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "canceledAt" TIMESTAMP(3),
+    ADD COLUMN IF NOT EXISTS "profit" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "clinicProfit" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "operationalCost" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "professionalValue" DOUBLE PRECISION,
+    ADD COLUMN IF NOT EXISTS "patientId" TEXT,
+    ADD COLUMN IF NOT EXISTS "saleId" TEXT,
+    ADD COLUMN IF NOT EXISTS "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    ADD COLUMN IF NOT EXISTS "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `);
+
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialTransaction_date_idx" ON "FinancialTransaction"("date")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialTransaction_patientId_idx" ON "FinancialTransaction"("patientId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialTransaction_saleId_idx" ON "FinancialTransaction"("saleId")`);
+
   await safeExecute(client, `
     CREATE TABLE IF NOT EXISTS "FinancialInstallment" (
       "id" TEXT PRIMARY KEY,

@@ -52,6 +52,9 @@ type AppointmentOption = {
 
 type ContractOption = {
   id: string;
+  sourceType?: "CONTRACT" | "SALE";
+  contractId?: string | null;
+  saleId?: string | null;
   createdAt: string;
   patientId: string;
   patient?: { id: string; name: string; phone?: string | null } | null;
@@ -59,6 +62,7 @@ type ContractOption = {
   content?: string | null;
   total?: number | null;
   status?: string | null;
+  payments?: Array<{ amount?: number; method?: string | null }> | null;
   itemsJson?: Array<{
     description?: string | null;
     productName?: string | null;
@@ -153,6 +157,23 @@ function extractInstallmentsFromContract(content?: string | null) {
   return parcelMatch?.[1] || "1";
 }
 
+function extractPaymentMethodFromSource(contract?: ContractOption | null) {
+  const payment = contract?.payments?.find((item) => item?.method);
+  if (payment?.method) return normalizePaymentMethod(payment.method);
+  return extractPaymentMethodFromContract(contract?.content);
+}
+
+function extractPaidAmountFromSource(contract?: ContractOption | null) {
+  const payments = contract?.payments || [];
+  const totalPaid = payments.reduce((sum, payment) => sum + Number(payment?.amount || 0), 0);
+  return totalPaid > 0 ? totalPaid : Number(contract?.total || 0);
+}
+
+function extractInstallmentsFromSource(contract?: ContractOption | null) {
+  if (contract?.payments?.length) return String(contract.payments.length);
+  return extractInstallmentsFromContract(contract?.content);
+}
+
 function getContractItems(contract?: ContractOption | null) {
   const items = contract?.itemsJson;
   if (Array.isArray(items)) return items;
@@ -228,13 +249,14 @@ export default function FinancePage() {
   const [stats, setStats] = useState<any>(null);
   const [goal, setGoal] = useState<any>(null);
   const [patients, setPatients] = useState<any[]>([]);
+  const [directMovements, setDirectMovements] = useState<FinancialTransaction[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [filters, setFilters] = useState({
-    startDate: monthStartInputDate(),
-    endDate: todayInputDate(),
+    startDate: "",
+    endDate: "",
     category: "",
     type: "",
     patientId: "",
@@ -247,14 +269,19 @@ export default function FinancePage() {
   async function loadFinance() {
     try {
       setLoading(true);
-      const [statsRes, patientsRes, goalRes] = await Promise.all([
+      const [statsRes, patientsRes, goalRes, transactionsRes] = await Promise.all([
         fetch("/api/finance/stats"),
         fetch("/api/patients?includeInactive=true"),
         fetch("/api/goals"),
+        fetch("/api/financial-transactions"),
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
       if (patientsRes.ok) setPatients(await patientsRes.json());
       if (goalRes.ok) setGoal(await goalRes.json());
+      if (transactionsRes.ok) {
+        const transactionsData = await transactionsRes.json();
+        setDirectMovements(Array.isArray(transactionsData) ? transactionsData : []);
+      }
     } finally {
       setLoading(false);
     }
@@ -265,7 +292,15 @@ export default function FinancePage() {
   }, []);
 
   const filteredMovements = useMemo(() => {
-    const movements: FinancialTransaction[] = stats?.recentMovements || [];
+    const sourceMovements: FinancialTransaction[] = [
+      ...(Array.isArray(stats?.recentMovements) ? stats.recentMovements : []),
+      ...(Array.isArray(directMovements) ? directMovements : []),
+    ];
+    const movementMap = new Map<string, FinancialTransaction>();
+    for (const movement of sourceMovements) {
+      if (movement?.id && !movementMap.has(movement.id)) movementMap.set(movement.id, movement);
+    }
+    const movements = Array.from(movementMap.values()).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     const term = search.trim().toLowerCase();
 
     return movements.filter((t) => {
@@ -293,7 +328,7 @@ export default function FinancePage() {
         (maxValue === null || t.amount <= maxValue)
       );
     });
-  }, [stats, search, filters]);
+  }, [stats, directMovements, search, filters]);
 
   const exportRows = filteredMovements.map((t) => ({
     Data: new Date(t.date).toLocaleDateString("pt-BR"),
@@ -590,46 +625,69 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
   const reinvestmentProfit = Math.max(0, netProfit) * 0.5;
   const personalProfit = Math.max(0, netProfit) * 0.5;
 
+  const appointmentOptionsForSelectedContract = appointments
+    .filter((appointment) => !form.patientId || appointment.patientId === form.patientId)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
   useEffect(() => {
     async function loadOptions() {
-      const [inventoryRes, appointmentsRes, contractsRes, salesRes] = await Promise.all([
-        fetch("/api/inventory-items"),
-        fetch("/api/appointments"),
-        fetch("/api/patient-contracts"),
-        fetch("/api/sales"),
+      const [inventoryRes, appointmentsRes, sourcesRes] = await Promise.all([
+        fetch("/api/inventory-items", { cache: "no-store" }),
+        fetch("/api/appointments", { cache: "no-store" }),
+        fetch("/api/finance/sale-sources", { cache: "no-store" }),
       ]);
 
       if (inventoryRes.ok) setInventoryItems(await inventoryRes.json());
       if (appointmentsRes.ok) setAppointments(await appointmentsRes.json());
 
+      if (sourcesRes.ok) {
+        const saleSources = await sourcesRes.json();
+        setContracts(Array.isArray(saleSources) ? saleSources : []);
+        return;
+      }
+
+      const [contractsRes, salesRes] = await Promise.all([
+        fetch("/api/patient-contracts", { cache: "no-store" }),
+        fetch("/api/sales", { cache: "no-store" }),
+      ]);
+
       const loadedContracts: ContractOption[] = contractsRes.ok ? await contractsRes.json() : [];
       const loadedSales = salesRes.ok ? await salesRes.json() : [];
 
-      const contractIds = new Set(loadedContracts.map((contract) => contract.id));
       const saleAsContracts: ContractOption[] = Array.isArray(loadedSales)
-        ? loadedSales
-            .filter((sale: any) => !contractIds.has(sale.id))
-            .map((sale: any) => ({
-              id: sale.id,
-              createdAt: sale.createdAt,
-              patientId: sale.patientId,
-              patient: sale.patient,
-              title: `Venda lançada - ${formatDateLabel(sale.createdAt)}`,
-              content: "",
-              total: Number(sale.finalPrice ?? sale.price ?? 0),
-              status: "SALE",
-              itemsJson: Array.isArray(sale.saleItems)
-                ? sale.saleItems.map((item: any) => ({
-                    description: item.productName,
-                    quantity: item.quantity,
-                    unitPrice: item.unitPrice,
-                    total: item.totalPrice,
-                  }))
-                : [],
-            }))
+        ? loadedSales.map((sale: any) => ({
+            id: `sale:${sale.id}`,
+            sourceType: "SALE",
+            contractId: null,
+            saleId: sale.id,
+            createdAt: sale.createdAt,
+            patientId: sale.patientId,
+            patient: sale.patient,
+            title: "Venda lançada",
+            content: "",
+            total: Number(sale.finalPrice ?? sale.price ?? 0),
+            status: "SALE",
+            payments: sale.payments || [],
+            itemsJson: Array.isArray(sale.saleItems)
+              ? sale.saleItems.map((item: any) => ({
+                  description: item.productName,
+                  quantity: item.quantity,
+                  unitPrice: item.unitPrice,
+                  total: item.totalPrice,
+                }))
+              : [],
+          }))
         : [];
 
-      setContracts([...loadedContracts, ...saleAsContracts]);
+      setContracts([
+        ...loadedContracts.map((contract) => ({
+          ...contract,
+          id: contract.id.startsWith("contract:") ? contract.id : `contract:${contract.id}`,
+          sourceType: "CONTRACT" as const,
+          contractId: contract.id.replace(/^contract:/, ""),
+        })),
+        ...saleAsContracts,
+      ]);
     }
 
     loadOptions();
@@ -645,17 +703,19 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
 
     const procedureName = getContractProcedureName(contract);
     const fullValue = Number(contract.total || 0);
-    const paymentMethod = extractPaymentMethodFromContract(contract.content);
-    const installments = extractInstallmentsFromContract(contract.content);
+    const paymentMethod = extractPaymentMethodFromSource(contract);
+    const installments = extractInstallmentsFromSource(contract);
+    const paidAmount = extractPaidAmountFromSource(contract);
 
     setForm((prev) => ({
       ...prev,
       contractId,
+      appointmentId: "",
       saleDate: toDatetimeLocal(contract.createdAt),
       patientId: contract.patientId || prev.patientId,
       procedureSold: procedureName || prev.procedureSold,
       fullSaleValue: String(fullValue || ""),
-      bankValue: prev.bankValue || String(fullValue || ""),
+      bankValue: prev.bankValue || String(paidAmount || fullValue || ""),
       paymentMethod,
       installments,
     }));
@@ -784,7 +844,9 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
             type: "application/json",
             size: 0,
             dataUrl: `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({
-              contractId: form.contractId || null,
+              selectedSourceId: form.contractId || null,
+              contractId: contracts.find((item) => item.id === form.contractId)?.contractId || null,
+              saleId: contracts.find((item) => item.id === form.contractId)?.saleId || null,
               appointmentId: form.appointmentId || null,
               saleDate: form.saleDate,
               procedureDate: form.procedureDate,
@@ -832,7 +894,7 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
             <p className="micro-label">Contrato + custos da venda</p>
             <h3 className="text-4xl">Fechamento da venda</h3>
             <p className="mt-2 max-w-2xl text-[13px] leading-6 text-brand-text/62">
-              Selecione o contrato já gerado, informe o valor que realmente entrou no banco e complete os custos para ver quanto sobra e como dividir o dinheiro.
+              Selecione qualquer contrato ou venda lançada da paciente, mesmo que seja de outra data. Depois vincule o agendamento apenas se fizer sentido e complete os custos para dar baixa financeira.
             </p>
           </div>
           <button onClick={onClose} className="rounded-full border border-[rgba(90,31,43,.12)] p-2.5 text-brand-text/55 transition hover:bg-[rgba(90,31,43,.08)] hover:text-brand-primary" aria-label="Fechar modal">
@@ -851,19 +913,19 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
                 options={["", ...contracts.map((contract) => contract.id)]}
                 labels={contracts.reduce((acc: any, contract) => ({
                   ...acc,
-                  [contract.id]: `${formatDateLabel(contract.createdAt)} • ${contract.patient?.name || "Paciente"} • ${contract.title || "Contrato"} • ${fmtCurrency(Number(contract.total || 0))}`,
-                }), { "": "Selecione o contrato da venda..." })}
+                  [contract.id]: `${contract.sourceType === "SALE" ? "Venda lançada" : "Contrato"} • ${formatDateLabel(contract.createdAt)} • ${contract.patient?.name || "Paciente"} • ${getContractProcedureName(contract)} • ${fmtCurrency(Number(contract.total || 0))}`,
+                }), { "": contracts.length ? "Selecione contrato ou venda lançada..." : "Nenhum contrato/venda encontrado — abra /api/system/repair e atualize" })}
               />
 
               <SelectField
                 label="2. Data do procedimento / agenda"
                 value={form.appointmentId}
                 onChange={applyAppointment}
-                options={["", ...appointments.map((appointment) => appointment.id)]}
-                labels={appointments.reduce((acc: any, appointment) => ({
+                options={["", ...appointmentOptionsForSelectedContract.map((appointment) => appointment.id)]}
+                labels={appointmentOptionsForSelectedContract.reduce((acc: any, appointment) => ({
                   ...acc,
                   [appointment.id]: `${formatDateLabel(appointment.date)} • ${appointment.patient?.name || "Paciente"} • ${appointment.procedureName || "Procedimento"}`,
-                }), { "": "Selecionar agendamento..." })}
+                }), { "": form.patientId ? "Opcional: vincular a um agendamento da paciente..." : "Opcional: selecione contrato/paciente primeiro..." })}
               />
             </div>
           </div>

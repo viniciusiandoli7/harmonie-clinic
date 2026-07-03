@@ -63,6 +63,69 @@ async function getOrCreateTreatment(client: PrismaLike) {
   return created[0] || { id };
 }
 
+
+async function createSaleFinancialTransaction(client: PrismaLike, input: {
+  financialTransactionId: string;
+  saleId: string;
+  patientId: string;
+  generalTreatmentName: string;
+  finalTotal: number;
+  subtotal: number;
+  commissionValue: number;
+  operationalCost: number;
+  professionalValue: number;
+  clinicProfit: number;
+  pendingAmount: number;
+  payments: NormalizedPayment[];
+  bodyNotes?: string | null;
+}) {
+  const status = input.pendingAmount <= 0.01 ? "PAID" : "PENDING";
+  const paidAt = input.pendingAmount <= 0.01 ? new Date() : null;
+  const paymentMethod = input.payments.length ? input.payments.map((p) => p.method).join(" + ") : null;
+  const description = `Venda: ${input.generalTreatmentName}`;
+
+  try {
+    await strictExecute(
+      client,
+      `INSERT INTO "FinancialTransaction" ("id", "type", "category", "description", "amount", "grossAmount", "feeAmount", "netAmount", "commissionAmount", "operationalCost", "professionalValue", "clinicProfit", "profit", "patientId", "saleId", "date", "status", "paidAt", "paymentMethod", "notes", "createdAt", "updatedAt") VALUES ($1, 'INCOME', 'Procedimento', $2, $3, $4, 0, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14, $15, $16, NOW(), NOW())`,
+      input.financialTransactionId,
+      description,
+      input.finalTotal,
+      input.subtotal,
+      input.finalTotal,
+      input.commissionValue,
+      input.operationalCost,
+      input.professionalValue,
+      input.clinicProfit,
+      input.clinicProfit,
+      input.patientId,
+      input.saleId,
+      status,
+      paidAt,
+      paymentMethod,
+      input.bodyNotes || null
+    );
+    return;
+  } catch (fullError) {
+    console.warn("Inserção financeira completa falhou; tentando fallback mínimo:", fullError);
+  }
+
+  await strictExecute(
+    client,
+    `INSERT INTO "FinancialTransaction" ("id", "type", "category", "description", "amount", "patientId", "saleId", "date", "status", "paidAt", "paymentMethod", "notes", "createdAt", "updatedAt") VALUES ($1, 'INCOME', 'Procedimento', $2, $3, $4, $5, NOW(), $6, $7, $8, $9, NOW(), NOW())`,
+    input.financialTransactionId,
+    description,
+    input.finalTotal,
+    input.patientId,
+    input.saleId,
+    status,
+    paidAt,
+    paymentMethod,
+    input.bodyNotes || null
+  );
+}
+
+
 export async function closeSaleRaw(client: PrismaLike, input: {
   patientId: string;
   subtotal: number;
@@ -127,26 +190,21 @@ export async function closeSaleRaw(client: PrismaLike, input: {
   }
 
   const financialTransactionId = randomUUID();
-  await safeExecute(
-    client,
-    `INSERT INTO "FinancialTransaction" ("id", "type", "category", "description", "amount", "grossAmount", "feeAmount", "netAmount", "commissionAmount", "operationalCost", "professionalValue", "clinicProfit", "profit", "patientId", "saleId", "date", "status", "paidAt", "paymentMethod", "notes", "createdAt", "updatedAt") VALUES ($1, 'INCOME', 'Procedimento', $2, $3, $4, 0, $5, $6, $7, $8, $9, $10, $11, $12, NOW(), $13, $14, $15, $16, NOW(), NOW())`,
+  await createSaleFinancialTransaction(client, {
     financialTransactionId,
-    `Venda: ${input.generalTreatmentName}`,
-    input.finalTotal,
-    input.subtotal,
-    input.finalTotal,
-    input.commissionValue,
-    input.operationalCost,
-    input.professionalValue,
-    input.clinicProfit,
-    input.clinicProfit,
-    input.patientId,
     saleId,
-    input.pendingAmount <= 0.01 ? "PAID" : "PENDING",
-    input.pendingAmount <= 0.01 ? new Date() : null,
-    input.payments.length ? input.payments.map((p) => p.method).join(" + ") : null,
-    input.bodyNotes || null
-  );
+    patientId: input.patientId,
+    generalTreatmentName: input.generalTreatmentName,
+    finalTotal: input.finalTotal,
+    subtotal: input.subtotal,
+    commissionValue: input.commissionValue,
+    operationalCost: input.operationalCost,
+    professionalValue: input.professionalValue,
+    clinicProfit: input.clinicProfit,
+    pendingAmount: input.pendingAmount,
+    payments: input.payments,
+    bodyNotes: input.bodyNotes || null,
+  });
 
   for (let index = 0; index < input.payments.length; index += 1) {
     const payment = input.payments[index];

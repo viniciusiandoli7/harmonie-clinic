@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { ensureProductionSchema } from "@/lib/productionSchemaSql";
+import { ensureFinancialTransactionsForSales } from "@/lib/financeRepairSql";
 import {
   createFinancialTransaction,
   listFinancialTransactions,
@@ -36,17 +37,39 @@ const createSchema = z.object({
   })).optional(),
 });
 
+
+async function listFinancialTransactionsRaw() {
+  const rows = await (prisma as any).$queryRawUnsafe(`
+    SELECT
+      ft.*,
+      json_build_object('id', p."id", 'name', p."name", 'phone', p."phone") AS "patient"
+    FROM "FinancialTransaction" ft
+    LEFT JOIN "Patient" p ON p."id" = ft."patientId"
+    ORDER BY ft."date" DESC
+    LIMIT 500
+  `);
+
+  return Array.isArray(rows) ? rows : [];
+}
+
+
 export async function GET() {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
     await ensureProductionSchema(prisma as any);
+    await ensureFinancialTransactionsForSales(prisma as any);
     const items = await listFinancialTransactions();
     return NextResponse.json(items);
   } catch (error) {
-    console.error("GET /api/financial-transactions error:", error);
-    return NextResponse.json({ error: "Erro ao listar transações." }, { status: 500 });
+    console.warn("GET /api/financial-transactions via Prisma falhou; usando consulta segura:", error);
+    try {
+      return NextResponse.json(await listFinancialTransactionsRaw());
+    } catch (rawError) {
+      console.error("GET /api/financial-transactions error:", rawError);
+      return NextResponse.json({ error: "Erro ao listar transações." }, { status: 500 });
+    }
   }
 }
 

@@ -22,31 +22,36 @@ Depois do deploy em produção, abra logado:
 https://harmonie-clinic.vercel.app/api/system/repair
 ```
 
-O retorno esperado é `ok: true`.
+Depois abra também:
 
-Teste manual sugerido:
+```txt
+https://harmonie-clinic.vercel.app/api/finance/sale-sources
+```
 
-1. Fechar uma venda no **Caixa / Ponto de Venda**.
-2. Abrir **Financeiro**.
-3. Conferir se a venda aparece em **Movimentações** automaticamente.
-4. Clicar em **Nova transação**.
-5. No modal **Fechamento da venda**, conferir se aparece:
-   - contrato gerado;
-   - ou, se o contrato não existir, a venda lançada como opção de fallback.
-6. Selecionar o contrato/venda e conferir se preenche:
-   - paciente;
-   - procedimento vendido;
-   - valor cheio;
-   - forma de pagamento quando houver;
-   - valor no banco.
-7. Conferir se o filtro **Categoria > Procedimento** também exibe vendas antigas com categoria `PROCEDIMENTO`.
+Esse endpoint precisa retornar uma lista com contratos/vendas lançadas, independentemente da data.
+
+Teste manual obrigatório:
+
+1. Cadastre/agende uma paciente em qualquer data.
+2. Se for consulta, lance a venda/custo pelo Financeiro.
+3. Se ela fechar tratamento pela ficha, feche a venda pela ficha.
+4. Abra **Financeiro**.
+5. A venda deve aparecer em **Movimentações** sem depender da data da meta ativa.
+6. Clique em **Lançar venda/custos**.
+7. No campo **Selecionar contrato lançado**, deve aparecer:
+   - contrato gerado pela ficha;
+   - ou venda lançada como fallback.
+8. Selecione o contrato/venda.
+9. O sistema deve preencher paciente, procedimento, valor, forma de pagamento e valor recebido.
+10. O campo **Data do procedimento / agenda** agora é opcional e só filtra agendamentos daquela paciente.
 
 Correções desta versão:
 
-- Financeiro não quebra mais quando a tabela de fechamento mensal ainda não existe.
-- `/api/finance/stats` agora prepara o schema antes de buscar as movimentações.
-- Sistema cria automaticamente movimentação financeira para vendas antigas que ainda não tinham lançamento financeiro.
-- `/api/system/repair` também faz esse reparo financeiro.
-- Lista de contratos do modal financeiro ganhou fallback por venda lançada.
-- Categoria financeira padronizada como `Procedimento`.
-- Filtro de categoria agora também reconhece registros antigos `PROCEDIMENTO`.
+- Criada rota `/api/finance/sale-sources` para listar contratos e vendas sem filtro de data.
+- Modal de fechamento financeiro agora busca contratos/vendas nessa rota única.
+- Seleção do agendamento deixou de ser obrigatória; agendamento é apenas vínculo opcional.
+- O modal não depende mais da data da agenda para encontrar o contrato/venda.
+- Movimentações financeiras não começam mais escondidas pelo período da meta ativa.
+- `/api/financial-transactions` agora roda reparo/backfill de vendas antes de listar.
+- Schema do banco reforçado com `ALTER TABLE FinancialTransaction`, para bancos Neon/produção que já existiam com colunas antigas.
+- Agenda continua com select real de pacientes, sem depender de digitar inicial.

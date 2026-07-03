@@ -243,22 +243,24 @@ export default function AgendaPage() {
         <div className="space-y-5 flex-1">
           <div className="space-y-1">
             <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Paciente</label>
-            <input 
-              list="patients-list"
-              value={searchPatient} 
+            <select
+              value={formData.patientId}
               onChange={e => {
-                setSearchPatient(e.target.value);
-                const searchVal = e.target.value.trim().toLowerCase();
-                const found = dbPatients.find(p => p.name.toLowerCase() === searchVal);
-                if(found) setFormData({...formData, patientId: found.id});
-                else setFormData({...formData, patientId: ""});
-              }} 
-              placeholder="BUSCAR NOME..." 
-              className="w-full py-1.5 border-b border-[#EEE] outline-none bg-transparent focus:border-[#5A1F2B] transition-colors" 
-            />
-            <datalist id="patients-list">
-              {dbPatients.map(p => <option key={p.id} value={p.name} />)}
-            </datalist>
+                const patientId = e.target.value;
+                const found = dbPatients.find(p => p.id === patientId);
+                setSearchPatient(found?.name || "");
+                setFormData({ ...formData, patientId });
+              }}
+              className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none uppercase font-medium focus:border-[#5A1F2B] transition-colors"
+            >
+              <option value="">Selecionar paciente...</option>
+              {dbPatients
+                .slice()
+                .sort((a, b) => String(a.name || "").localeCompare(String(b.name || ""), "pt-BR"))
+                .map(p => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+            </select>
           </div>
 
           <div className="space-y-2">

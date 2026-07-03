@@ -21,6 +21,79 @@ function paymentMethodLabel(methods: string[]) {
   return [...new Set(methods.filter(Boolean))].join(" + ");
 }
 
+
+async function insertBackfillFinancialTransaction(client: PrismaLike, input: {
+  transactionId: string;
+  saleId: string;
+  patientId: string;
+  saleDate: Date;
+  description: string;
+  amount: number;
+  netAmount: number;
+  status: string;
+  paymentMethod: string | null;
+  notes: string;
+}) {
+  const paidAt = input.status === "PENDING" ? null : input.saleDate;
+
+  try {
+    await client.$executeRawUnsafe(
+      `
+        INSERT INTO "FinancialTransaction" (
+          "id", "date", "description", "category", "amount", "grossAmount", "feeAmount", "netAmount",
+          "commissionAmount", "type", "status", "paymentMethod", "paidAt", "profit", "clinicProfit",
+          "patientId", "saleId", "notes", "createdAt", "updatedAt"
+        )
+        VALUES (
+          $1, $2, $3, 'Procedimento', $4, $5, 0, $6,
+          0, 'INCOME', $7, $8, $9, $10, $11,
+          $12, $13, $14, NOW(), NOW()
+        )
+      `,
+      input.transactionId,
+      input.saleDate,
+      input.description,
+      input.amount,
+      input.amount,
+      input.netAmount,
+      input.status,
+      input.paymentMethod,
+      paidAt,
+      input.netAmount,
+      input.netAmount,
+      input.patientId,
+      input.saleId,
+      input.notes
+    );
+    return true;
+  } catch (fullError) {
+    console.warn("Backfill financeiro completo falhou; tentando fallback mínimo:", fullError);
+  }
+
+  await client.$executeRawUnsafe(
+    `
+      INSERT INTO "FinancialTransaction" (
+        "id", "date", "description", "category", "amount", "type", "status",
+        "paymentMethod", "paidAt", "patientId", "saleId", "notes", "createdAt", "updatedAt"
+      )
+      VALUES ($1, $2, $3, 'Procedimento', $4, 'INCOME', $5, $6, $7, $8, $9, $10, NOW(), NOW())
+    `,
+    input.transactionId,
+    input.saleDate,
+    input.description,
+    input.amount,
+    input.status,
+    input.paymentMethod,
+    paidAt,
+    input.patientId,
+    input.saleId,
+    input.notes
+  );
+
+  return true;
+}
+
+
 export async function ensureFinancialTransactionsForSales(client: PrismaLike) {
   await ensureProductionSchema(client);
 
@@ -61,35 +134,24 @@ export async function ensureFinancialTransactionsForSales(client: PrismaLike) {
     const methods = Array.isArray(sale.paymentMethods) ? sale.paymentMethods : [];
     const paymentMethod = paymentMethodLabel(methods);
 
-    const result = await safeExecute(
-      client,
-      `
-        INSERT INTO "FinancialTransaction" (
-          "id", "date", "description", "category", "amount", "grossAmount", "feeAmount", "netAmount",
-          "commissionAmount", "type", "status", "paymentMethod", "paidAt", "profit", "clinicProfit",
-          "patientId", "saleId", "notes", "createdAt", "updatedAt"
-        )
-        VALUES (
-          $1, $2, $3, 'Procedimento', $4, $5, 0, $6,
-          0, 'INCOME', $7, $8, $9, $10, $11,
-          $12, $13, $14, NOW(), NOW()
-        )
-      `,
-      transactionId,
-      sale.createdAt || new Date(),
-      description,
-      finalPrice,
-      finalPrice,
-      netAmount,
-      status,
-      paymentMethod,
-      status === "PAID" || status === "PARTIAL" ? sale.createdAt || new Date() : null,
-      netAmount,
-      netAmount,
-      sale.patientId,
-      sale.id,
-      `Movimentação financeira criada automaticamente a partir da venda${sale.patientName ? ` de ${sale.patientName}` : ""}.`
-    );
+    let result: boolean | null = null;
+    try {
+      result = await insertBackfillFinancialTransaction(client, {
+        transactionId,
+        saleId: sale.id,
+        patientId: sale.patientId,
+        saleDate: sale.createdAt || new Date(),
+        description,
+        amount: finalPrice,
+        netAmount,
+        status,
+        paymentMethod,
+        notes: `Movimentação financeira criada automaticamente a partir da venda${sale.patientName ? ` de ${sale.patientName}` : ""}.`,
+      });
+    } catch (error) {
+      console.warn("Não foi possível criar movimentação financeira para a venda:", sale.id, error);
+      result = null;
+    }
 
     if (result !== null) {
       created += 1;

@@ -64,12 +64,13 @@ export async function GET() {
     const grossIncome = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.grossAmount ?? t.amount ?? 0), 0));
     const fees = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.feeAmount ?? 0), 0));
     const commissions = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.commissionAmount ?? t.professionalValue ?? 0), 0));
-    const income = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.netAmount ?? t.amount ?? 0), 0));
+    const income = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.amount ?? t.netAmount ?? 0), 0));
     const expense = roundMoney(expenseTransactions.reduce((acc, t) => acc + Number(t.amount ?? 0), 0));
-    const netProfit = roundMoney(income - expense);
+    const salesNetProfit = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.netAmount ?? t.amount ?? 0), 0));
+    const netProfit = roundMoney(salesNetProfit - expense);
     const totalBalance = roundMoney(allTransactions
       .filter((t) => isPaid(t.status))
-      .reduce((acc, t: any) => (t.type === "INCOME" ? acc + Number(t.netAmount ?? t.amount) : acc - Number(t.amount)), 0));
+      .reduce((acc, t: any) => (t.type === "INCOME" ? acc + Number(t.amount ?? t.netAmount ?? 0) : acc - Number(t.amount ?? 0)), 0));
 
     const paidIncomeCount = incomeTransactions.length;
     const averageTicket = paidIncomeCount ? roundMoney(grossIncome / paidIncomeCount) : 0;

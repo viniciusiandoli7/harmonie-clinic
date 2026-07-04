@@ -76,6 +76,21 @@ export const treatmentStepStatuses = [
 export const incomeCategories = ["Procedimento", "Produto", "Curso", "Outros"] as const;
 
 export const expenseCategories = [
+  "Marketing",
+  "Tráfego pago",
+  "Internet/celular",
+  "Contador",
+  "Armário",
+  "Aplicativos",
+  "Mensalidade",
+  "Frete de produto mensal",
+  "Funcionária",
+  "Transporte",
+  "Lembrancinhas",
+  "Manutenção de imagem",
+  "Descartável",
+  "Produto/Estoque",
+  "Estorno/Reembolso",
   "Produto",
   "Divulgação / captação",
   "Impostos",

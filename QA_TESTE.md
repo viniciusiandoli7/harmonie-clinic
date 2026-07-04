@@ -1,20 +1,14 @@
 # QA / Teste rápido
 
-Correção pontual do build.
+Correção desta versão:
 
-Validação feita nesta versão:
+- Corrigido erro de build:
+  - `Type 'string' is not assignable to type '"Pix"'`
+- O estado do formulário de **Saídas** agora tem tipagem explícita.
+- `paymentMethod` agora é tratado como `string`, permitindo Pix, cartão, dinheiro, boleto etc.
+- Também foi corrigido o campo `fixedCostImpact` para aceitar somente `"SIM"` ou `"NAO"` sem quebrar TypeScript.
 
-```txt
-npm run qa
-QA OK
-```
-
-Correção aplicada:
-
-- Removida referência indevida a `isModalOpen` dentro do componente interno do modal financeiro.
-- O modal já só é montado quando aberto, então agora ele carrega contratos/vendas no `useEffect` de montagem.
-
-Depois de substituir os arquivos, rode:
+Rode:
 
 ```powershell
 npx prisma db push
@@ -24,8 +18,18 @@ npm run build
 npm run dev
 ```
 
-Depois de subir na Vercel, abra logado:
+Validação feita nesta versão:
 
 ```txt
-https://harmonie-clinic.vercel.app/api/system/repair
+npm run qa
+QA OK
 ```
+
+Teste obrigatório:
+
+1. Abrir Financeiro.
+2. Clicar em Saídas.
+3. Selecionar uma forma de pagamento.
+4. Selecionar se entra ou não no custo fixo mensal.
+5. Salvar saída.
+6. Confirmar se aparece em Movimentações como Saída.

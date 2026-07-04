@@ -1,9 +1,11 @@
+import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { z } from "zod";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { createInventoryItemRaw, findInventoryItemsRaw } from "@/lib/inventorySql";
+import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 
 const itemSchema = z.object({
   product: z.string().min(2),
@@ -61,6 +63,62 @@ export async function POST(req: NextRequest) {
         });
       } catch (movementError) {
         console.warn("Item salvo, mas movimento inicial de estoque não foi registrado:", movementError);
+      }
+    }
+
+
+    const stockExpenseAmount = Number(created.entryQuantity ?? created.quantity ?? parsed.data.quantity ?? 0) * Number(created.unitValue ?? parsed.data.unitValue ?? 0);
+    if (stockExpenseAmount > 0) {
+      try {
+        await ensureProductionSchema(prisma as any);
+        const details = {
+          origin: "ESTOQUE",
+          source: "INVENTORY_PURCHASE",
+          inventoryItemId: created.id,
+          product: created.product,
+          outputCategory: "Produto/Estoque",
+          outputValue: stockExpenseAmount,
+          unitValue: Number(created.unitValue || 0),
+          quantity: Number(created.entryQuantity ?? created.quantity ?? 0),
+          supplier: created.supplier || null,
+          batch: created.batch || null,
+          expiresAt: created.expiresAt || null,
+          entryDate: created.entryDate || created.createdAt || null,
+          fixedCostImpact: false,
+          notes: created.notes || null,
+        };
+
+        await (prisma as any).$executeRawUnsafe(
+          `
+            INSERT INTO "FinancialTransaction" (
+              "id", "date", "description", "category", "amount", "grossAmount", "feeAmount", "netAmount",
+              "type", "status", "paymentMethod", "paidAt", "notes", "attachmentsJson", "createdAt", "updatedAt"
+            )
+            VALUES ($1, $2, $3, 'Produto/Estoque', $4, $5, 0, $6, 'EXPENSE', 'PAID', NULL, NOW(), $7, $8::jsonb, NOW(), NOW())
+          `,
+          randomUUID(),
+          created.entryDate ? new Date(created.entryDate) : new Date(),
+          `Compra de produto para estoque - ${created.product}`,
+          stockExpenseAmount,
+          stockExpenseAmount,
+          stockExpenseAmount,
+          [
+            `Produto cadastrado: ${created.product}`,
+            created.supplier ? `Fornecedor: ${created.supplier}` : null,
+            created.batch ? `Lote: ${created.batch}` : null,
+            created.expiresAt ? `Validade: ${created.expiresAt}` : null,
+            `Quantidade: ${Number(created.entryQuantity ?? created.quantity ?? 0)}`,
+            created.notes ? `Observação: ${created.notes}` : null,
+          ].filter(Boolean).join(" | "),
+          JSON.stringify([{
+            name: "dados-estoque-financeiro.json",
+            type: "application/json",
+            size: 0,
+            dataUrl: `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(details, null, 2))}`,
+          }])
+        );
+      } catch (financialError) {
+        console.warn("Item salvo, mas saída financeira automática do estoque não foi registrada:", financialError);
       }
     }
 

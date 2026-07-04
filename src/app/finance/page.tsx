@@ -21,6 +21,7 @@ import {
 } from "@/lib/brand";
 
 type TransactionType = "INCOME" | "EXPENSE";
+type TransactionOrigin = "AGENDA" | "CONTRATO" | "SAIDA_MANUAL" | "ESTOQUE" | "MANUAL";
 type TransactionStatus = "PENDING" | "PARTIAL" | "PAID" | "CANCELED" | "COMPLETED";
 
 type AttachmentFile = {
@@ -81,6 +82,10 @@ type FinancialTransaction = {
   description: string;
   category: string;
   amount: number;
+  grossAmount?: number | null;
+  feeAmount?: number | null;
+  netAmount?: number | null;
+  commissionAmount?: number | null;
   type: TransactionType;
   status: TransactionStatus;
   paymentMethod?: string | null;
@@ -101,9 +106,37 @@ const monthStartInputDate = () => {
 };
 
 const uniqueOptions = (options: readonly string[]) => Array.from(new Set(options));
-const financialCategoryFilterOptions = uniqueOptions(["", "Procedimento", ...incomeCategories, ...expenseCategories]);
-
 const FINANCE_PROCEDURE_CATEGORY = "Procedimento";
+
+const EXPENSE_FORM_CATEGORIES = [
+  "Marketing",
+  "Tráfego pago",
+  "Internet/celular",
+  "Contador",
+  "Armário",
+  "Aplicativos",
+  "Mensalidade",
+  "Frete de produto mensal",
+  "Funcionária",
+  "Transporte",
+  "Lembrancinhas",
+  "Manutenção de imagem",
+  "Descartável",
+  "Produto/Estoque",
+  "Estorno/Reembolso",
+  "Outros",
+] as const;
+
+const financialCategoryFilterOptions = uniqueOptions(["", "Procedimento", ...incomeCategories, ...expenseCategories, ...EXPENSE_FORM_CATEGORIES]);
+
+const saleOriginLabels: Record<TransactionOrigin, string> = {
+  AGENDA: "Agenda",
+  CONTRATO: "Contrato",
+  SAIDA_MANUAL: "Saída manual",
+  ESTOQUE: "Estoque",
+  MANUAL: "Manual",
+};
+
 
 const formatDateLabel = (value?: string | null) => {
   if (!value) return "Sem data";
@@ -213,7 +246,66 @@ function getContractProcedureName(contract?: ContractOption | null) {
 }
 
 
+
+function safeNumber(value: unknown) {
+  const parsed = Number(value || 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function decodeFinanceDetails(transaction: FinancialTransaction): any {
+  const attachments = Array.isArray(transaction.attachmentsJson) ? transaction.attachmentsJson : [];
+  const jsonAttachment = attachments.find((file: any) =>
+    String(file?.name || "").includes("dados-lancamento-financeiro") ||
+    String(file?.name || "").includes("dados-saida-financeira") ||
+    String(file?.name || "").includes("dados-estoque-financeiro")
+  );
+
+  if (!jsonAttachment?.dataUrl) return {};
+
+  try {
+    const raw = String(jsonAttachment.dataUrl);
+    const payload = raw.includes(",") ? raw.split(",")[1] : raw;
+    return JSON.parse(decodeURIComponent(payload));
+  } catch {
+    try {
+      const raw = String(jsonAttachment.dataUrl);
+      const payload = raw.includes(",") ? raw.split(",")[1] : raw;
+      return JSON.parse(typeof atob === "function" ? atob(payload) : payload);
+    } catch {
+      return {};
+    }
+  }
+}
+
+function getTransactionOrigin(transaction: FinancialTransaction, details: any) {
+  if (details?.origin) return saleOriginLabels[details.origin as TransactionOrigin] || details.origin;
+  if (details?.source === "INVENTORY_PURCHASE") return "Estoque";
+  if (transaction.type === "EXPENSE") return details?.fixedCostImpact !== undefined ? "Saída manual" : "Saída";
+  if (details?.contractId || String(details?.selectedSourceId || "").startsWith("contract:")) return "Contrato";
+  if (details?.appointmentId) return "Agenda";
+  if (details?.saleId || String(details?.selectedSourceId || "").startsWith("sale:")) return "Contrato";
+  return "Manual";
+}
+
+function getProcedureFromTransaction(transaction: FinancialTransaction, details: any) {
+  return String(details?.procedureSold || (transaction.type === "INCOME" ? transaction.description?.replace(/^Venda:\s*/i, "") : "") || "");
+}
+
+function getProductNames(details: any) {
+  if (Array.isArray(details?.products) && details.products.length) {
+    return details.products.map((item: any) => item.product || item.name).filter(Boolean).join(" + ");
+  }
+  return String(details?.productName || details?.product || "");
+}
+
+function getDetailValue(transaction: FinancialTransaction, details: any, key: string, fallback = 0) {
+  if (details?.[key] !== undefined && details?.[key] !== null && details?.[key] !== "") return safeNumber(details[key]);
+  return fallback;
+}
+
+
 function buildFinanceNotes(data: {
+  origin?: TransactionOrigin;
   saleDate: string;
   procedureDate: string;
   patientName: string;
@@ -239,6 +331,7 @@ function buildFinanceNotes(data: {
 }) {
   return [
     "Resumo do lançamento financeiro:",
+    `Origem da venda: ${data.origin ? saleOriginLabels[data.origin] : "Não informado"}`,
     `1. Data da venda: ${formatDateLabel(data.saleDate)}`,
     `2. Data do procedimento: ${formatDateLabel(data.procedureDate)}`,
     `3. Paciente: ${data.patientName || "Não informado"}`,
@@ -257,8 +350,8 @@ function buildFinanceNotes(data: {
     `16. Imposto 6%: ${fmtCurrency(data.taxAmount)}`,
     `17. Custo total: ${fmtCurrency(data.totalCost)}`,
     `18. Lucro líquido: ${fmtCurrency(data.netProfit)}`,
-    `19. Lucro para reinvestimento: ${fmtCurrency(data.reinvestmentProfit)}`,
-    `20. Lucro pessoal esperado: ${fmtCurrency(data.personalProfit)}`,
+    `19. Valor de reinvestimento 10%: ${fmtCurrency(data.reinvestmentProfit)}`,
+    `20. Lucro pessoal esperado 90%: ${fmtCurrency(data.personalProfit)}`,
     `21. Status financeiro: ${financialStatusLabels[data.status] || data.status}`,
     `22. Observação: ${data.notes || "Sem observações"}`,
   ].join("\\n");
@@ -272,6 +365,7 @@ export default function FinancePage() {
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
   const [showFilters, setShowFilters] = useState(true);
   const [filters, setFilters] = useState({
     startDate: "",
@@ -279,6 +373,7 @@ export default function FinancePage() {
     category: "",
     type: "",
     patientId: "",
+    procedure: "",
     paymentMethod: "",
     minValue: "",
     maxValue: "",
@@ -344,6 +439,7 @@ export default function FinancePage() {
         (!filters.category || String(t.category || "").toLowerCase() === String(filters.category || "").toLowerCase() || (filters.category === "Procedimento" && String(t.category || "").toUpperCase() === "PROCEDIMENTO")) &&
         (!filters.type || t.type === filters.type) &&
         (!filters.patientId || t.patientId === filters.patientId) &&
+        (!filters.procedure || getProcedureFromTransaction(t, decodeFinanceDetails(t)).toLowerCase().includes(filters.procedure.toLowerCase())) &&
         (!filters.paymentMethod || t.paymentMethod === filters.paymentMethod) &&
         (!filters.status || normalizedStatus === filters.status) &&
         (minValue === null || t.amount >= minValue) &&
@@ -352,16 +448,80 @@ export default function FinancePage() {
     });
   }, [stats, directMovements, search, filters]);
 
-  const exportRows = filteredMovements.map((t) => ({
-    Data: new Date(t.date).toLocaleDateString("pt-BR"),
-    Descrição: t.description,
-    Paciente: t.patient?.name || "",
-    Categoria: t.category,
-    Tipo: t.type === "INCOME" ? "Entrada" : "Saída",
-    Status: financialStatusLabels[t.status] || t.status,
-    Forma: t.paymentMethod || "",
-    Valor: t.amount,
-  }));
+  const exportRows = filteredMovements.map((t) => {
+    const details = decodeFinanceDetails(t);
+    return {
+      Data: new Date(t.date).toLocaleDateString("pt-BR"),
+      Tipo: t.type === "INCOME" ? "Entrada/Venda" : "Saída",
+      Origem: getTransactionOrigin(t, details),
+      Paciente: t.patient?.name || "",
+      Procedimento: getProcedureFromTransaction(t, details),
+      Categoria: t.category,
+      Descrição: t.description,
+      Observação: t.notes || details.notes || "",
+      Forma: t.paymentMethod || "",
+      Status: financialStatusLabels[t.status] || t.status,
+      "Valor cheio da venda": t.type === "INCOME" ? getDetailValue(t, details, "fullSaleValue", safeNumber(t.grossAmount ?? t.amount)) : "",
+      "Valor que entrou no banco": t.type === "INCOME" ? getDetailValue(t, details, "bankValue", safeNumber(t.netAmount ?? t.amount)) : "",
+      "Valor da saída": t.type === "EXPENSE" ? t.amount : "",
+      "Produto utilizado": getProductNames(details),
+      "Custo do produto": getDetailValue(t, details, "productCost", 0) || "",
+      "Material de aplicação": getDetailValue(t, details, "applicationMaterialsValue", 0) || "",
+      "Valor da sala": getDetailValue(t, details, "roomValue", 0) || "",
+      "Custo fixo proporcional": getDetailValue(t, details, "fixedCost", 0) || "",
+      "Comissão secretária": getDetailValue(t, details, "secretaryCommission", safeNumber(t.commissionAmount || 0)) || "",
+      "Imposto": getDetailValue(t, details, "taxAmount", 0) || "",
+      "Custo total": getDetailValue(t, details, "totalCost", safeNumber(t.feeAmount || 0)) || "",
+      "Lucro líquido": getDetailValue(t, details, "netProfit", safeNumber(t.netAmount ?? t.amount)) || "",
+      "Valor de reinvestimento": getDetailValue(t, details, "reinvestmentProfit", 0) || "",
+      "Lucro pessoal esperado": getDetailValue(t, details, "personalProfit", 0) || "",
+      Valor: t.amount,
+    };
+  });
+
+
+  const launchesSummary = useMemo(() => {
+    return filteredMovements.reduce((acc, transaction) => {
+      const details = decodeFinanceDetails(transaction);
+      const isIncome = transaction.type === "INCOME";
+      const isExpense = transaction.type === "EXPENSE";
+      const fullSaleValue = isIncome ? getDetailValue(transaction, details, "fullSaleValue", safeNumber(transaction.grossAmount ?? transaction.amount)) : 0;
+      const bankValue = isIncome ? getDetailValue(transaction, details, "bankValue", safeNumber(transaction.netAmount ?? transaction.amount)) : 0;
+      const outputValue = isExpense ? safeNumber(transaction.amount) : 0;
+      const saleCost = isIncome ? getDetailValue(transaction, details, "totalCost", safeNumber(transaction.feeAmount || 0)) : 0;
+      const stockPurchase = isExpense && String(transaction.category || "").toLowerCase() === "produto/estoque" ? outputValue : 0;
+      const taxAmount = isIncome ? getDetailValue(transaction, details, "taxAmount", 0) : 0;
+      const secretaryCommission = isIncome ? getDetailValue(transaction, details, "secretaryCommission", safeNumber(transaction.commissionAmount || 0)) : 0;
+      const netProfit = isIncome ? getDetailValue(transaction, details, "netProfit", safeNumber(transaction.netAmount ?? transaction.amount) - saleCost) : 0;
+      const reinvestmentProfit = isIncome ? getDetailValue(transaction, details, "reinvestmentProfit", Math.max(0, netProfit) * 0.1) : 0;
+      const personalProfit = isIncome ? getDetailValue(transaction, details, "personalProfit", Math.max(0, netProfit) * 0.9) : 0;
+
+      acc.totalSold += fullSaleValue;
+      acc.totalBank += bankValue;
+      acc.totalOutputs += outputValue;
+      acc.totalSaleCosts += saleCost;
+      acc.totalStockPurchases += stockPurchase;
+      acc.totalTaxes += taxAmount;
+      acc.totalSecretary += secretaryCommission;
+      acc.totalNetProfit += netProfit;
+      acc.totalReinvestment += reinvestmentProfit;
+      acc.totalPersonal += personalProfit;
+      acc.monthBalance += bankValue - outputValue;
+      return acc;
+    }, {
+      totalSold: 0,
+      totalBank: 0,
+      totalOutputs: 0,
+      totalSaleCosts: 0,
+      totalStockPurchases: 0,
+      totalTaxes: 0,
+      totalSecretary: 0,
+      totalNetProfit: 0,
+      totalReinvestment: 0,
+      totalPersonal: 0,
+      monthBalance: 0,
+    });
+  }, [filteredMovements]);
 
   function downloadBlob(content: string, filename: string, type: string) {
     const blob = new Blob([content], { type });
@@ -476,9 +636,14 @@ export default function FinancePage() {
           <button onClick={() => setShowFilters((v) => !v)} className="btn-secondary h-12">
             <Filter size={15} /> Filtros
           </button>
-          <button onClick={() => setIsModalOpen(true)} className="btn-primary h-12">
-            <Plus size={15} /> Lançar venda/custos
-          </button>
+          <div className="flex flex-col gap-2">
+            <button onClick={() => setIsModalOpen(true)} className="btn-primary h-12">
+              <Plus size={15} /> Lançar venda/custos
+            </button>
+            <button onClick={() => setIsExpenseModalOpen(true)} className="btn-secondary h-12 justify-center">
+              <Plus size={15} /> Saídas
+            </button>
+          </div>
         </div>
       </div>
 
@@ -557,9 +722,10 @@ export default function FinancePage() {
             <FilterInput label="Período inicial" type="date" value={filters.startDate} onChange={(v) => setFilters({ ...filters, startDate: v })} />
             <FilterInput label="Período final" type="date" value={filters.endDate} onChange={(v) => setFilters({ ...filters, endDate: v })} />
             <FilterSelect label="Tipo" value={filters.type} onChange={(v) => setFilters({ ...filters, type: v })} options={["", "INCOME", "EXPENSE"]} labels={{ "": "Todos", INCOME: "Entrada", EXPENSE: "Saída" }} />
-            <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} options={["", ...statusOptions]} labels={{ "": "Todos", PENDING: "Pendente", PAID: "Pago", CANCELED: "Cancelado" }} />
+            <FilterSelect label="Status" value={filters.status} onChange={(v) => setFilters({ ...filters, status: v })} options={["", ...statusOptions]} labels={{ "": "Todos", PENDING: "Pendente", PARTIAL: "Parcelado", PAID: "Pago", CANCELED: "Vencido/Cancelado" }} />
             <FilterSelect label="Categoria" value={filters.category} onChange={(v) => setFilters({ ...filters, category: v })} options={financialCategoryFilterOptions} labels={{ "": "Todas" }} />
             <FilterSelect label="Paciente" value={filters.patientId} onChange={(v) => setFilters({ ...filters, patientId: v })} options={["", ...patients.map((p) => p.id)]} labels={patients.reduce((acc, p) => ({ ...acc, [p.id]: p.name }), { "": "Todos" } as Record<string, string>)} />
+            <FilterInput label="Procedimento" value={filters.procedure} onChange={(v) => setFilters({ ...filters, procedure: v })} />
             <FilterSelect label="Forma de pagamento" value={filters.paymentMethod} onChange={(v) => setFilters({ ...filters, paymentMethod: v })} options={["", ...paymentMethods]} labels={{ "": "Todas" }} />
             <div className="grid grid-cols-2 gap-3">
               <FilterInput label="Valor mín." type="number" value={filters.minValue} onChange={(v) => setFilters({ ...filters, minValue: v })} />
@@ -568,6 +734,28 @@ export default function FinancePage() {
           </div>
         </section>
       )}
+
+
+      <section className="premium-card mt-8 p-5">
+        <div className="mb-5">
+          <p className="micro-label">Resumo mensal dos lançamentos</p>
+          <h2 className="mt-2 text-3xl">Entradas, saídas e divisão do lucro</h2>
+          <p className="mt-2 text-[13px] text-brand-text/55">Resumo calculado com base nos lançamentos visíveis nos filtros atuais.</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <MiniMetric label="Total vendido" value={fmtCurrency(launchesSummary.totalSold)} />
+          <MiniMetric label="Entrou no banco" value={fmtCurrency(launchesSummary.totalBank)} />
+          <MiniMetric label="Total de saídas" value={fmtCurrency(launchesSummary.totalOutputs)} />
+          <MiniMetric label="Custos das vendas" value={fmtCurrency(launchesSummary.totalSaleCosts)} />
+          <MiniMetric label="Produtos estoque" value={fmtCurrency(launchesSummary.totalStockPurchases)} />
+          <MiniMetric label="Impostos previstos" value={fmtCurrency(launchesSummary.totalTaxes)} />
+          <MiniMetric label="Comissão secretária" value={fmtCurrency(launchesSummary.totalSecretary)} />
+          <MiniMetric label="Lucro líquido total" value={fmtCurrency(launchesSummary.totalNetProfit)} />
+          <MiniMetric label="Reinvestimento" value={fmtCurrency(launchesSummary.totalReinvestment)} />
+          <MiniMetric label="Lucro pessoal esperado" value={fmtCurrency(launchesSummary.totalPersonal)} />
+          <MiniMetric label="Saldo do mês" value={fmtCurrency(launchesSummary.monthBalance)} />
+        </div>
+      </section>
 
       <section className="premium-card mt-8 overflow-hidden">
         <div className="flex flex-col gap-4 border-b border-[rgba(90,31,43,.10)] px-5 py-5 sm:flex-row sm:items-center sm:justify-between lg:px-8">
@@ -583,11 +771,16 @@ export default function FinancePage() {
         </div>
 
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left">
+          <table className="w-full min-w-[2400px] text-left">
             <thead>
               <tr className="border-b border-[rgba(90,31,43,.10)] bg-brand-surface-muted/45">
-                {["Data", "Descrição", "Categoria", "Paciente", "Valor", "Status", "Ações"].map((h) => (
-                  <th key={h} className="px-6 py-4 text-[10px] font-bold uppercase tracking-[0.18em] text-brand-text/55 last:text-right">{h}</th>
+                {[
+                  "Data", "Tipo", "Origem", "Paciente", "Procedimento/Categoria", "Descrição",
+                  "Forma", "Status", "Valor cheio", "Entrou no banco", "Valor saída",
+                  "Produto", "Custo produto", "Material", "Sala", "Fixo", "Comissão", "Imposto",
+                  "Custo total", "Lucro líquido", "Reinvest.", "Lucro pessoal", "Ações"
+                ].map((h) => (
+                  <th key={h} className="px-4 py-4 text-[10px] font-bold uppercase tracking-[0.16em] text-brand-text/55 last:text-right">{h}</th>
                 ))}
               </tr>
             </thead>
@@ -596,7 +789,7 @@ export default function FinancePage() {
                 <TransactionRow key={t.id} t={t} onDelete={handleDeleteTransaction} onStatus={updateStatus} />
               ))}
               {filteredMovements.length === 0 && (
-                <tr><td colSpan={7} className="px-8 py-14 text-center text-sm text-brand-text/55">Nenhuma movimentação encontrada para os filtros aplicados.</td></tr>
+                <tr><td colSpan={23} className="px-8 py-14 text-center text-sm text-brand-text/55">Nenhuma movimentação encontrada para os filtros aplicados.</td></tr>
               )}
             </tbody>
           </table>
@@ -604,12 +797,14 @@ export default function FinancePage() {
       </section>
 
       {isModalOpen && <NewTransactionModal patients={patients} onClose={() => setIsModalOpen(false)} onSave={loadFinance} />}
+      {isExpenseModalOpen && <ExpenseModal onClose={() => setIsExpenseModalOpen(false)} onSave={loadFinance} />}
     </div>
   );
 }
 
 function NewTransactionModal({ onClose, onSave, patients }: any) {
   const [form, setForm] = useState<{
+    origin: TransactionOrigin;
     contractId: string;
     appointmentId: string;
     saleDate: string;
@@ -628,6 +823,7 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
     status: TransactionStatus;
     notes: string;
   }>({
+    origin: "CONTRATO",
     contractId: "",
     appointmentId: "",
     saleDate: toDatetimeLocal(new Date()),
@@ -664,11 +860,11 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
   const roomValue = Number(form.roomValue || 0);
   const fixedCost = Number(form.fixedCost || 0);
   const secretaryCommission = bankValue * 0.05;
-  const taxAmount = bankValue * 0.06;
+  const taxAmount = fullSaleValue * 0.06;
   const totalCost = productCost + applicationMaterialsValue + roomValue + fixedCost + secretaryCommission + taxAmount;
   const netProfit = bankValue - totalCost;
-  const reinvestmentProfit = Math.max(0, netProfit) * 0.5;
-  const personalProfit = Math.max(0, netProfit) * 0.5;
+  const reinvestmentProfit = Math.max(0, netProfit) * 0.1;
+  const personalProfit = Math.max(0, netProfit) * 0.9;
 
   const appointmentOptionsForSelectedContract = appointments
     .filter((appointment) => !form.patientId || appointment.patientId === form.patientId)
@@ -754,6 +950,7 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
 
     setForm((prev) => ({
       ...prev,
+      origin: "CONTRATO",
       contractId,
       appointmentId: "",
       saleDate: toDatetimeLocal(contract.createdAt),
@@ -776,6 +973,7 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
 
     setForm((prev) => ({
       ...prev,
+      origin: prev.contractId ? prev.origin : "AGENDA",
       appointmentId,
       procedureDate: toDatetimeLocal(appointment.date),
       patientId: appointment.patientId || prev.patientId,
@@ -840,6 +1038,7 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
     const batch = selectedBatches || form.batch;
 
     const notes = buildFinanceNotes({
+      origin: form.origin,
       saleDate: form.saleDate,
       procedureDate: form.procedureDate,
       patientName,
@@ -889,6 +1088,7 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
             type: "application/json",
             size: 0,
             dataUrl: `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify({
+              origin: form.origin,
               selectedSourceId: form.contractId || null,
               contractId: contracts.find((item) => item.id === form.contractId)?.contractId || null,
               saleId: contracts.find((item) => item.id === form.contractId)?.saleId || null,
@@ -952,14 +1152,14 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
             <p className="micro-label mb-3">1. Contrato / lançamento de venda</p>
             <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
               <SelectField
-                label="Selecionar contrato lançado *"
+                label="Selecionar contrato/venda lançada"
                 value={form.contractId}
                 onChange={applyContract}
                 options={["", ...contracts.map((contract) => contract.id)]}
                 labels={contracts.reduce((acc: any, contract) => ({
                   ...acc,
                   [contract.id]: `${contract.sourceType === "SALE" ? "Venda lançada" : "Contrato"} • ${formatDateLabel(contract.createdAt)} • ${contract.patient?.name || "Paciente"} • ${getContractProcedureName(contract)} • ${fmtCurrency(Number(contract.total || 0))}`,
-                }), { "": contracts.length ? "Selecione contrato ou venda lançada..." : "Nenhum contrato/venda encontrado — abra /api/system/repair e atualize" })}
+                }), { "": contracts.length ? "Selecione contrato ou venda lançada..." : "Nenhum contrato/venda encontrado — pode lançar manualmente ou pela agenda" })}
               />
 
               <SelectField
@@ -976,6 +1176,13 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
           </div>
 
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <SelectField
+              label="Origem da venda"
+              value={form.origin}
+              onChange={(v: string) => setForm({ ...form, origin: v as TransactionOrigin })}
+              options={["CONTRATO", "AGENDA", "MANUAL"]}
+              labels={{ CONTRATO: "Contrato", AGENDA: "Agenda", MANUAL: "Manual" }}
+            />
             <Field label="1. Data da venda" type="datetime-local" value={form.saleDate} onChange={(v: string) => setForm({ ...form, saleDate: v })} required />
             <Field label="2. Data do procedimento" type="datetime-local" value={form.procedureDate} onChange={(v: string) => setForm({ ...form, procedureDate: v })} />
 
@@ -1091,7 +1298,7 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
           <div className="rounded-3xl border border-[rgba(90,31,43,.14)] bg-[rgba(90,31,43,.08)] p-5">
             <p className="micro-label text-brand-primary">Divisão do dinheiro</p>
             <p className="mt-2 text-[13px] leading-6 text-brand-text/65">
-              O sistema calcula quanto sobra depois dos custos e divide automaticamente o lucro líquido em 50% para reinvestimento e 50% como lucro pessoal esperado.
+              O sistema calcula quanto sobra depois dos custos e divide automaticamente o lucro líquido em 10% para reinvestimento e 90% como lucro pessoal esperado.
             </p>
             <div className="mt-4 grid gap-3 md:grid-cols-5">
               <MiniMetric label="Entrou no banco" value={fmtCurrency(bankValue)} />
@@ -1113,6 +1320,129 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
 }
 
 
+
+function ExpenseModal({ onClose, onSave }: any) {
+  const [form, setForm] = useState<{
+    date: string;
+    category: string;
+    amount: string;
+    paymentMethod: string;
+    status: TransactionStatus;
+    fixedCostImpact: "SIM" | "NAO";
+    notes: string;
+  }>({
+    date: toDatetimeLocal(new Date()),
+    category: "Marketing",
+    amount: "",
+    paymentMethod: String(paymentMethods[0] || "Pix"),
+    status: "PAID",
+    fixedCostImpact: "SIM",
+    notes: "",
+  });
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const amount = Number(form.amount || 0);
+    if (!amount || amount <= 0) {
+      alert("Informe o valor da saída.");
+      return;
+    }
+
+    setSaving(true);
+    const details = {
+      origin: "SAIDA_MANUAL",
+      source: "MANUAL_EXPENSE",
+      outputDate: form.date,
+      outputCategory: form.category,
+      outputValue: amount,
+      fixedCostImpact: form.fixedCostImpact === "SIM",
+      paymentMethod: form.paymentMethod,
+      status: form.status,
+      notes: form.notes,
+    };
+
+    const res = await fetch("/api/financial-transactions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        date: new Date(form.date).toISOString(),
+        description: form.notes ? `${form.category} - ${form.notes}` : `Saída: ${form.category}`,
+        category: form.category,
+        amount,
+        grossAmount: amount,
+        netAmount: amount,
+        feeAmount: 0,
+        commissionAmount: 0,
+        type: "EXPENSE",
+        paymentMethod: form.paymentMethod,
+        status: form.status,
+        notes: form.notes,
+        attachmentsJson: [
+          {
+            name: "dados-saida-financeira.json",
+            type: "application/json",
+            size: 0,
+            dataUrl: `data:application/json;charset=utf-8,${encodeURIComponent(JSON.stringify(details, null, 2))}`,
+          },
+        ],
+      }),
+    });
+
+    setSaving(false);
+
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error?.formErrors?.join?.(", ") || data?.error || "Erro ao salvar saída.");
+      return;
+    }
+
+    onSave();
+    onClose();
+  }
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-brand-primary-dark/35 p-4 backdrop-blur-sm">
+      <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-[30px] border border-[rgba(90,31,43,.14)] bg-brand-surface p-6 shadow-[0_28px_90px_rgba(63,22,32,.22)] animate-soft-in sm:p-8">
+        <div className="mb-8 flex items-start justify-between gap-4">
+          <div>
+            <p className="micro-label">Saídas da clínica</p>
+            <h3 className="text-4xl">Registrar saída</h3>
+            <p className="mt-2 max-w-2xl text-[13px] leading-6 text-brand-text/62">
+              Registre custos fixos, despesas avulsas, reembolso, compra de estoque ou qualquer saída de caixa. O lançamento aparece automaticamente em Movimentações como Saída.
+            </p>
+          </div>
+          <button onClick={onClose} className="rounded-full border border-[rgba(90,31,43,.12)] p-2.5 text-brand-text/55 transition hover:bg-[rgba(90,31,43,.08)] hover:text-brand-primary" aria-label="Fechar modal">
+            <X size={18} />
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <Field label="Data da saída" type="datetime-local" value={form.date} onChange={(v: string) => setForm({ ...form, date: v })} required />
+            <SelectField label="Categoria da saída" value={form.category} onChange={(v: string) => setForm({ ...form, category: v })} options={EXPENSE_FORM_CATEGORIES as unknown as string[]} labels={{}} />
+            <Field label="Valor da saída" type="number" value={form.amount} onChange={(v: string) => setForm({ ...form, amount: v })} required />
+            <SelectField label="Forma de pagamento" value={form.paymentMethod} onChange={(v: string) => setForm({ ...form, paymentMethod: v })} options={paymentMethods as unknown as string[]} labels={paymentMethods.reduce((acc: any, method: string) => ({ ...acc, [method]: paymentMethodLabel(method) }), {})} />
+            <SelectField label="Status da saída" value={form.status} onChange={(v: string) => setForm({ ...form, status: v as TransactionStatus })} options={["PAID", "PENDING", "PARTIAL", "CANCELED"]} labels={{ PAID: "Pago", PENDING: "Pendente", PARTIAL: "Parcelado", CANCELED: "Vencido/Cancelado" }} />
+            <SelectField label="Essa saída entra no custo fixo mensal?" value={form.fixedCostImpact} onChange={(v: string) => setForm({ ...form, fixedCostImpact: v as "SIM" | "NAO" })} options={["SIM", "NAO"]} labels={{ SIM: "Sim", NAO: "Não" }} />
+          </div>
+
+          <label className="block">
+            <span>Observação</span>
+            <textarea value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} className="min-h-28 w-full border p-4 text-sm" placeholder="Detalhe fornecedor, motivo, competência do mês, comprovante ou observação..." />
+          </label>
+
+          <div className="flex flex-col-reverse gap-3 border-t border-[rgba(90,31,43,.10)] pt-5 sm:flex-row sm:justify-end">
+            <button type="button" onClick={onClose} className="btn-secondary">Cancelar</button>
+            <button type="submit" disabled={saving} className="btn-primary">{saving ? "Salvando..." : "Salvar saída"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+
 function ReadOnlyFinanceField({ label, value }: any) {
   return (
     <label className="block">
@@ -1124,32 +1454,68 @@ function ReadOnlyFinanceField({ label, value }: any) {
 
 function TransactionRow({ t, onDelete, onStatus }: any) {
   const status = t.status === "COMPLETED" ? "PAID" : t.status;
+  const details = decodeFinanceDetails(t);
   const attachments = Array.isArray(t.attachmentsJson) ? t.attachmentsJson : [];
   const statusClass = status === "PAID" ? "text-brand-success bg-brand-success/10" : status === "CANCELED" ? "text-brand-danger bg-brand-danger/10" : "text-brand-warning bg-brand-warning/10";
+  const isIncome = t.type === "INCOME";
+  const isExpense = t.type === "EXPENSE";
+  const fullSaleValue = isIncome ? getDetailValue(t, details, "fullSaleValue", safeNumber(t.grossAmount ?? t.amount)) : 0;
+  const bankValue = isIncome ? getDetailValue(t, details, "bankValue", safeNumber(t.netAmount ?? t.amount)) : 0;
+  const outputValue = isExpense ? safeNumber(t.amount) : 0;
+  const productCost = getDetailValue(t, details, "productCost", 0);
+  const applicationMaterialsValue = getDetailValue(t, details, "applicationMaterialsValue", 0);
+  const roomValue = getDetailValue(t, details, "roomValue", 0);
+  const fixedCost = getDetailValue(t, details, "fixedCost", 0);
+  const secretaryCommission = getDetailValue(t, details, "secretaryCommission", safeNumber(t.commissionAmount || 0));
+  const taxAmount = getDetailValue(t, details, "taxAmount", 0);
+  const totalCost = getDetailValue(t, details, "totalCost", safeNumber(t.feeAmount || 0));
+  const netProfit = getDetailValue(t, details, "netProfit", isIncome ? bankValue - totalCost : 0);
+  const reinvestmentProfit = getDetailValue(t, details, "reinvestmentProfit", Math.max(0, netProfit) * 0.1);
+  const personalProfit = getDetailValue(t, details, "personalProfit", Math.max(0, netProfit) * 0.9);
 
   return (
     <tr className="group transition hover:bg-[rgba(90,31,43,.04)]">
-      <td className="px-6 py-5 text-[12px] text-brand-text/60">{new Date(t.date).toLocaleDateString("pt-BR")}</td>
-      <td className="px-6 py-5">
-        <p className="text-[13px] font-bold text-brand-strong">{t.description}</p>
-        <p className="mt-1 text-[10px] uppercase tracking-[0.15em] text-brand-text/45">{t.paymentMethod || "Forma não informada"}</p>
+      <td className="px-4 py-5 text-[12px] text-brand-text/60">{new Date(t.date).toLocaleDateString("pt-BR")}</td>
+      <td className="px-4 py-5">
+        <span className={`rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] ${isExpense ? "bg-brand-danger/10 text-brand-danger" : "bg-brand-success/10 text-brand-success"}`}>
+          {isExpense ? "Saída" : "Entrada/Venda"}
+        </span>
+      </td>
+      <td className="px-4 py-5 text-[12px] text-brand-text/70">{getTransactionOrigin(t, details)}</td>
+      <td className="px-4 py-5 text-[12px] text-brand-text/70">{t.patient?.name || "—"}</td>
+      <td className="px-4 py-5 text-[12px] font-semibold text-brand-strong">
+        {isIncome ? getProcedureFromTransaction(t, details) || "—" : t.category || "—"}
+      </td>
+      <td className="px-4 py-5">
+        <p className="text-[12px] font-bold text-brand-strong">{t.description}</p>
+        <p className="mt-1 max-w-[260px] truncate text-[10px] text-brand-text/45" title={t.notes || details.notes || ""}>{t.notes || details.notes || "—"}</p>
         {attachments.length > 0 && (
           <div className="mt-2 flex gap-2">
-            {attachments.map((file: AttachmentFile, index: number) => (
+            {attachments.filter((file: AttachmentFile) => !file.name.includes("dados-")).slice(0, 2).map((file: AttachmentFile, index: number) => (
               <a key={`${file.name}-${index}`} href={file.dataUrl} target="_blank" download={file.name} className="inline-flex items-center gap-1 rounded-full bg-brand-background px-2 py-1 text-[10px] text-brand-primary">
-                <Paperclip size={10} /> {file.name.slice(0, 18)}
+                <Paperclip size={10} /> {file.name.slice(0, 16)}
               </a>
             ))}
           </div>
         )}
       </td>
-      <td className="px-6 py-5"><span className="rounded-full border border-[rgba(90,31,43,.10)] bg-brand-background px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.12em] text-brand-primary">{t.category}</span></td>
-      <td className="px-6 py-5 text-[12px] text-brand-text/70">{t.patient?.name || "—"}</td>
-      <td className={`px-6 py-5 text-right font-serif text-[20px] ${t.type === "EXPENSE" ? "text-brand-danger" : "text-brand-strong"}`}>
-        {t.type === "EXPENSE" ? "- " : ""}{fmtCurrency(t.amount)}
-      </td>
-      <td className="px-6 py-5"><span className={`rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] ${statusClass}`}>{financialStatusLabels[t.status] || t.status}</span></td>
-      <td className="px-6 py-5 text-right">
+      <td className="px-4 py-5 text-[12px] text-brand-text/70">{t.paymentMethod || "—"}</td>
+      <td className="px-4 py-5"><span className={`rounded-full px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] ${statusClass}`}>{details.source === "MANUAL_EXPENSE" && status === "CANCELED" ? "Vencido" : (financialStatusLabels[t.status] || t.status)}</span></td>
+      <td className="px-4 py-5 text-right text-[12px] font-semibold">{isIncome ? fmtCurrency(fullSaleValue) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px] font-semibold">{isIncome ? fmtCurrency(bankValue) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px] font-semibold text-brand-danger">{isExpense ? fmtCurrency(outputValue) : "—"}</td>
+      <td className="px-4 py-5 max-w-[220px] truncate text-[12px] text-brand-text/70" title={getProductNames(details)}>{getProductNames(details) || "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px]">{productCost ? fmtCurrency(productCost) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px]">{applicationMaterialsValue ? fmtCurrency(applicationMaterialsValue) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px]">{roomValue ? fmtCurrency(roomValue) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px]">{fixedCost ? fmtCurrency(fixedCost) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px]">{secretaryCommission ? fmtCurrency(secretaryCommission) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px]">{taxAmount ? fmtCurrency(taxAmount) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px] font-semibold">{totalCost ? fmtCurrency(totalCost) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px] font-bold text-brand-primary">{isIncome ? fmtCurrency(netProfit) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px]">{isIncome ? fmtCurrency(reinvestmentProfit) : "—"}</td>
+      <td className="px-4 py-5 text-right text-[12px]">{isIncome ? fmtCurrency(personalProfit) : "—"}</td>
+      <td className="px-4 py-5 text-right">
         <div className="flex items-center justify-end gap-2">
           {status !== "PAID" && <IconButton label="Dar baixa" onClick={() => onStatus(t.id, "PAID")}><Check size={15} /></IconButton>}
           {status !== "PENDING" && <IconButton label="Reabrir" onClick={() => onStatus(t.id, "PENDING")}><RotateCcw size={15} /></IconButton>}

@@ -26,7 +26,7 @@ const createSchema = z.object({
   attachmentsJson: z.unknown().optional(),
   grossAmount: z.number().nonnegative().optional().nullable(),
   feeAmount: z.number().nonnegative().optional().nullable(),
-  netAmount: z.number().nonnegative().optional().nullable(),
+  netAmount: z.number().optional().nullable(),
   cardFeePercent: z.number().nonnegative().max(100).optional().nullable(),
   commissionAmount: z.number().nonnegative().optional().nullable(),
   totalInstallments: z.number().int().min(1).max(48).optional().nullable(),

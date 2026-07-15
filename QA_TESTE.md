@@ -2,11 +2,20 @@
 
 Correção desta versão:
 
-- Corrigido erro de build:
-  - `Type 'string' is not assignable to type '"Pix"'`
-- O estado do formulário de **Saídas** agora tem tipagem explícita.
-- `paymentMethod` agora é tratado como `string`, permitindo Pix, cartão, dinheiro, boleto etc.
-- Também foi corrigido o campo `fixedCostImpact` para aceitar somente `"SIM"` ou `"NAO"` sem quebrar TypeScript.
+- Adicionados os novos procedimentos:
+  - Preenchedor lips
+  - Preenchedor lift
+  - Preenchedor ultra volume
+  - Preenchedor lift plus
+
+Onde foi adicionado:
+
+- Estoque
+- Agenda
+- Edição de agendamento
+- Criação rápida de agendamento
+- Caixa / Ponto de Venda
+- Contrato: os novos preenchedores puxam o termo de Preenchimento automaticamente.
 
 Rode:
 
@@ -27,9 +36,12 @@ QA OK
 
 Teste obrigatório:
 
-1. Abrir Financeiro.
-2. Clicar em Saídas.
-3. Selecionar uma forma de pagamento.
-4. Selecionar se entra ou não no custo fixo mensal.
-5. Salvar saída.
-6. Confirmar se aparece em Movimentações como Saída.
+1. Abrir Estoque.
+2. Conferir se aparecem:
+   - Preenchedor lips
+   - Preenchedor lift
+   - Preenchedor ultra volume
+   - Preenchedor lift plus
+3. Abrir Agenda e conferir a mesma lista.
+4. Abrir uma ficha de paciente e fechar venda com um dos novos preenchedores.
+5. Conferir se o contrato puxa o termo de Preenchimento.

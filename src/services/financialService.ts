@@ -89,9 +89,11 @@ function buildInstallments(data: CreateFinancialTransactionInput, transactionId:
   });
 }
 
-export async function listFinancialTransactions() {
+export async function listFinancialTransactions(limit = 500) {
+  const take = Math.min(Math.max(Number(limit) || 500, 1), 1000);
   return prisma.financialTransaction.findMany({
     orderBy: { date: "desc" },
+    take,
     include: {
       patient: { select: { id: true, name: true, phone: true } },
       installments: { orderBy: { dueDate: "asc" } },

@@ -8,14 +8,15 @@ import {
   PenTool, Images, Clock3, MessageCircle
 } from "lucide-react";
 import Link from "next/link";
-
-// Componentes internos
-import ClinicalEvolutionSection from "@/components/patients/ClinicalEvolutionSection";
-import PatientTreatmentPlanSection from "@/components/patients/PatientTreatmentPlanSection";
-import PatientSafetySection from "@/components/patients/PatientSafetySection";
-import PatientPostCareSection from "@/components/patients/PatientPostCareSection";
-import StructuredEvolutionPremiumSection from "@/components/patients/StructuredEvolutionPremiumSection";
+import dynamic from "next/dynamic";
 import { generateContractPdf } from "@/lib/contractPdf";
+
+// Abas clínicas pesadas são baixadas somente quando necessárias.
+const ClinicalEvolutionSection = dynamic(() => import("@/components/patients/ClinicalEvolutionSection"));
+const PatientTreatmentPlanSection = dynamic(() => import("@/components/patients/PatientTreatmentPlanSection"));
+const PatientSafetySection = dynamic(() => import("@/components/patients/PatientSafetySection"));
+const PatientPostCareSection = dynamic(() => import("@/components/patients/PatientPostCareSection"));
+const StructuredEvolutionPremiumSection = dynamic(() => import("@/components/patients/StructuredEvolutionPremiumSection"));
 
 
 function answerText(value: any) {
@@ -70,65 +71,91 @@ export default function PatientDetailPage() {
   const [patient, setPatient] = useState<any>(null);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
-  const [contracts, setContracts] = useState<any[]>([]); // 👈 Estado dos contratos
+  const [contracts, setContracts] = useState<any[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
+  const [photos, setPhotos] = useState<any[]>([]);
   const [insights, setInsights] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
+  const [loadedTabs, setLoadedTabs] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
 
-  // CARREGAMENTO INTEGRADO
+  // Carrega primeiro apenas o necessário para a tela inicial. As abas mais
+  // pesadas são buscadas sob demanda para o prontuário abrir rapidamente.
   useEffect(() => {
-    async function load() {
+    async function loadInitial() {
       try {
         setLoading(true);
         setLoadError("");
-        
-        const [pRes, aRes, iRes, planRes, salesRes, contractsRes, timelineRes] = await Promise.all([
+
+        const [pRes, aRes, iRes] = await Promise.all([
           fetch(`/api/patients/${id}`),
           fetch(`/api/appointments?patientId=${id}`),
           fetch(`/api/patients/${id}/insights`),
-          fetch(`/api/patients/${id}/evolution`), 
-          fetch(`/api/sales?patientId=${id}`),
-          fetch(`/api/patients/${id}/contracts`), // 👈 Busca os contratos
-          fetch(`/api/patients/${id}/timeline`)
         ]);
-        
+
         const patientData = pRes.ok ? await pRes.json() : null;
         if (!pRes.ok || !patientData?.id) {
           const err = await pRes.json().catch(() => null);
-          setLoadError(err?.error || "Não foi possível carregar a paciente. A estrutura do banco pode estar sendo atualizada; atualize a página em alguns segundos.");
+          setLoadError(err?.error || "Não foi possível carregar a paciente. Atualize a página e tente novamente.");
           setPatient(null);
           return;
         }
-        const appointmentsData = aRes.ok ? await aRes.json() : [];
-        const insightsData = iRes.ok ? await iRes.json() : null;
-        const salesData = salesRes.ok ? await salesRes.json() : [];
-        const contractsData = contractsRes.ok ? await contractsRes.json() : [];
-        const timelineData = timelineRes.ok ? await timelineRes.json() : { timeline: [] };
-        
-        let planData = [];
-        if (planRes.ok) {
-           const json = await planRes.json();
-           planData = Array.isArray(json) ? json : [];
-        }
 
         setPatient(patientData);
-        setAppointments(appointmentsData);
-        setInsights(insightsData);
-        setSales(salesData);
-        setContracts(contractsData);
-        setTimeline(timelineData.timeline || []);
-        setPlan(planData[0] || null);
-
+        setAppointments(aRes.ok ? await aRes.json() : []);
+        setInsights(iRes.ok ? await iRes.json() : null);
+        setLoadedTabs({ GERAL: true });
       } catch (error) {
-        console.error("Erro ao carregar prontuário Mariana Thomaz Carmona:", error);
+        console.error("Erro ao carregar prontuário:", error);
+        setLoadError("Não foi possível carregar o prontuário.");
       } finally {
         setLoading(false);
       }
     }
-    if (id) load();
+
+    if (id) loadInitial();
   }, [id]);
+
+  useEffect(() => {
+    if (!id || loadedTabs[activeTab]) return;
+
+    let cancelled = false;
+    async function loadTabData() {
+      try {
+        if (activeTab === "TIMELINE") {
+          const res = await fetch(`/api/patients/${id}/timeline`);
+          const data = res.ok ? await res.json() : { timeline: [] };
+          if (!cancelled) setTimeline(data.timeline || []);
+        } else if (activeTab === "CONTRATOS" || activeTab === "PRONTUARIO") {
+          const res = await fetch(`/api/patients/${id}/contracts`);
+          if (!cancelled) setContracts(res.ok ? await res.json() : []);
+        } else if (activeTab === "FINANCEIRO") {
+          const res = await fetch(`/api/sales?patientId=${id}`);
+          if (!cancelled) setSales(res.ok ? await res.json() : []);
+        } else if (activeTab === "GALERIA") {
+          const res = await fetch(`/api/patients/${id}/photos`);
+          if (!cancelled) setPhotos(res.ok ? await res.json() : []);
+        }
+      } catch (error) {
+        console.error(`Erro ao carregar aba ${activeTab}:`, error);
+      } finally {
+        if (!cancelled) {
+          setLoadedTabs((prev) => activeTab === "CONTRATOS" || activeTab === "PRONTUARIO"
+            ? { ...prev, CONTRATOS: true, PRONTUARIO: true }
+            : { ...prev, [activeTab]: true });
+        }
+      }
+    }
+
+    if (["TIMELINE", "CONTRATOS", "PRONTUARIO", "FINANCEIRO", "GALERIA"].includes(activeTab)) {
+      loadTabData();
+    } else {
+      setLoadedTabs((prev) => ({ ...prev, [activeTab]: true }));
+    }
+
+    return () => { cancelled = true; };
+  }, [activeTab, id, loadedTabs]);
 
   const handleDeleteSale = async (saleId: string) => {
     const confirmDelete = window.confirm("ATENÇÃO: Excluir esta venda também apagará os registros dela do Financeiro da clínica. Deseja continuar?");
@@ -465,13 +492,13 @@ export default function PatientDetailPage() {
                 Fotos clínicas e registros autorizados ficam separados para proteger o prontuário da paciente e facilitar o uso apenas quando houver autorização.
               </p>
               <div className="mt-8 grid gap-4 md:grid-cols-2">
-                {(patient?.photos || []).length === 0 ? (
+                {photos.length === 0 ? (
                   <div className="md:col-span-2 rounded-3xl border border-dashed border-[#5A1F2B]/20 bg-[#F7F2EA]/60 p-10 text-center text-sm text-[#5B3A2E]/60">
                     Nenhuma imagem cadastrada ainda.
                   </div>
-                ) : (patient?.photos || []).map((photo: any) => (
+                ) : photos.map((photo: any) => (
                   <div key={photo.id} className="rounded-3xl border border-[rgba(90,31,43,.10)] bg-[#F7F2EA]/60 p-5">
-                    {photo.imageUrl && <img src={photo.imageUrl} alt={photo.title || "Registro clínico"} className="mb-4 h-56 w-full rounded-2xl object-cover" />}
+                    {photo.imageUrl && <img src={photo.imageUrl} alt={photo.title || "Registro clínico"} loading="lazy" decoding="async" className="mb-4 h-56 w-full rounded-2xl object-cover" />}
                     <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#5A1F2B]">{new Date(photo.takenAt).toLocaleDateString("pt-BR")}</p>
                     <p className="mt-2 text-sm font-bold text-[#1E1A18]">{photo.title || photo.procedureName || "Registro clínico"}</p>
                     <p className="mt-2 text-[12px] text-[#5B3A2E]/65">Tipo: {photo.photoType} • Autorização: {photo.imageAuthorized ? "Sim" : "Não"}</p>

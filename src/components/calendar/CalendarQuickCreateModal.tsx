@@ -99,7 +99,7 @@ export default function CalendarQuickCreateModal({
 
     async function loadPatients() {
       try {
-        const res = await fetch("/api/patients", { cache: "no-store" });
+        const res = await fetch("/api/patients?compact=true", { cache: "no-store" });
         const data = await res.json();
         setPatients(Array.isArray(data) ? data : []);
       } catch {

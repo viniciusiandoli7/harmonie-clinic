@@ -1,12 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
 type Ctx = {
   params: Promise<{ id: string }>;
 };
+
+function validateImageUrls(value: unknown) {
+  if (!Array.isArray(value)) throw new Error("Formato de imagens inválido.");
+  const urls = value.filter((item): item is string => typeof item === "string" && /^https:\/\//i.test(item));
+  if (urls.length !== value.length) {
+    throw new Error("As fotos precisam estar armazenadas externamente antes de salvar o prontuário.");
+  }
+  return urls.slice(0, 20);
+}
 
 // ==========================================
 // 1. EDITA A SESSÃO (PATCH)
@@ -16,10 +24,8 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  await ensureProductionSchema(prisma as any);
 
   try {
-    await ensureProductionSchema(prisma as any);
     const { id } = await ctx.params;
     const body = await req.json();
 
@@ -46,7 +52,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
           signatureImage: body.signatureImage || null 
         }),
         ...(body.images !== undefined && { 
-          imagesJson: Array.isArray(body.images) ? body.images : [] 
+          imagesJson: validateImageUrls(body.images) 
         }),
       }
     });
@@ -69,7 +75,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  await ensureProductionSchema(prisma as any);
 
   try {
     const { id } = await ctx.params;

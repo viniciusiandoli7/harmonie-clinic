@@ -5,7 +5,6 @@ import { z } from "zod";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { createInventoryItemRaw, findInventoryItemsRaw } from "@/lib/inventorySql";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 
 const itemSchema = z.object({
   product: z.string().min(2),
@@ -70,7 +69,6 @@ export async function POST(req: NextRequest) {
     const stockExpenseAmount = Number(created.entryQuantity ?? created.quantity ?? parsed.data.quantity ?? 0) * Number(created.unitValue ?? parsed.data.unitValue ?? 0);
     if (stockExpenseAmount > 0) {
       try {
-        await ensureProductionSchema(prisma as any);
         const details = {
           origin: "ESTOQUE",
           source: "INVENTORY_PURCHASE",

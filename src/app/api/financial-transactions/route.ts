@@ -3,8 +3,6 @@ import { z } from "zod";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
-import { ensureFinancialTransactionsForSales } from "@/lib/financeRepairSql";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -56,14 +54,13 @@ async function listFinancialTransactionsRaw() {
 }
 
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    await ensureProductionSchema(prisma as any);
-    await ensureFinancialTransactionsForSales(prisma as any);
-    const items = await listFinancialTransactions();
+    const limit = Number(req.nextUrl.searchParams.get("limit") || 500);
+    const items = await listFinancialTransactions(limit);
     return NextResponse.json(items, { headers: { "Cache-Control": "no-store, max-age=0" } });
   } catch (error) {
     console.warn("GET /api/financial-transactions via Prisma falhou; usando consulta segura:", error);
@@ -81,7 +78,6 @@ export async function POST(req: NextRequest) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    await ensureProductionSchema(prisma as any);
     const body = await req.json();
     const parsed = createSchema.safeParse(body);
 

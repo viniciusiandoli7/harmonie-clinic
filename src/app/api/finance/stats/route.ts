@@ -1,9 +1,8 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
-import { calculateMonthlyClosing, isPaid } from "@/lib/finance-utils";
+import { isPaid } from "@/lib/finance-utils";
 import { roundMoney } from "@/lib/money";
 
 export const dynamic = "force-dynamic";
@@ -13,18 +12,30 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    await ensureProductionSchema(prisma as any);
     const now = new Date();
     const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1);
     const firstDayNextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
     const monthlyGoal = Number(process.env.MONTHLY_REVENUE_GOAL || 30000);
 
-    const [monthTransactions, allTransactions, recentMovements, sales, patients, overdueInstallments, pendingInstallments, closingPreview, savedClosing] = await Promise.all([
+    const [monthTransactions, balanceByType, recentMovements, sales, patients, overdueInstallments, pendingInstallments, savedClosing] = await Promise.all([
       prisma.financialTransaction.findMany({
         where: { date: { gte: firstDayMonth, lt: firstDayNextMonth } },
-        include: { patient: { select: { id: true, name: true, phone: true } }, installments: true },
+        select: {
+          type: true,
+          status: true,
+          amount: true,
+          grossAmount: true,
+          feeAmount: true,
+          netAmount: true,
+          commissionAmount: true,
+          professionalValue: true,
+        },
       }),
-      prisma.financialTransaction.findMany(),
+      prisma.financialTransaction.groupBy({
+        by: ["type"],
+        where: { status: { in: ["PAID", "PARTIAL", "COMPLETED"] } },
+        _sum: { amount: true },
+      }),
       prisma.financialTransaction.findMany({
         take: 250,
         orderBy: { date: "desc" },
@@ -50,10 +61,6 @@ export async function GET() {
         orderBy: { dueDate: "asc" },
         take: 50,
       }),
-      calculateMonthlyClosing().catch((error) => {
-        console.warn("Fechamento mensal indisponível no momento:", error);
-        return null;
-      }),
       (prisma as any).monthlyClosing.findUnique({ where: { month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}` } }).catch(() => null),
     ]);
 
@@ -68,9 +75,10 @@ export async function GET() {
     const expense = roundMoney(expenseTransactions.reduce((acc, t) => acc + Number(t.amount ?? 0), 0));
     const salesNetProfit = roundMoney(incomeTransactions.reduce((acc, t: any) => acc + Number(t.netAmount ?? t.amount ?? 0), 0));
     const netProfit = roundMoney(salesNetProfit - expense);
-    const totalBalance = roundMoney(allTransactions
-      .filter((t) => isPaid(t.status))
-      .reduce((acc, t: any) => (t.type === "INCOME" ? acc + Number(t.amount ?? t.netAmount ?? 0) : acc - Number(t.amount ?? 0)), 0));
+    const totalBalance = roundMoney(balanceByType.reduce((acc, row) => {
+      const amount = Number(row._sum.amount || 0);
+      return row.type === "INCOME" ? acc + amount : acc - amount;
+    }, 0));
 
     const paidIncomeCount = incomeTransactions.length;
     const averageTicket = paidIncomeCount ? roundMoney(grossIncome / paidIncomeCount) : 0;
@@ -89,6 +97,21 @@ export async function GET() {
     }
 
     const topProcedure = Object.entries(procedureCounts).sort((a, b) => b[1] - a[1])[0]?.[0] || "Sem vendas no mês";
+
+
+    const closingPreview = {
+      month: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`,
+      startDate: firstDayMonth,
+      endDate: new Date(firstDayNextMonth.getTime() - 1),
+      grossIncome,
+      expenses: expense,
+      fees,
+      commissions,
+      netProfit,
+      availableBalance: netProfit,
+      averageTicket,
+      topProcedure: topProcedure === "Sem vendas no mês" ? null : topProcedure,
+    };
 
     const patientOrigins: Record<string, number> = {};
     const crmStatus: Record<string, number> = {};

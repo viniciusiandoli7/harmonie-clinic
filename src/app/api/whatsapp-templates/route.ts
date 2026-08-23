@@ -5,65 +5,6 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 
-const defaultTemplates = [
-  {
-    category: "Confirmação",
-    title: "Confirmação de consulta",
-    content:
-      "Oi, [primeiroNome]. Tudo bem? Passando para confirmar sua consulta com a Dra. Mariana no dia [data], às [horario]. Qualquer dúvida, pode me chamar por aqui.",
-    defaultTime: "",
-  },
-  {
-    category: "Pré-procedimento",
-    title: "Orientações pré-procedimento",
-    content:
-      "Oi, [primeiroNome]. Para o seu [procedimento], venha sem maquiagem na região e avise caso tenha usado algum medicamento novo, vacina recente, infecção, herpes ativa ou alguma alteração de saúde.",
-    defaultTime: "",
-  },
-  {
-    category: "Pós-procedimento",
-    title: "Acompanhamento pós",
-    content:
-      "Oi, [primeiroNome]. Tudo bem? A Dra. Mariana pediu para saber como você está depois do [procedimento]. Caso tenha qualquer desconforto fora do esperado, nos avise por aqui.",
-    defaultTime: "",
-  },
-  {
-    category: "Retorno",
-    title: "Lembrete de retorno",
-    content:
-      "Oi, [primeiroNome]. Tudo bem? Está chegando o momento do seu retorno/acompanhamento de [procedimento]. Podemos verificar um horário para você?",
-    defaultTime: "",
-  },
-  {
-    category: "Reativação",
-    title: "Paciente inativa",
-    content:
-      "Oi, [primeiroNome]. Tudo bem? Aqui é da clínica da Dra. Mariana. Faz um tempinho desde seu último atendimento e queríamos saber como você está. Podemos agendar uma avaliação para acompanhar sua evolução e ajustar seu plano de cuidados?",
-    defaultTime: "",
-  },
-  {
-    category: "Avaliação",
-    title: "Avaliação que não fechou",
-    content:
-      "Oi, [primeiroNome]. Tudo bem? Passando para saber se ficou alguma dúvida sobre o plano que a Dra. Mariana montou para você. Podemos conversar e ajustar as etapas conforme seu momento.",
-    defaultTime: "",
-  },
-  {
-    category: "Feedback",
-    title: "Pedido de feedback",
-    content:
-      "Oi, [primeiroNome]. Como você se sentiu com sua experiência na clínica? Seu feedback ajuda muito a Dra. Mariana a manter um atendimento cada vez mais cuidadoso.",
-    defaultTime: "",
-  },
-  {
-    category: "Cobrança",
-    title: "Cobrança delicada",
-    content:
-      "Oi, [primeiroNome]. Tudo bem? Identificamos uma pendência em aberto no sistema da clínica. Pode nos chamar por aqui para conferirmos juntas a melhor forma de regularizar?",
-    defaultTime: "",
-  },
-];
-
 type WhatsAppTemplateRow = {
   id: string;
   category: string;
@@ -96,46 +37,10 @@ function serializeTemplate(row: WhatsAppTemplateRow) {
   };
 }
 
-async function ensureWhatsAppTemplateStorage() {
-  await prisma.$executeRawUnsafe(`
-    CREATE TABLE IF NOT EXISTS "WhatsAppTemplate" (
-      "id" TEXT NOT NULL,
-      "category" TEXT NOT NULL,
-      "title" TEXT NOT NULL,
-      "content" TEXT NOT NULL,
-      "defaultTime" TEXT,
-      "isActive" BOOLEAN NOT NULL DEFAULT true,
-      "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-      CONSTRAINT "WhatsAppTemplate_pkey" PRIMARY KEY ("id")
-    )
-  `);
-
-  await prisma.$executeRawUnsafe(`ALTER TABLE "WhatsAppTemplate" ADD COLUMN IF NOT EXISTS "defaultTime" TEXT`);
-  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "WhatsAppTemplate_category_idx" ON "WhatsAppTemplate"("category")`);
-  await prisma.$executeRawUnsafe(`CREATE INDEX IF NOT EXISTS "WhatsAppTemplate_isActive_idx" ON "WhatsAppTemplate"("isActive")`);
-}
-
-async function ensureDefaults() {
-  await ensureWhatsAppTemplateStorage();
-  const result = await prisma.$queryRaw<{ count: bigint }[]>`SELECT COUNT(*)::bigint AS count FROM "WhatsAppTemplate"`;
-  const count = Number(result[0]?.count || 0);
-  if (count > 0) return;
-
-  for (const template of defaultTemplates) {
-    await prisma.$executeRaw`
-      INSERT INTO "WhatsAppTemplate" ("id", "category", "title", "content", "defaultTime", "isActive", "createdAt", "updatedAt")
-      VALUES (${randomUUID()}, ${template.category}, ${template.title}, ${template.content}, ${template.defaultTime || null}, true, NOW(), NOW())
-    `;
-  }
-}
-
 export async function GET(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-
-    await ensureDefaults();
 
     const url = new URL(req.url);
     const category = url.searchParams.get("category");
@@ -168,8 +73,6 @@ export async function POST(req: NextRequest) {
   try {
     const session = await getServerSession(authOptions);
     if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-
-    await ensureWhatsAppTemplateStorage();
 
     const body = await req.json().catch(() => ({}));
     const category = cleanText(body.category, "Geral");

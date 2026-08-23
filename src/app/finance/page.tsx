@@ -385,7 +385,7 @@ export default function FinancePage() {
       setLoading(true);
       const [statsRes, patientsRes, goalRes, transactionsRes] = await Promise.all([
         fetch("/api/finance/stats", { cache: "no-store" }),
-        fetch("/api/patients?includeInactive=true", { cache: "no-store" }),
+        fetch("/api/patients?includeInactive=true&compact=true", { cache: "no-store" }),
         fetch("/api/goals", { cache: "no-store" }),
         fetch("/api/financial-transactions", { cache: "no-store" }),
       ]);
@@ -874,7 +874,7 @@ function NewTransactionModal({ onClose, onSave, patients }: any) {
     async function loadOptions() {
       const [inventoryRes, appointmentsRes, sourcesRes] = await Promise.all([
         fetch("/api/inventory-items", { cache: "no-store" }),
-        fetch("/api/appointments", { cache: "no-store" }),
+        fetch("/api/appointments?order=desc&limit=1000", { cache: "no-store" }),
         fetch("/api/finance/sale-sources", { cache: "no-store" }),
       ]);
 

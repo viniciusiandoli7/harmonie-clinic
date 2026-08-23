@@ -23,6 +23,8 @@ type GetAppointmentsFilters = {
   dateFrom?: Date;
   dateTo?: Date;
   status?: AppointmentStatus;
+  limit?: number;
+  order?: "asc" | "desc";
 };
 
 type UpdateAppointmentInput = {
@@ -130,14 +132,14 @@ export async function createAppointment(data: CreateAppointmentInput) {
       paymentStatus: data.paymentStatus ?? "PENDING",
       room: room,
     },
-    include: { patient: true },
+    include: { patient: { select: { id: true, name: true, phone: true, email: true } } },
   });
 
   return appointment;
 }
 
 export async function getAppointments(filters: GetAppointmentsFilters = {}) {
-  const { patientId, status, dateFrom, dateTo } = filters;
+  const { patientId, status, dateFrom, dateTo, limit, order = "asc" } = filters;
 
   return prisma.appointment.findMany({
     where: {
@@ -152,22 +154,23 @@ export async function getAppointments(filters: GetAppointmentsFilters = {}) {
           }
         : {}),
     },
-    orderBy: { date: "asc" },
-    include: { patient: true },
+    orderBy: { date: order },
+    ...(limit ? { take: Math.min(Math.max(limit, 1), 1000) } : {}),
+    include: { patient: { select: { id: true, name: true, phone: true, email: true } } },
   });
 }
 
 export async function listAppointments() {
   return prisma.appointment.findMany({
     orderBy: { date: "asc" },
-    include: { patient: true },
+    include: { patient: { select: { id: true, name: true, phone: true, email: true } } },
   });
 }
 
 export async function getAppointmentById(id: string) {
   return prisma.appointment.findUnique({
     where: { id },
-    include: { patient: true },
+    include: { patient: { select: { id: true, name: true, phone: true, email: true } } },
   });
 }
 
@@ -224,7 +227,7 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
         : {}),
       ...(data.room !== undefined ? { room: data.room } : {}),
     },
-    include: { patient: true },
+    include: { patient: { select: { id: true, name: true, phone: true, email: true } } },
   });
 
   const becamePaid =

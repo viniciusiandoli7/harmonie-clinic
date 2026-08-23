@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { safeExecute, safeQuery } from "@/lib/safeSql";
 
 type PrismaLike = {
@@ -95,7 +94,6 @@ async function insertBackfillFinancialTransaction(client: PrismaLike, input: {
 
 
 export async function ensureFinancialTransactionsForSales(client: PrismaLike) {
-  await ensureProductionSchema(client);
 
   const sales = await safeQuery<any>(client, `
     SELECT

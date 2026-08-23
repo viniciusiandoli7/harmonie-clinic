@@ -141,7 +141,7 @@ export default function DashboardPage() {
       const monthEnd = endOfMonth(now).toISOString();
 
       const [apptRes, blockedRes] = await Promise.all([
-        fetch("/api/appointments", { cache: "no-store" }),
+        fetch(`/api/appointments?dateFrom=${encodeURIComponent(monthStart)}&dateTo=${encodeURIComponent(monthEnd)}`, { cache: "no-store" }),
         fetch(
           `/api/blocked-times?dateFrom=${encodeURIComponent(monthStart)}&dateTo=${encodeURIComponent(monthEnd)}`,
           { cache: "no-store" }

@@ -25,7 +25,6 @@ function daysBetween(date: Date, reference = new Date()) {
 }
 
 export default function DashboardPage() {
-  const [transactions, setTransactions] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [financeStats, setFinanceStats] = useState<any>(null);
@@ -37,13 +36,13 @@ export default function DashboardPage() {
   async function loadDashboard() {
     setLoading(true);
     try {
-      const [tRes, aRes, pRes, fRes] = await Promise.all([
-        fetch("/api/financial-transactions"),
-        fetch("/api/appointments"),
-        fetch("/api/patients?includeInactive=true"),
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const [aRes, pRes, fRes] = await Promise.all([
+        fetch(`/api/appointments?dateFrom=${encodeURIComponent(startOfMonth.toISOString())}&limit=500`),
+        fetch("/api/patients?includeInactive=true&withLastAppointment=true"),
         fetch("/api/finance/stats"),
       ]);
-      setTransactions(tRes.ok ? await tRes.json() : []);
       setAppointments(aRes.ok ? await aRes.json() : []);
       setPatients(pRes.ok ? await pRes.json() : []);
       setFinanceStats(fRes.ok ? await fRes.json() : null);
@@ -64,23 +63,22 @@ export default function DashboardPage() {
       const parsed = new Date(date);
       return parsed.getMonth() === now.getMonth() && parsed.getFullYear() === now.getFullYear();
     };
-    const paidTransactions = transactions.filter((t) => ["PAID", "COMPLETED"].includes(t.status));
-    const income = paidTransactions.filter((t) => t.type === "INCOME" && sameMonth(t.date)).reduce((acc, t) => acc + t.amount, 0);
-    const expense = paidTransactions.filter((t) => t.type === "EXPENSE" && sameMonth(t.date)).reduce((acc, t) => acc + t.amount, 0);
+    const income = Number(financeStats?.income || 0);
+    const expense = Number(financeStats?.expense || 0);
     const newPatients = patients.filter((p) => sameMonth(p.createdAt)).length;
     const returningPatientIds = new Set(appointments.filter((a) => a.status !== "CANCELED" && sameMonth(a.date)).map((a) => a.patientId));
 
     return {
-      income: financeStats?.income ?? income,
-      expense: financeStats?.expense ?? expense,
-      balance: financeStats?.netProfit ?? income - expense,
+      income,
+      expense,
+      balance: Number(financeStats?.netProfit ?? income - expense),
       averageTicket: financeStats?.averageTicket ?? 0,
       activePatients: patients.filter((p) => p.isActive !== false).length,
       todayCount: appointments.filter((a) => new Date(a.date).toDateString() === now.toDateString() && a.status !== "CANCELED").length,
       newPatients,
       returningPatients: returningPatientIds.size,
     };
-  }, [transactions, appointments, patients, financeStats]);
+  }, [appointments, patients, financeStats]);
 
   const upcoming = useMemo(() => {
     const startOfToday = new Date();
@@ -99,25 +97,15 @@ export default function DashboardPage() {
   }, [patients]);
 
   const reactivationPatients = useMemo(() => {
-    const appointmentsByPatient = appointments.reduce<Record<string, any[]>>((acc, app) => {
-      if (app.status === "CANCELED") return acc;
-      if (!acc[app.patientId]) acc[app.patientId] = [];
-      acc[app.patientId].push(app);
-      return acc;
-    }, {});
-
     return patients
       .map((patient) => {
-        const patientAppointments = appointmentsByPatient[patient.id] || [];
-        const lastDate = patientAppointments.length
-          ? new Date(Math.max(...patientAppointments.map((a) => new Date(a.date).getTime())))
-          : new Date(patient.createdAt);
+        const lastDate = new Date(patient.lastAppointmentAt || patient.createdAt);
         return { ...patient, lastInteractionAt: lastDate, inactiveDays: daysBetween(lastDate) };
       })
       .filter((patient) => patient.isActive !== false && patient.inactiveDays >= inactivityDays)
       .sort((a, b) => b.inactiveDays - a.inactiveDays)
       .slice(0, 8);
-  }, [patients, appointments, inactivityDays]);
+  }, [patients, inactivityDays]);
 
   const filteredPatients = useMemo(() => {
     const term = search.trim().toLowerCase();

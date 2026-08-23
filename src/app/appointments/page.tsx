@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useCallback, useState, useMemo, useEffect } from "react";
 import { 
   ChevronLeft, ChevronRight, Search, Clock, Plus, 
   MoreHorizontal, Trash2, Edit3, Bell, MapPin, X 
@@ -74,23 +74,56 @@ export default function AgendaPage() {
   });
 
   // --- CARREGAR DADOS DA API ---
-  const loadData = async () => {
-    try {
-      const [pRes, aRes] = await Promise.all([
-        fetch("/api/patients"),
-        fetch("/api/appointments")
-      ]);
-      const pData = await pRes.json();
-      const aData = await aRes.json();
-      
-      setDbPatients(Array.isArray(pData) ? pData : (pData.data || []));
-      setDbAppointments(Array.isArray(aData) ? aData : (aData.data || []));
-    } catch (err) {
-      console.error("Erro ao carregar dados", err);
-    }
-  };
+  const visibleRange = useMemo(() => {
+    const start = new Date(currentDate);
+    const end = new Date(currentDate);
 
-  useEffect(() => { loadData(); }, []);
+    if (view === "DIA") {
+      start.setHours(0, 0, 0, 0);
+      end.setHours(23, 59, 59, 999);
+    } else if (view === "SEMANA") {
+      start.setDate(start.getDate() - start.getDay());
+      start.setHours(0, 0, 0, 0);
+      end.setTime(start.getTime());
+      end.setDate(end.getDate() + 7);
+      end.setMilliseconds(-1);
+    } else {
+      start.setDate(1);
+      start.setHours(0, 0, 0, 0);
+      end.setFullYear(start.getFullYear(), start.getMonth() + 1, 1);
+      end.setHours(0, 0, 0, 0);
+      end.setMilliseconds(-1);
+    }
+
+    return { start, end };
+  }, [currentDate, view]);
+
+  const loadPatients = useCallback(async () => {
+    try {
+      const res = await fetch("/api/patients?compact=true");
+      const data = await res.json();
+      setDbPatients(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error("Erro ao carregar pacientes", err);
+    }
+  }, []);
+
+  const loadAppointments = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        dateFrom: visibleRange.start.toISOString(),
+        dateTo: visibleRange.end.toISOString(),
+      });
+      const res = await fetch(`/api/appointments?${params.toString()}`);
+      const data = await res.json();
+      setDbAppointments(Array.isArray(data) ? data : (data.data || []));
+    } catch (err) {
+      console.error("Erro ao carregar agenda", err);
+    }
+  }, [visibleRange]);
+
+  useEffect(() => { void loadPatients(); }, [loadPatients]);
+  useEffect(() => { void loadAppointments(); }, [loadAppointments]);
 
   // --- TRATAMENTO DOS DADOS PARA A TELA ---
   const parsedAppointments = useMemo(() => {
@@ -204,7 +237,7 @@ export default function AgendaPage() {
       setSearchPatient("");
       setShowPatientDropdown(false);
       setFormData(prev => ({ ...prev, patientId: "", procedures: [] }));
-      loadData();
+      loadAppointments();
     } catch (err: any) {
       alert(`Ocorreu um erro ao agendar:\n${err.message}`);
     }
@@ -244,7 +277,7 @@ export default function AgendaPage() {
           room: targetRoom ? (targetRoom === "SALA B" ? "B" : "A") : app.room
         })
       });
-      loadData();
+      loadAppointments();
     } catch(err) {
       console.error(err);
     }
@@ -538,7 +571,7 @@ export default function AgendaPage() {
         open={!!editingAppointment}
         appointment={editingAppointment}
         onClose={() => setEditingAppointment(null)}
-        onSaved={loadData}
+        onSaved={loadAppointments}
       />
     </div>
   );

@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensurePatientSchema } from "@/lib/patientSchemaSql";
 import { createAuditLog } from "@/lib/audit";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
@@ -19,13 +18,83 @@ export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const includeInactive = url.searchParams.get("includeInactive") === "true";
+    const compact = url.searchParams.get("compact") === "true";
+    const withLastAppointment = url.searchParams.get("withLastAppointment") === "true";
+    const query = url.searchParams.get("q")?.trim();
+    const limitParam = Number(url.searchParams.get("limit") || 0);
+    const take = Number.isFinite(limitParam) && limitParam > 0 ? Math.min(limitParam, 500) : undefined;
 
-    await ensurePatientSchema(prisma as any);
+    const where = {
+      ...(includeInactive ? {} : { isActive: true }),
+      ...(query
+        ? {
+            OR: [
+              { name: { contains: query, mode: "insensitive" as const } },
+              { phone: { contains: query } },
+              { email: { contains: query, mode: "insensitive" as const } },
+              { cpf: { contains: query } },
+            ],
+          }
+        : {}),
+    };
+
+    if (compact) {
+      const patients = await prisma.patient.findMany({
+        where,
+        orderBy: { name: "asc" },
+        ...(take ? { take } : {}),
+        select: { id: true, name: true, phone: true, email: true },
+      });
+      return NextResponse.json(patients);
+    }
+
+    const baseSelect = {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      createdAt: true,
+      birthDate: true,
+      isActive: true,
+      cpf: true,
+      crmSource: true,
+      referralName: true,
+      crmStatus: true,
+      imageAuthorized: true,
+      interestProcedure: true,
+      patientProfile: true,
+      conversionStatus: true,
+      firstEvaluationAt: true,
+      nextSuggestedAt: true,
+    } as const;
+
+    if (withLastAppointment) {
+      const patients = await prisma.patient.findMany({
+        where,
+        orderBy: { name: "asc" },
+        ...(take ? { take } : {}),
+        select: {
+          ...baseSelect,
+          appointments: {
+            where: { status: { not: "CANCELED" } },
+            orderBy: { date: "desc" },
+            take: 1,
+            select: { date: true },
+          },
+        },
+      });
+
+      return NextResponse.json(patients.map(({ appointments, ...patient }) => ({
+        ...patient,
+        lastAppointmentAt: appointments[0]?.date ?? null,
+      })));
+    }
 
     const patients = await prisma.patient.findMany({
-      where: includeInactive ? {} : { isActive: true },
+      where,
       orderBy: { name: "asc" },
-      include: { anamnesis: true },
+      ...(take ? { take } : {}),
+      select: baseSelect,
     });
 
     return NextResponse.json(patients);
@@ -40,7 +109,6 @@ export async function POST(req: Request) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    await ensurePatientSchema(prisma as any);
 
     const body = await req.json();
     const validationError = validatePatientPayload(body);

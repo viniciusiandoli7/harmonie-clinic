@@ -81,7 +81,7 @@ export default function ExecutiveDashboardPage() {
     const [financeRes, patientsRes, appointmentsRes, backupsRes, goalRes, transactionsRes] = await Promise.all([
       fetch("/api/finance/stats", { cache: "no-store" }),
       fetch("/api/patients?includeInactive=true", { cache: "no-store" }),
-      fetch("/api/appointments", { cache: "no-store" }),
+      fetch("/api/appointments?order=desc&limit=1000", { cache: "no-store" }),
       fetch("/api/backups", { cache: "no-store" }),
       fetch("/api/goals", { cache: "no-store" }),
       fetch("/api/financial-transactions", { cache: "no-store" }),

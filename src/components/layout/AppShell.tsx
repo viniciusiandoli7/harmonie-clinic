@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { usePathname } from "next/navigation";
 import Sidebar from "@/components/layout/Sidebar";
 
@@ -14,21 +13,6 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     pathname.startsWith("/assinar-contrato/") ||
     pathname.startsWith("/anamnese/");
   const isFullScreenPage = isLoginPage || isPublicSignaturePage;
-
-  useEffect(() => {
-    if (isFullScreenPage || typeof window === "undefined") return;
-
-    const key = "mariana-schema-repair-ok";
-    if (sessionStorage.getItem(key) === "1") return;
-
-    fetch("/api/system/repair", { cache: "no-store" })
-      .then((res) => {
-        if (res.ok) sessionStorage.setItem(key, "1");
-      })
-      .catch(() => {
-        // A tela não deve quebrar se a verificação automática falhar.
-      });
-  }, [isFullScreenPage]);
 
   return (
     <div className="flex min-h-screen w-full">

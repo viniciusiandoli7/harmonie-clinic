@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from '@/lib/prisma';
-import { ensureProductionSchema } from '@/lib/productionSchemaSql';
 
 
 async function listSalesRaw(patientId?: string | null) {
@@ -49,7 +48,6 @@ async function listSalesRaw(patientId?: string | null) {
 export async function GET(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  await ensureProductionSchema(prisma as any);
 
   const { searchParams } = new URL(request.url);
   const patientId = searchParams.get('patientId');

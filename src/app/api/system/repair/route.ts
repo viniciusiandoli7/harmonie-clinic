@@ -7,8 +7,23 @@ import { ensurePatientSchema } from "@/lib/patientSchemaSql";
 import { ensureBusinessGoalPeriodColumns } from "@/lib/goalsSql";
 import { ensureFinancialTransactionsForSales } from "@/lib/financeRepairSql";
 
+async function requireSession() {
+  return getServerSession(authOptions);
+}
+
 export async function GET() {
-  const session = await getServerSession(authOptions);
+  const session = await requireSession();
+  if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
+
+  return NextResponse.json({
+    ok: true,
+    mode: "manual",
+    message: "O reparo de banco não é mais executado durante o uso normal. Use POST somente como recuperação administrativa; em produção prefira as migrations.",
+  });
+}
+
+export async function POST() {
+  const session = await requireSession();
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
@@ -19,7 +34,7 @@ export async function GET() {
 
     return NextResponse.json({
       ok: true,
-      message: "Estrutura do banco verificada e corrigida.",
+      message: "Reparo administrativo concluído.",
       financeRepair,
       checkedAt: new Date().toISOString(),
     });
@@ -30,8 +45,4 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
-
-export async function POST() {
-  return GET();
 }

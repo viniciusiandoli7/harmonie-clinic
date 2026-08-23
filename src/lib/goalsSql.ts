@@ -57,8 +57,6 @@ export async function ensureBusinessGoalPeriodColumns(client: PrismaLike) {
 
 
 export async function getActiveBusinessGoalRaw(client: PrismaLike, date: Date = new Date()) {
-  await ensureBusinessGoalPeriodColumns(client);
-
   const rows = await safeQuery<any>(
     client,
     `
@@ -78,16 +76,12 @@ export async function getActiveBusinessGoalRaw(client: PrismaLike, date: Date = 
 }
 
 export async function getBusinessGoalByMonthRaw(client: PrismaLike, month: string) {
-  await ensureBusinessGoalPeriodColumns(client);
-
   const rows = await safeQuery<any>(client, `SELECT * FROM "BusinessGoal" WHERE "month" = $1 LIMIT 1`, month);
 
   return rows[0] || null;
 }
 
 export async function createBusinessGoalRaw(client: PrismaLike, payload: BusinessGoalPayload) {
-  await ensureBusinessGoalPeriodColumns(client);
-
   const rows = await client.$queryRawUnsafe(
     `
       INSERT INTO "BusinessGoal" (
@@ -125,8 +119,6 @@ export async function createBusinessGoalRaw(client: PrismaLike, payload: Busines
 }
 
 export async function updateBusinessGoalRaw(client: PrismaLike, month: string, payload: Partial<BusinessGoalPayload>) {
-  await ensureBusinessGoalPeriodColumns(client);
-
   const values: any[] = [];
   const sets: string[] = [];
 

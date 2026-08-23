@@ -41,38 +41,32 @@ function FieldLabel({ children }: { children: React.ReactNode }) {
   return <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#96A4C1]">{children}</label>;
 }
 
-function fileToDataUrl(file: File) {
-  return new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result || ""));
-    reader.onerror = () => reject(new Error("Não foi possível ler a imagem."));
-    reader.readAsDataURL(file);
-  });
-}
-
-// Upload resiliente: tenta Cloudinary e, se houver falha de configuração/conexão,
-// salva a imagem como Data URL para não bloquear o prontuário da paciente.
 async function uploadClinicalImage(file: File) {
-  const cloudName = "domf1tnzd";
-  const uploadPreset = "harmonie_fotos";
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "domf1tnzd";
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "harmonie_fotos";
 
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("upload_preset", uploadPreset);
-
-    const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await res.json().catch(() => null);
-    if (res.ok && data?.secure_url) return data.secure_url as string;
-  } catch {
-    // Fallback abaixo.
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Selecione apenas arquivos de imagem.");
+  }
+  if (file.size > 10 * 1024 * 1024) {
+    throw new Error("A imagem deve ter no máximo 10 MB.");
   }
 
-  return fileToDataUrl(file);
+  const formData = new FormData();
+  formData.append("file", file);
+  formData.append("upload_preset", uploadPreset);
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+    method: "POST",
+    body: formData,
+  });
+
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.secure_url) {
+    throw new Error("Não foi possível enviar a foto. Verifique a conexão e tente novamente.");
+  }
+
+  return data.secure_url as string;
 }
 
 export default function ClinicalEvolutionSection({ patient, contractSignature }: Props) {
@@ -263,7 +257,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
                         <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
                           {uploadedImages.map((img, i) => (
                             <div key={i} className="h-16 w-16 border rounded overflow-hidden relative shadow-sm group shrink-0">
-                              <img src={img} className="h-full w-full object-cover" />
+                              <img src={img} loading="lazy" decoding="async" className="h-full w-full object-cover" />
                               <button onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><X size={14}/></button>
                             </div>
                           ))}
@@ -339,7 +333,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
                               {sessionImages.length > 0 && (
                                   <div className="mt-4 flex gap-2 flex-wrap">
                                       {sessionImages.map((img: string, i: number) => (
-                                          <a key={i} href={img} target="_blank" rel="noreferrer" className="h-20 w-20 border rounded shadow-sm overflow-hidden hover:scale-105 transition-transform"><img src={img} className="h-full w-full object-cover" /></a>
+                                          <a key={i} href={img} target="_blank" rel="noreferrer" className="h-20 w-20 border rounded shadow-sm overflow-hidden hover:scale-105 transition-transform"><img src={img} loading="lazy" decoding="async" className="h-full w-full object-cover" /></a>
                                       ))}
                                   </div>
                               )}

@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { buildContractHtml } from "@/lib/contracts";
 import { closeSaleRaw } from "@/lib/salesCloseSql";
-import { getPatientDetailRaw } from "@/lib/patientRaw";
 
 type RawSaleItem = {
   description?: string;
@@ -126,10 +124,8 @@ function dataAtual() {
 export async function POST(request: NextRequest) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  await ensureProductionSchema(prisma as any);
 
   try {
-    await ensureProductionSchema(prisma as any);
     const body = await request.json();
     const patientId = String(body.patientId || "").trim();
 
@@ -137,7 +133,18 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Selecione um paciente para fechar a venda." }, { status: 400 });
     }
 
-    const patient = await getPatientDetailRaw(prisma as any, patientId);
+    const patient = await prisma.patient.findUnique({
+      where: { id: patientId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        birthDate: true,
+        cpf: true,
+        rg: true,
+      },
+    });
 
     if (!patient) {
       return NextResponse.json({ error: "Paciente não encontrado. Atualize a página e tente novamente." }, { status: 404 });

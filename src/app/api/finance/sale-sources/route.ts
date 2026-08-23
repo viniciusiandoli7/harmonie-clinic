@@ -2,7 +2,6 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { safeQuery } from "@/lib/safeSql";
 
 export const dynamic = "force-dynamic";
@@ -22,7 +21,6 @@ export async function GET() {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    await ensureProductionSchema(prisma as any);
 
     const contracts = await safeQuery<any>(prisma as any, `
       SELECT

@@ -1,22 +1,25 @@
-# Mariana Thomaz Carmona — Sistema de Gestão Clínica
+# Harmonie Clinic — Sistema de Gestão Clínica
 
-Sistema privado de gestão para a clínica da Dra. Mariana Thomaz Carmona, com foco em pacientes, agenda, financeiro, prontuário, estoque, documentos, backup e indicadores de captação/conversão.
+Sistema privado de gestão clínica em Next.js, React, TypeScript, Prisma e PostgreSQL.
 
-## Funcionalidades principais
+Esta versão foi otimizada para reduzir travamentos sem alterar o layout nem os fluxos principais do sistema.
 
-- Login privado com NextAuth.
-- Dashboard financeiro e operacional.
-- Agenda de atendimentos e bloqueios.
-- CRM de pacientes com origem, indicação, status e autorização de imagem.
-- Prontuário, anamnese, evolução clínica e timeline da paciente.
-- Financeiro com transações, status, anexos, taxas, valor líquido e parcelas.
-- Fechamento mensal automático.
-- Estoque com lote, validade, quantidade mínima e movimentações reais.
-- Galeria clínica de fotos/antes e depois vinculada à paciente.
-- Contratos e termos com assinatura.
-- Alertas inteligentes para reativação, parcelas vencidas, estoque e aniversários.
-- Backup local/exportação JSON.
-- Auditoria de ações críticas.
+## Principais otimizações desta versão
+
+- Migrações/estrutura do banco removidas do caminho das requisições normais.
+- O reparo de banco não roda mais automaticamente ao abrir o sistema.
+- Prontuário passa a carregar módulos pesados sob demanda por aba.
+- Agenda busca apenas o intervalo de datas exibido.
+- Listas de pacientes usadas em seletores usam payload compacto.
+- Dashboard evita baixar o histórico financeiro inteiro para fazer somas no navegador.
+- Financeiro limita listagens extensas e usa agregações no banco quando adequado.
+- Timeline da paciente possui limites por categoria e no resultado final.
+- Fotos clínicas não usam mais fallback Base64 dentro do PostgreSQL.
+- Índices compostos adicionados para consultas frequentes.
+- Credenciais padrão removidas: usuário e senha administrativos devem existir no ambiente.
+- Endpoint de reparo ficou apenas para recuperação administrativa manual via POST.
+
+Veja `OTIMIZACOES.md` para o relatório técnico e instruções de implantação.
 
 ## Tecnologias
 
@@ -31,59 +34,71 @@ Sistema privado de gestão para a clínica da Dra. Mariana Thomaz Carmona, com f
 
 ## Configuração local
 
-Crie um arquivo `.env` e também um `.env.local` na raiz do projeto com:
+1. Copie `.env.example` para `.env` e preencha as credenciais reais.
+2. Instale as dependências.
+3. Gere o Prisma Client.
+4. Aplique as migrations.
+5. Rode as verificações e inicie o projeto.
+
+```powershell
+npm ci
+npm run db:generate
+npm run db:deploy
+npm run check
+npm run dev
+```
+
+Para desenvolvimento de migrations novas, use `npm run db:migrate` em um banco de desenvolvimento.
+
+## Variáveis obrigatórias
 
 ```env
 DATABASE_URL="postgresql://postgres:SUA_SENHA@localhost:5432/harmonie?schema=public"
 NEXTAUTH_URL="http://localhost:3000"
-NEXTAUTH_SECRET="troque-por-uma-chave-grande-e-segura"
-ADMIN_USER="admin"
-ADMIN_PASSWORD="admin123"
+NEXTAUTH_SECRET="gere-uma-chave-longa-e-aleatoria"
+ADMIN_USER="defina-seu-usuario"
+ADMIN_PASSWORD="defina-uma-senha-forte"
 MONTHLY_REVENUE_GOAL="30000"
+NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="domf1tnzd"
+NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET="harmonie_fotos"
 ```
 
-Depois rode:
+Não existe mais login/senha padrão embutido no código. Se `ADMIN_USER` ou `ADMIN_PASSWORD` não estiverem configurados, o login administrativo é recusado.
+
+## Produção
+
+Antes de publicar uma nova versão, faça backup do PostgreSQL e aplique as migrations:
 
 ```powershell
-npm install
-npx prisma generate
-npx prisma migrate dev
-npm run lint
-npm run dev
+npm ci
+npm run db:generate
+npm run db:deploy
+npm run check
+npm run build
+npm start
 ```
 
-Se o banco local estiver apenas em teste e o Prisma pedir reset:
+Em CI/CD, execute `npm run db:deploy` como etapa de deploy antes de liberar a aplicação. Não use `prisma migrate dev` no banco de produção.
 
-```powershell
-npx prisma migrate reset
-npx prisma migrate dev
-npx prisma generate
-npm run dev
-```
+## Reparação administrativa
 
-## Login padrão
+`/api/system/repair` não é mais executado automaticamente. Um `GET` apenas informa que o modo é manual. O reparo pesado existe apenas via `POST` autenticado para recuperação excepcional.
 
-```txt
-Usuário: admin
-Senha: admin123
-```
-
-## Observação
-
-O sistema foi mantido com uma única conta operacional da Dra. Mariana, sem módulo de múltiplos usuários/permissões, conforme decisão de simplificação. A recepção pode acessar pela mesma conta quando necessário.
-
+No funcionamento normal, a evolução do schema deve ocorrer exclusivamente pelas migrations de `prisma/migrations`.
 
 ## Scripts úteis
 
 ```powershell
-npm run dev          # inicia o sistema local
-npm run lint         # valida boas práticas de código
-npm run typecheck    # valida TypeScript após gerar Prisma Client
+npm run dev          # desenvolvimento
+npm run build        # gera Prisma Client + build do Next.js
+npm run start        # inicia build de produção
+npm run lint         # ESLint
+npm run typecheck    # TypeScript
+npm run qa           # checagens próprias do projeto
+npm run preflight    # checagem rápida de segurança/estrutura
+npm run check        # preflight + qa + lint + typecheck
 npm run db:generate  # gera Prisma Client
-npm run db:migrate   # aplica migrations no banco local
-npm run db:reset     # reseta banco local de teste
+npm run db:migrate   # cria/aplica migrations no desenvolvimento
+npm run db:deploy    # aplica migrations existentes em produção
+npm run db:reset     # somente banco de desenvolvimento/teste
 ```
-
-## Pente fino técnico
-
-A versão atual inclui o arquivo `PENTE_FINO_APLICACAO.md` com os ajustes de arquitetura, segurança, assinatura pública, scripts e decisões de produto.

@@ -1,5 +1,4 @@
 import { randomUUID } from "crypto";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { safeExecute, safeQuery } from "@/lib/safeSql";
 
 export type RawSaleItem = {
@@ -27,7 +26,6 @@ async function strictExecute(client: PrismaLike, query: string, ...values: any[]
 }
 
 async function getOrCreateProfessional(client: PrismaLike, commissionPct: number) {
-  await ensureProductionSchema(client);
   const id = "mariana_id";
   const existing = await safeQuery<{ id: string }>(client, `SELECT "id" FROM "Professional" WHERE "id" = $1 LIMIT 1`, id);
   if (!existing[0]) {
@@ -51,7 +49,6 @@ async function getOrCreateProfessional(client: PrismaLike, commissionPct: number
 }
 
 async function getOrCreateTreatment(client: PrismaLike) {
-  await ensureProductionSchema(client);
   const name = "Procedimentos Estéticos";
   const rows = await safeQuery<{ id: string }>(client, `SELECT "id" FROM "Treatment" WHERE "name" = $1 ORDER BY "createdAt" ASC LIMIT 1`, name);
   if (rows[0]?.id) return rows[0];
@@ -145,7 +142,6 @@ export async function closeSaleRaw(client: PrismaLike, input: {
   bodyNotes?: string | null;
   goals?: string | null;
 }) {
-  await ensureProductionSchema(client);
 
   const professional = await getOrCreateProfessional(client, input.clinicCommissionPct);
   const treatment = await getOrCreateTreatment(client);

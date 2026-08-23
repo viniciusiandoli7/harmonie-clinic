@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
@@ -9,10 +8,8 @@ export async function GET() {
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  await ensureProductionSchema(prisma as any);
 
   try {
-    await ensureProductionSchema(prisma as any);
     const treatments = await prisma.treatment.findMany({
       orderBy: { name: "asc" },
     });
@@ -29,7 +26,6 @@ export async function POST(req: Request) {
   if (!session) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  await ensureProductionSchema(prisma as any);
 
   try {
     const body = await req.json();

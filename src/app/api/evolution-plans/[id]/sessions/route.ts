@@ -2,12 +2,23 @@ import { NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { schedulePatientReturn } from "@/services/returnSchedulingService";
 
 type Ctx = {
   params: Promise<{ id: string }>;
 };
+
+
+function validateImageUrls(value: unknown) {
+  if (value === undefined || value === null) return [];
+  if (!Array.isArray(value)) throw new Error("Formato de imagens inválido.");
+
+  const urls = value.filter((item): item is string => typeof item === "string" && /^https:\/\//i.test(item));
+  if (urls.length !== value.length) {
+    throw new Error("As fotos precisam estar armazenadas externamente antes de salvar o prontuário.");
+  }
+  return urls.slice(0, 20);
+}
 
 function nullableText(value: unknown) {
   const text = String(value ?? "").trim();
@@ -17,10 +28,8 @@ function nullableText(value: unknown) {
 export async function POST(req: Request, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  await ensureProductionSchema(prisma as any);
 
   try {
-    await ensureProductionSchema(prisma as any);
     const { id } = await ctx.params;
     const body = await req.json().catch(() => ({}));
 
@@ -40,7 +49,7 @@ export async function POST(req: Request, ctx: Ctx) {
         clinicalNotes: finalNotes,
         patientSignatureName: nullableText(body.patientSignatureName),
         signatureImage: body.signatureImage || null,
-        imagesJson: Array.isArray(body.images) ? body.images : [],
+        imagesJson: validateImageUrls(body.images),
       },
     });
 

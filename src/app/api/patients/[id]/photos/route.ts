@@ -12,7 +12,7 @@ const photoSchema = z.object({
   procedureName: z.string().optional().nullable(),
   bodyArea: z.string().optional().nullable(),
   photoType: z.enum(["BEFORE", "AFTER", "CLINICAL", "MARKETING_AUTHORIZED"]).optional().default("CLINICAL"),
-  imageUrl: z.string().min(5),
+  imageUrl: z.string().url().refine((value) => /^https:\/\//i.test(value), "A foto precisa estar armazenada externamente."),
   takenAt: z.string().optional().nullable(),
   imageAuthorized: z.boolean().optional().default(false),
   notes: z.string().optional().nullable(),

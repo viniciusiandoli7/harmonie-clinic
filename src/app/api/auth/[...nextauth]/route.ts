@@ -3,14 +3,6 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 const normalize = (value?: string | null) => value?.trim() ?? "";
 
-const buildAllowedValues = (primary?: string, fallback?: string) => {
-  const values = [primary, fallback]
-    .map((value) => normalize(value))
-    .filter(Boolean);
-
-  return new Set(values);
-};
-
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
   session: {
@@ -25,25 +17,23 @@ export const authOptions: NextAuthOptions = {
         password: { label: "Senha", type: "password" },
       },
       async authorize(credentials) {
-        const allowedUsers = buildAllowedValues(
-          process.env.ADMIN_USER,
-          "admin_harmonie",
-        );
-        const allowedPasswords = buildAllowedValues(
-          process.env.ADMIN_PASSWORD,
-          "14032004",
-        );
+        const configuredUser = normalize(process.env.ADMIN_USER);
+        const configuredPassword = normalize(process.env.ADMIN_PASSWORD);
+
+        // Nunca usa credenciais padrão em produção. Se o ambiente não estiver
+        // configurado, o login é negado até ADMIN_USER e ADMIN_PASSWORD existirem.
+        if (!configuredUser || !configuredPassword) {
+          console.error("Login administrativo não configurado: defina ADMIN_USER e ADMIN_PASSWORD.");
+          return null;
+        }
 
         const username = normalize(credentials?.username);
         const password = normalize(credentials?.password);
 
-        const isValidUser = allowedUsers.has(username);
-        const isValidPassword = allowedPasswords.has(password);
-
-        if (!isValidUser || !isValidPassword) return null;
+        if (username !== configuredUser || password !== configuredPassword) return null;
 
         return {
-          id: "mariana-admin",
+          id: "clinic-admin",
           name: "Dra. Mariana",
           email: "diretoria@marianathomazcarmona.com",
         };

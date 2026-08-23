@@ -39,7 +39,18 @@ export default function MonthlyKpis() {
       setError("");
 
       try {
-        const response = await fetch("/api/appointments", {
+        const now = new Date();
+        const start = new Date(now.getFullYear(), now.getMonth(), 1);
+        const end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        end.setMilliseconds(-1);
+
+        const params = new URLSearchParams({
+          dateFrom: start.toISOString(),
+          dateTo: end.toISOString(),
+          limit: "500",
+        });
+
+        const response = await fetch(`/api/appointments?${params.toString()}`, {
           cache: "no-store",
         });
 

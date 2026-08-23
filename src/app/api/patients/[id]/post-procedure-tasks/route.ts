@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 import { createAuditLog } from "@/lib/audit";
 
 type Ctx = { params: Promise<{ id: string }> };
@@ -10,7 +9,6 @@ type Ctx = { params: Promise<{ id: string }> };
 export async function GET(_: NextRequest, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  await ensureProductionSchema(prisma as any);
   const { id } = await ctx.params;
   const tasks = await (prisma as any).postProcedureTask.findMany({
     where: { patientId: id },
@@ -23,7 +21,6 @@ export async function GET(_: NextRequest, ctx: Ctx) {
 export async function POST(req: NextRequest, ctx: Ctx) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  await ensureProductionSchema(prisma as any);
   const { id } = await ctx.params;
   const body = await req.json();
   const title = String(body.title || "Acompanhamento pós-procedimento").trim();

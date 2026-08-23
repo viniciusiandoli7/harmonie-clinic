@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { ensurePatientSchema } from "@/lib/patientSchemaSql";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -35,7 +34,6 @@ export async function GET(_req: NextRequest, context: Context) {
   const { id } = await context.params;
 
   try {
-    await ensurePatientSchema(prisma as any);
 
     const patient = await getPatient(id);
     if (!patient) return NextResponse.json({ error: "Paciente não encontrada." }, { status: 404 });
@@ -56,7 +54,6 @@ export async function POST(req: NextRequest, context: Context) {
   const { id } = await context.params;
 
   try {
-    await ensurePatientSchema(prisma as any);
 
     const patient = await getPatient(id);
     if (!patient) return NextResponse.json({ error: "Paciente não encontrada." }, { status: 404 });

@@ -77,6 +77,8 @@ model Patient {
   @@index([name])
   @@index([cpf])
   @@index([phone])
+  @@index([isActive, name])
+  @@index([crmStatus])
 }
 
 model Appointment {
@@ -100,6 +102,9 @@ model Appointment {
   // ÍNDICES: Para carregar a agenda e o histórico do paciente rapidamente
   @@index([date])
   @@index([patientId])
+  @@index([room, date])
+  @@index([patientId, date])
+  @@index([status, date])
 }
 
 // -----------------------------------------
@@ -118,6 +123,7 @@ model ClinicalEvolution {
   patient   Patient  @relation(fields: [patientId], references: [id], onDelete: Cascade)
 
   @@index([patientId])
+  @@index([patientId, createdAt])
 }
 
 model MedicalRecord {
@@ -270,6 +276,7 @@ model Sale {
   @@index([patientId])
   @@index([createdAt])
   @@index([professionalId])
+  @@index([patientId, createdAt])
 }
 
 model SalePayment {
@@ -338,6 +345,8 @@ model FinancialTransaction {
   @@index([date])
   @@index([patientId])
   @@index([saleId])
+  @@index([status, type, date])
+  @@index([patientId, date])
 }
 
 
@@ -445,6 +454,7 @@ model PostProcedureTask {
   @@index([patientId])
   @@index([dueDate])
   @@index([status])
+  @@index([status, dueDate])
 }
 
 model WhatsAppTemplate {
@@ -720,6 +730,7 @@ model PatientPhoto {
   @@index([patientId])
   @@index([takenAt])
   @@index([imageAuthorized])
+  @@index([patientId, takenAt])
 }
 
 model AuditLog {

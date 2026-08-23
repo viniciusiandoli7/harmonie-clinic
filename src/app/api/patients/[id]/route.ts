@@ -3,10 +3,8 @@ import { z } from "zod";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { ensurePatientSchema } from "@/lib/patientSchemaSql";
 import { createAuditLog } from "@/lib/audit";
 import { buildPatientUpdateData, patientErrorMessage, patientErrorStatus, toAuditJson } from "@/lib/patient-data";
-import { getPatientDetailRaw } from "@/lib/patientRaw";
 
 const paramsSchema = z.object({ id: z.string().min(1, "ID inválido") });
 type Ctx = { params: Promise<{ id: string }> };
@@ -17,7 +15,10 @@ export async function GET(_: Request, context: Ctx) {
 
   try {
     const { id } = paramsSchema.parse(await context.params);
-    const patient = await getPatientDetailRaw(prisma as any, id);
+    const patient = await prisma.patient.findUnique({
+      where: { id },
+      include: { anamnesis: true },
+    });
 
     if (!patient) return NextResponse.json({ error: "Paciente não encontrado" }, { status: 404 });
     return NextResponse.json(patient);
@@ -32,7 +33,6 @@ export async function PATCH(req: Request, context: Ctx) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   try {
-    await ensurePatientSchema(prisma as any);
 
     const { id } = paramsSchema.parse(await context.params);
     const body = await req.json();

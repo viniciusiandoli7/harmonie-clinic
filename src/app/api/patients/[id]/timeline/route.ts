@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
-import { ensureProductionSchema } from "@/lib/productionSchemaSql";
 
 type Context = { params: Promise<{ id: string }> };
 
@@ -150,25 +149,24 @@ function cleanTimelineText(value?: string | null) {
 export async function GET(_: NextRequest, context: Context) {
   const session = await getServerSession(authOptions);
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
-  await ensureProductionSchema(prisma as any);
 
   const { id } = await context.params;
   const patient = await prisma.patient.findUnique({ where: { id }, select: { id: true, name: true, createdAt: true } });
   if (!patient) return NextResponse.json({ error: "Paciente não encontrada." }, { status: 404 });
 
   const [appointments, transactions, evolutions, contracts, sales, photos, installments, movements, plans, structuredEvolutions, tasks, conversions] = await Promise.all([
-    prisma.appointment.findMany({ where: { patientId: id }, orderBy: { date: "desc" } }),
-    prisma.financialTransaction.findMany({ where: { patientId: id }, orderBy: { date: "desc" } }),
-    prisma.clinicalEvolution.findMany({ where: { patientId: id }, orderBy: { createdAt: "desc" } }),
-    prisma.patientContract.findMany({ where: { patientId: id }, orderBy: { createdAt: "desc" } }),
-    prisma.sale.findMany({ where: { patientId: id }, include: { service: true, saleItems: true }, orderBy: { createdAt: "desc" } }),
-    (prisma as any).patientPhoto.findMany({ where: { patientId: id }, orderBy: { takenAt: "desc" } }),
-    (prisma as any).financialInstallment.findMany({ where: { patientId: id }, orderBy: { dueDate: "desc" } }),
-    (prisma as any).inventoryMovement.findMany({ where: { patientId: id }, include: { inventoryItem: true }, orderBy: { date: "desc" } }),
-    (prisma as any).treatmentPlan.findMany({ where: { patientId: id }, include: { steps: true }, orderBy: { createdAt: "desc" } }),
-    (prisma as any).structuredClinicalEvolution.findMany({ where: { patientId: id }, orderBy: { createdAt: "desc" } }),
-    (prisma as any).postProcedureTask.findMany({ where: { patientId: id }, orderBy: { dueDate: "desc" } }),
-    (prisma as any).evaluationConversion.findMany({ where: { patientId: id }, orderBy: { evaluationDate: "desc" } }),
+    prisma.appointment.findMany({ where: { patientId: id }, orderBy: { date: "desc" }, take: 50 }),
+    prisma.financialTransaction.findMany({ where: { patientId: id }, orderBy: { date: "desc" }, take: 50 }),
+    prisma.clinicalEvolution.findMany({ where: { patientId: id }, orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.patientContract.findMany({ where: { patientId: id }, orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.sale.findMany({ where: { patientId: id }, include: { service: true, saleItems: true }, orderBy: { createdAt: "desc" }, take: 50 }),
+    (prisma as any).patientPhoto.findMany({ where: { patientId: id }, orderBy: { takenAt: "desc" }, take: 50 }),
+    (prisma as any).financialInstallment.findMany({ where: { patientId: id }, orderBy: { dueDate: "desc" }, take: 50 }),
+    (prisma as any).inventoryMovement.findMany({ where: { patientId: id }, include: { inventoryItem: true }, orderBy: { date: "desc" }, take: 50 }),
+    (prisma as any).treatmentPlan.findMany({ where: { patientId: id }, include: { steps: true }, orderBy: { createdAt: "desc" }, take: 50 }),
+    (prisma as any).structuredClinicalEvolution.findMany({ where: { patientId: id }, orderBy: { createdAt: "desc" }, take: 50 }),
+    (prisma as any).postProcedureTask.findMany({ where: { patientId: id }, orderBy: { dueDate: "desc" }, take: 50 }),
+    (prisma as any).evaluationConversion.findMany({ where: { patientId: id }, orderBy: { evaluationDate: "desc" }, take: 50 }),
   ]);
 
   const visibleTasks = tasks.filter((t: any) => !String(t.title || "").toLowerCase().startsWith("retorno"));
@@ -200,5 +198,5 @@ export async function GET(_: NextRequest, context: Context) {
     ...conversions.map((c: any) => item(c.evaluationDate, "Conversão", translateConversionStatus(c.status), `Proposto R$ ${Number(c.proposedValue || 0).toLocaleString("pt-BR")} • Fechado R$ ${Number(c.closedValue || 0).toLocaleString("pt-BR")}`, { id: c.id })),
   ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  return NextResponse.json({ patient, timeline });
+  return NextResponse.json({ patient, timeline: timeline.slice(0, 200) });
 }

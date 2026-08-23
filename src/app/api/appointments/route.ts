@@ -85,6 +85,8 @@ export async function GET(req: Request) {
     const statusParam = url.searchParams.get("status");
     const dateFromStr = url.searchParams.get("dateFrom");
     const dateToStr = url.searchParams.get("dateTo");
+    const limitParam = Number(url.searchParams.get("limit") || 0);
+    const order = url.searchParams.get("order") === "desc" ? "desc" : "asc";
 
     const status = statusParam ? statusSchema.parse(statusParam) : undefined;
 
@@ -96,6 +98,8 @@ export async function GET(req: Request) {
       status,
       dateFrom: dateFrom && !isNaN(dateFrom.getTime()) ? dateFrom : undefined,
       dateTo: dateTo && !isNaN(dateTo.getTime()) ? dateTo : undefined,
+      limit: Number.isFinite(limitParam) && limitParam > 0 ? limitParam : undefined,
+      order,
     });
 
     return NextResponse.json(data);

@@ -707,14 +707,7 @@ const TREATMENT_ALIASES: Record<string, string> = {
   "BIOESTIMULADOR HIDROXIAPATITA DE CÁLCIO": "BIOESTIMULADOR",
   "BIOESTIMULADOR HIDROXIAPATITA DE CALCIO": "BIOESTIMULADOR",
 
-  "PREENCHEDOR RESTYLANE KYSSE": "PREENCHIMENTO",
-  "PREENCHEDOR RESTYLANE GEL": "PREENCHIMENTO",
-  "PREENCHEDOR BIOGELIS VOLUME": "PREENCHIMENTO",
-  "PREENCHEDOR BIOGELIS VOLUMAX": "PREENCHIMENTO",
-  "PREENCHEDOR LIPS": "PREENCHIMENTO",
-  "PREENCHEDOR LIFT": "PREENCHIMENTO",
-  "PREENCHEDOR ULTRA VOLUME": "PREENCHIMENTO",
-  "PREENCHEDOR LIFT PLUS": "PREENCHIMENTO",
+  "PREENCHEDOR": "PREENCHIMENTO",
   "PREENCHIMENTO DE GLÚTEO": "PREENCHIMENTO",
   "PREENCHIMENTO DE GLUTEOS": "PREENCHIMENTO",
   "PREENCHIMENTO DE GLÚTEOS": "PREENCHIMENTO",
@@ -737,6 +730,17 @@ function normalizeTreatmentKey(value: string) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim();
+}
+
+function getContractItemDisplayName(description: string) {
+  const normalizedDescription = normalizeTreatmentKey(description);
+
+  // Contratos devem exibir o procedimento de forma genérica, sem nome comercial
+  // do preenchedor. Isso também protege contratos gerados a partir de vendas
+  // antigas que ainda tenham marcas salvas no histórico.
+  if (normalizedDescription.startsWith("PREENCHEDOR")) return "Preenchedor";
+
+  return description;
 }
 
 function findTreatmentClauseKey(description: string) {
@@ -774,7 +778,7 @@ export function buildContractHtml(params: {
     <tr>
       <td>${index + 1}</td>
       <td>
-        <strong>${item.description}</strong>
+        <strong>${getContractItemDisplayName(item.description)}</strong>
         ${item.observation ? `<div class="muted small">Observação: ${item.observation}</div>` : ""}
       </td>
       <td class="center">${item.quantity}</td>

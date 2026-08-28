@@ -2,46 +2,33 @@
 
 Correção desta versão:
 
-- Adicionados os novos procedimentos:
-  - Preenchedor lips
-  - Preenchedor lift
-  - Preenchedor ultra volume
-  - Preenchedor lift plus
+- Todas as variações comerciais de preenchedor foram removidas das listas do sistema.
+- Agora existe apenas uma opção: **Preenchedor**.
+- A alteração foi aplicada em:
+  - Estoque
+  - Agenda
+  - Edição de agendamento
+  - Criação rápida de agendamento
+  - Caixa / Ponto de Venda
+  - Contratos
+- O contrato sempre exibe **Preenchedor** de forma genérica, inclusive quando for gerado a partir de um registro antigo que ainda possua o nome comercial salvo no histórico.
+- O termo específico continua sendo o termo de **Preenchimento**.
 
-Onde foi adicionado:
-
-- Estoque
-- Agenda
-- Edição de agendamento
-- Criação rápida de agendamento
-- Caixa / Ponto de Venda
-- Contrato: os novos preenchedores puxam o termo de Preenchimento automaticamente.
-
-Rode:
+Validação rápida:
 
 ```powershell
-npx prisma db push
-npx prisma generate
+npm run preflight
 npm run qa
 npm run build
 npm run dev
 ```
 
-Validação feita nesta versão:
-
-```txt
-npm run qa
-QA OK
-```
+Não é necessária uma nova migration para esta alteração, pois ela não modifica a estrutura do banco de dados.
 
 Teste obrigatório:
 
-1. Abrir Estoque.
-2. Conferir se aparecem:
-   - Preenchedor lips
-   - Preenchedor lift
-   - Preenchedor ultra volume
-   - Preenchedor lift plus
-3. Abrir Agenda e conferir a mesma lista.
-4. Abrir uma ficha de paciente e fechar venda com um dos novos preenchedores.
-5. Conferir se o contrato puxa o termo de Preenchimento.
+1. Abrir Estoque e conferir que há apenas **Preenchedor**.
+2. Abrir Agenda e conferir que há apenas **Preenchedor**.
+3. Abrir edição e criação rápida de agendamento e conferir a mesma opção.
+4. Abrir uma ficha de paciente e fechar uma venda selecionando **Preenchedor**.
+5. Conferir no PDF/contrato que o item aparece como **Preenchedor**, sem marca ou linha comercial.

@@ -182,7 +182,7 @@ export default function BlockedTimeEditModal({
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Ex.: almoço, manutenção, reunião"
+              placeholder="Ex.: Frei Caneca, Mooca, Perdizes, compromisso"
               className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
             />
           </div>

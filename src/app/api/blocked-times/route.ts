@@ -9,9 +9,9 @@ import {
 } from "@/services/blockedTimeService";
 
 const createBlockedTimeSchema = z.object({
-  start: z.string(),
-  end: z.string(),
-  reason: z.string().optional(),
+  start: z.string().datetime("Data inicial inválida"),
+  end: z.string().datetime("Data final inválida"),
+  reason: z.string().max(160, "Máximo de 160 caracteres").nullable().optional(),
 });
 
 export async function GET(req: Request) {
@@ -58,7 +58,7 @@ export async function POST(req: Request) {
     const blockedTime = await createBlockedTime({
       start: parsed.start,
       end: parsed.end,
-      reason: parsed.reason,
+      reason: parsed.reason ?? null,
     });
 
     return NextResponse.json(blockedTime, { status: 201 });

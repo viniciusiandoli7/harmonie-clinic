@@ -124,6 +124,27 @@ export default function BlockedTimeQuickModal({
             </div>
           )}
 
+          <div className="flex flex-wrap items-center justify-between gap-3 border border-[#F0ECE4] bg-[#FCFAF6] px-4 py-3">
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-[#5A1F2B]">Bloqueio geral</p>
+              <p className="mt-1 text-[11px] text-[#64748B]">O período fica indisponível para novas consultas nas duas salas.</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                const base = start ? new Date(start) : (initialDate ? new Date(initialDate) : new Date());
+                base.setHours(8, 0, 0, 0);
+                const finish = new Date(base);
+                finish.setHours(20, 30, 0, 0);
+                setStart(toLocalInputValue(base));
+                setEnd(toLocalInputValue(finish));
+              }}
+              className="h-9 border border-[#DCC2C7] bg-white px-3 text-[10px] font-bold uppercase tracking-[0.12em] text-[#5A1F2B] transition hover:bg-[#F4E8E8]"
+            >
+              Usar diária 08:00–20:30
+            </button>
+          </div>
+
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div>
               <FieldLabel>Início</FieldLabel>
@@ -153,7 +174,7 @@ export default function BlockedTimeQuickModal({
             <input
               value={reason}
               onChange={(e) => setReason(e.target.value)}
-              placeholder="Ex.: almoço, manutenção, reunião"
+              placeholder="Ex.: Frei Caneca, Mooca, Perdizes, compromisso"
               className="h-11 w-full border border-[#ECE7DD] px-3 text-sm outline-none"
             />
           </div>

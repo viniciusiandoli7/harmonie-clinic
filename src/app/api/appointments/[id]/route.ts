@@ -10,6 +10,7 @@ import {
   AppointmentConflictError,
 } from "@/services/appointmentService";
 import { updateAppointmentSchema } from "@/validators/appointmentValidator";
+import { BlockedTimeConflictError } from "@/services/blockedTimeService";
 
 const paramsSchema = z.object({
   id: z.string().uuid("ID inválido (esperado UUID)"),
@@ -101,7 +102,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
       return NextResponse.json({ error: error.errors }, { status: 400 });
     }
 
-    if (error instanceof AppointmentConflictError) {
+    if (error instanceof AppointmentConflictError || error instanceof BlockedTimeConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
 

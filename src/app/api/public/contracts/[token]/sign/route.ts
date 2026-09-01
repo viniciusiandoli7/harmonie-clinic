@@ -15,16 +15,40 @@ export async function POST(req: NextRequest, ctx: Ctx) {
   try {
     const body = await req.json();
     const signatureName = String(body.signatureName || "").trim();
+    const signatureImage = typeof body.signatureImage === "string" ? body.signatureImage.trim() : "";
 
-    if (!signatureName) {
-      return NextResponse.json({ error: "Nome da assinatura é obrigatório." }, { status: 400 });
+    if (!signatureName && !signatureImage) {
+      return NextResponse.json({ error: "Assinatura obrigatória." }, { status: 400 });
+    }
+
+    if (signatureImage && !signatureImage.startsWith("data:image/png;base64,")) {
+      return NextResponse.json({ error: "Formato de assinatura inválido." }, { status: 400 });
+    }
+
+    // Evita aceitar payloads anormalmente grandes em uma rota pública.
+    if (signatureImage.length > 2_500_000) {
+      return NextResponse.json({ error: "Assinatura muito grande. Limpe e tente assinar novamente." }, { status: 413 });
+    }
+
+    const existing = await prisma.patientContract.findUnique({
+      where: { token },
+      select: { id: true, status: true },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Contrato não encontrado." }, { status: 404 });
+    }
+
+    if (existing.status === "CANCELED") {
+      return NextResponse.json({ error: "Este contrato foi cancelado e não pode ser assinado." }, { status: 409 });
     }
 
     const contract = await prisma.patientContract.update({
       where: { token },
       data: {
         status: "SIGNED",
-        signatureName,
+        ...(signatureName ? { signatureName } : {}),
+        ...(signatureImage ? { signatureImage } : {}),
         signatureIp: requestIp(req),
         signedAt: new Date(),
       },
@@ -41,7 +65,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       signedAt: contract.signedAt,
       patient: contract.patient,
     });
-  } catch {
+  } catch (error) {
+    console.error("Erro ao assinar contrato público:", error);
     return NextResponse.json({ error: "Erro ao assinar contrato." }, { status: 500 });
   }
 }

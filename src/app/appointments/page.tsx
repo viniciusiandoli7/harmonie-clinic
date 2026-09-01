@@ -1,11 +1,10 @@
 "use client";
 
 import { useCallback, useState, useMemo, useEffect } from "react";
-import { 
-  ChevronLeft, ChevronRight, Search, Clock, Plus, 
-  MoreHorizontal, Trash2, Edit3, Bell, MapPin, X 
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, X, CalendarOff } from "lucide-react";
 import AppointmentEditModal from "@/components/calendar/AppointmentEditModal";
+import BlockedTimeQuickModal from "@/components/calendar/BlockedTimeQuickModal";
+import BlockedTimeEditModal from "@/components/calendar/BlockedTimeEditModal";
 
 // --- CONFIGURAÇÕES ---
 const PROCEDIMENTOS = [
@@ -46,6 +45,13 @@ const HOURS = Array.from({ length: 25 }, (_, i) => {
 
 const DIAS_SEMANA_NOMES = ["DOM", "SEG", "TER", "QUA", "QUI", "SEX", "SÁB"];
 
+type BlockedTime = {
+  id: string;
+  start: string;
+  end: string;
+  reason?: string | null;
+};
+
 export default function AgendaPage() {
   const [view, setView] = useState<"DIA" | "SEMANA" | "MES">("DIA");
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -53,7 +59,11 @@ export default function AgendaPage() {
   // --- ESTADOS DO BANCO DE DADOS ---
   const [dbPatients, setDbPatients] = useState<any[]>([]);
   const [dbAppointments, setDbAppointments] = useState<any[]>([]);
+  const [dbBlockedTimes, setDbBlockedTimes] = useState<BlockedTime[]>([]);
   const [editingAppointment, setEditingAppointment] = useState<any | null>(null);
+  const [editingBlockedTime, setEditingBlockedTime] = useState<BlockedTime | null>(null);
+  const [blockModalOpen, setBlockModalOpen] = useState(false);
+  const [blockInitialDate, setBlockInitialDate] = useState<string | null>(null);
   
   // --- ESTADO DO FORMULÁRIO LATERAL ---
   const [searchPatient, setSearchPatient] = useState("");
@@ -115,8 +125,23 @@ export default function AgendaPage() {
     }
   }, [visibleRange]);
 
+  const loadBlockedTimes = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({
+        dateFrom: visibleRange.start.toISOString(),
+        dateTo: visibleRange.end.toISOString(),
+      });
+      const res = await fetch(`/api/blocked-times?${params.toString()}`);
+      const data = await res.json();
+      setDbBlockedTimes(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Erro ao carregar bloqueios da agenda", err);
+    }
+  }, [visibleRange]);
+
   useEffect(() => { void loadPatients(); }, [loadPatients]);
   useEffect(() => { void loadAppointments(); }, [loadAppointments]);
+  useEffect(() => { void loadBlockedTimes(); }, [loadBlockedTimes]);
 
   // --- TRATAMENTO DOS DADOS PARA A TELA ---
   const parsedAppointments = useMemo(() => {
@@ -176,6 +201,45 @@ export default function AgendaPage() {
       return d;
     });
   }, [currentDate]);
+
+  const getSlotRange = (day: Date, hour: string) => {
+    const [h, min] = hour.split(":").map(Number);
+    const start = new Date(day);
+    start.setHours(h, min, 0, 0);
+    const end = new Date(start.getTime() + 30 * 60 * 1000);
+    return { start, end };
+  };
+
+  const getBlockedTimeForSlot = (day: Date, hour: string) => {
+    const slot = getSlotRange(day, hour);
+    return dbBlockedTimes.find((block) => {
+      const start = new Date(block.start);
+      const end = new Date(block.end);
+      return start < slot.end && end > slot.start;
+    });
+  };
+
+  const getBlockedTimesForDay = (day: Date) => {
+    const startOfDay = new Date(day);
+    startOfDay.setHours(0, 0, 0, 0);
+    const endOfDay = new Date(startOfDay);
+    endOfDay.setDate(endOfDay.getDate() + 1);
+
+    return dbBlockedTimes.filter((block) => {
+      const start = new Date(block.start);
+      const end = new Date(block.end);
+      return start < endOfDay && end > startOfDay;
+    });
+  };
+
+  const openBlockModalFromForm = () => {
+    if (!formData.date) return;
+    const [y, m, d] = formData.date.split("-").map(Number);
+    const [h, min] = formData.time.split(":").map(Number);
+    const initial = new Date(y, m - 1, d, h, min, 0);
+    setBlockInitialDate(initial.toISOString());
+    setBlockModalOpen(true);
+  };
 
   // --- LÓGICA DE NAVEGAÇÃO ---
   const handleHoje = () => {
@@ -262,7 +326,7 @@ export default function AgendaPage() {
     const newDate = new Date(Number(y), Number(m)-1, Number(d), h, min, 0);
 
     try {
-      await fetch(`/api/appointments/${id}`, {
+      const res = await fetch(`/api/appointments/${id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -270,9 +334,13 @@ export default function AgendaPage() {
           room: targetRoom ? (targetRoom === "SALA B" ? "B" : "A") : app.room
         })
       });
-      loadAppointments();
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data?.error || data?.message || "Não foi possível mover o agendamento.");
+      }
+      void loadAppointments();
     } catch(err) {
-      console.error(err);
+      alert(err instanceof Error ? err.message : "Não foi possível mover o agendamento.");
     }
   };
 
@@ -418,6 +486,17 @@ export default function AgendaPage() {
           >
             Confirmar Registro
           </button>
+
+          <button
+            type="button"
+            onClick={openBlockModalFromForm}
+            className="w-full mt-2 border border-[#5A1F2B]/25 bg-[#F7F2EA] hover:bg-[#F1E8DE] text-[#5A1F2B] py-3 rounded-sm text-[9px] font-bold uppercase tracking-[0.18em] transition-all flex items-center justify-center gap-2"
+          >
+            <CalendarOff size={14} /> Bloquear horário / diária
+          </button>
+          <p className="mt-2 text-[9px] leading-relaxed text-[#94A3B8]">
+            Use para marcar dias em outras clínicas, compromissos ou períodos indisponíveis.
+          </p>
         </div>
       </aside>
 
@@ -467,11 +546,23 @@ export default function AgendaPage() {
                     <div key={hour} className="flex min-h-15 group/row">
                       <div className="w-16 py-4 border-r border-[#EEECE7] flex justify-center items-start bg-[#F7F2EA] font-sans text-[11px] text-[#94A3B8] font-medium">{hour}</div>
                       <div className="flex-1 border-r border-[#F9F9F9] relative p-1 transition-colors hover:bg-gray-50/50" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(currentDate), hour, "SALA A")}>
+                        {getBlockedTimeForSlot(currentDate, hour) && (
+                          <BlockedSlotCard
+                            block={getBlockedTimeForSlot(currentDate, hour)!}
+                            onClick={() => setEditingBlockedTime(getBlockedTimeForSlot(currentDate, hour)!)}
+                          />
+                        )}
                         {parsedAppointments.filter(a => a.localTime === hour && a.uiRoom === "SALA A" && a.localDate === formatDate(currentDate)).map(app => (
                           <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} onClick={() => setEditingAppointment(app)} />
                         ))}
                       </div>
                       <div className="flex-1 relative p-1 transition-colors hover:bg-gray-50/50" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(currentDate), hour, "SALA B")}>
+                        {getBlockedTimeForSlot(currentDate, hour) && (
+                          <BlockedSlotCard
+                            block={getBlockedTimeForSlot(currentDate, hour)!}
+                            onClick={() => setEditingBlockedTime(getBlockedTimeForSlot(currentDate, hour)!)}
+                          />
+                        )}
                         {parsedAppointments.filter(a => a.localTime === hour && a.uiRoom === "SALA B" && a.localDate === formatDate(currentDate)).map(app => (
                           <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} onClick={() => setEditingAppointment(app)} />
                         ))}
@@ -499,6 +590,13 @@ export default function AgendaPage() {
                       <div className="w-16 flex justify-center items-center border-r border-[#EEECE7] bg-[#F7F2EA] font-sans text-[10px] text-[#94A3B8] font-medium">{hour}</div>
                       {currentWeekDays.map(day => (
                         <div key={day.toString()} className="flex-1 border-r border-[#F9F9F9] last:border-0 relative p-0.5 transition-colors hover:bg-gray-50/50" onDragOver={e => e.preventDefault()} onDrop={e => handleDrop(e, formatDate(day), hour)}>
+                          {getBlockedTimeForSlot(day, hour) && (
+                            <BlockedSlotCard
+                              block={getBlockedTimeForSlot(day, hour)!}
+                              compact
+                              onClick={() => setEditingBlockedTime(getBlockedTimeForSlot(day, hour)!)}
+                            />
+                          )}
                           {parsedAppointments.filter(a => a.localTime === hour && a.localDate === formatDate(day)).map(app => (
                             <AppointmentCard key={app.id} app={app} onDragStart={onDragStart} compact onClick={() => setEditingAppointment(app)} />
                           ))}
@@ -536,6 +634,17 @@ export default function AgendaPage() {
                           {day.getDate()}
                         </span>
                         <div className="mt-1 space-y-1">
+                          {getBlockedTimesForDay(day).map((block) => (
+                            <button
+                              key={`block-${block.id}`}
+                              type="button"
+                              onClick={(e) => { e.stopPropagation(); setEditingBlockedTime(block); }}
+                              className="w-full bg-[#F4E8E8] border border-[#DCC2C7] text-[#5A1F2B] p-1.5 text-left text-[8px] font-bold uppercase truncate shadow-sm border-l-2 border-l-[#5A1F2B] hover:bg-[#ECDCDD] transition-colors flex items-center gap-1"
+                            >
+                              <CalendarOff size={9} className="shrink-0" />
+                              <span className="truncate">{formatBlockedTimeLabel(block)}</span>
+                            </button>
+                          ))}
                           {parsedAppointments.filter(a => a.localDate === formatDate(day)).map(app => (
                             <div 
                               key={app.id} 
@@ -566,7 +675,46 @@ export default function AgendaPage() {
         onClose={() => setEditingAppointment(null)}
         onSaved={loadAppointments}
       />
+
+      <BlockedTimeQuickModal
+        open={blockModalOpen}
+        initialDate={blockInitialDate}
+        onClose={() => setBlockModalOpen(false)}
+        onSaved={loadBlockedTimes}
+      />
+
+      <BlockedTimeEditModal
+        open={!!editingBlockedTime}
+        blockedTime={editingBlockedTime}
+        onClose={() => setEditingBlockedTime(null)}
+        onSaved={loadBlockedTimes}
+      />
     </div>
+  );
+}
+
+function formatBlockedTimeLabel(block: BlockedTime) {
+  const start = new Date(block.start);
+  const end = new Date(block.end);
+  const time = `${start.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}–${end.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`;
+  return `${time} • ${block.reason?.trim() || "Bloqueado"}`;
+}
+
+function BlockedSlotCard({ block, compact, onClick }: { block: BlockedTime; compact?: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      className="absolute inset-x-1 top-0.5 bottom-0.5 z-10 border border-[#DCC2C7] border-l-4 border-l-[#5A1F2B] bg-[#F4E8E8]/95 px-2 text-left shadow-sm transition hover:bg-[#ECDCDD]"
+      title={formatBlockedTimeLabel(block)}
+    >
+      <div className="flex items-center gap-1 text-[#5A1F2B]">
+        <CalendarOff size={compact ? 10 : 11} className="shrink-0" />
+        <span className={`${compact ? "text-[7px]" : "text-[8px]"} font-extrabold uppercase tracking-wide truncate`}>
+          {block.reason?.trim() || "Bloqueado"}
+        </span>
+      </div>
+    </button>
   );
 }
 

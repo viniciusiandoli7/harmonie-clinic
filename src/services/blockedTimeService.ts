@@ -19,6 +19,10 @@ function toDate(value: Date | string) {
   return value instanceof Date ? value : new Date(value);
 }
 
+function addMinutes(date: Date, minutes: number) {
+  return new Date(date.getTime() + minutes * 60 * 1000);
+}
+
 function rangesOverlap(aStart: Date, aEnd: Date, bStart: Date, bEnd: Date) {
   return aStart < bEnd && bStart < aEnd;
 }
@@ -46,21 +50,64 @@ async function assertNoBlockedOverlap(
   }
 }
 
+async function assertNoAppointmentOverlap(start: Date, end: Date) {
+  // As consultas têm no máximo 120 minutos. Abrimos a janela para trás para
+  // capturar uma consulta iniciada antes do bloqueio e que ainda esteja ativa.
+  const candidates = await prisma.appointment.findMany({
+    where: {
+      status: { not: "CANCELED" },
+      date: {
+        gte: addMinutes(start, -120),
+        lt: end,
+      },
+    },
+    select: {
+      date: true,
+      durationMinutes: true,
+      patient: { select: { name: true } },
+    },
+    orderBy: { date: "asc" },
+  });
+
+  const conflict = candidates.find((appointment) => {
+    const appointmentEnd = addMinutes(appointment.date, Math.max(30, appointment.durationMinutes || 30));
+    return rangesOverlap(appointment.date, appointmentEnd, start, end);
+  });
+
+  if (conflict) {
+    const time = conflict.date.toLocaleTimeString("pt-BR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "America/Sao_Paulo",
+    });
+    throw new BlockedTimeConflictError(
+      `Existe uma consulta agendada às ${time}${conflict.patient?.name ? ` para ${conflict.patient.name}` : ""}. Reagende ou cancele essa consulta antes de bloquear o período.`
+    );
+  }
+}
+
 export async function createBlockedTime(data: CreateBlockedTimeInput) {
   const start = toDate(data.start);
   const end = toDate(data.end);
+
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new Error("Data ou horário inválido.");
+  }
 
   if (end <= start) {
     throw new Error("O horário final deve ser maior que o inicial.");
   }
 
-  await assertNoBlockedOverlap(start, end);
+  await Promise.all([
+    assertNoBlockedOverlap(start, end),
+    assertNoAppointmentOverlap(start, end),
+  ]);
 
   return prisma.blockedTime.create({
     data: {
       start,
       end,
-      reason: data.reason ?? null,
+      reason: data.reason?.trim() || null,
     },
   });
 }
@@ -109,18 +156,25 @@ export async function updateBlockedTime(id: string, data: UpdateBlockedTimeInput
   const nextStart = data.start ? toDate(data.start) : current.start;
   const nextEnd = data.end ? toDate(data.end) : current.end;
 
+  if (Number.isNaN(nextStart.getTime()) || Number.isNaN(nextEnd.getTime())) {
+    throw new Error("Data ou horário inválido.");
+  }
+
   if (nextEnd <= nextStart) {
     throw new Error("O horário final deve ser maior que o inicial.");
   }
 
-  await assertNoBlockedOverlap(nextStart, nextEnd, id);
+  await Promise.all([
+    assertNoBlockedOverlap(nextStart, nextEnd, id),
+    assertNoAppointmentOverlap(nextStart, nextEnd),
+  ]);
 
   return prisma.blockedTime.update({
     where: { id },
     data: {
       ...(data.start !== undefined ? { start: nextStart } : {}),
       ...(data.end !== undefined ? { end: nextEnd } : {}),
-      ...(data.reason !== undefined ? { reason: data.reason ?? null } : {}),
+      ...(data.reason !== undefined ? { reason: data.reason?.trim() || null } : {}),
     },
   });
 }

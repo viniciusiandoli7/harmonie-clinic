@@ -10,6 +10,7 @@ import { createAppointmentSchema } from "@/validators/appointmentValidator";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { reserveInventoryForAppointmentRaw } from "@/lib/inventorySql";
+import { BlockedTimeConflictError } from "@/services/blockedTimeService";
 
 
 function normalizeProcedureName(value?: string | null) {
@@ -154,7 +155,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Dados inválidos", details: error.errors }, { status: 400 });
     }
 
-    if (error instanceof AppointmentConflictError) {
+    if (error instanceof AppointmentConflictError || error instanceof BlockedTimeConflictError) {
       return NextResponse.json({ error: error.message }, { status: 409 });
     }
 

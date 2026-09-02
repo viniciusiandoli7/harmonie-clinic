@@ -61,6 +61,11 @@ ADMIN_PASSWORD="defina-uma-senha-forte"
 MONTHLY_REVENUE_GOAL="30000"
 NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME="domf1tnzd"
 NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET="harmonie_fotos"
+
+# Recomendado em produção para upload assinado das fotos clínicas
+CLOUDINARY_CLOUD_NAME="domf1tnzd"
+CLOUDINARY_API_KEY=""
+CLOUDINARY_API_SECRET=""
 ```
 
 Não existe mais login/senha padrão embutido no código. Se `ADMIN_USER` ou `ADMIN_PASSWORD` não estiverem configurados, o login administrativo é recusado.

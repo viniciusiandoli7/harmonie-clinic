@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { 
   ChevronLeft, User, FileText, Layout, DollarSign, 
   Calendar, ShieldCheck, MoreHorizontal, Trash2, Edit3,
-  PenTool, Images, Clock3, MessageCircle
+  PenTool, Clock3, MessageCircle
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
@@ -16,7 +16,6 @@ const ClinicalEvolutionSection = dynamic(() => import("@/components/patients/Cli
 const PatientTreatmentPlanSection = dynamic(() => import("@/components/patients/PatientTreatmentPlanSection"));
 const PatientSafetySection = dynamic(() => import("@/components/patients/PatientSafetySection"));
 const PatientPostCareSection = dynamic(() => import("@/components/patients/PatientPostCareSection"));
-const StructuredEvolutionPremiumSection = dynamic(() => import("@/components/patients/StructuredEvolutionPremiumSection"));
 
 
 function answerText(value: any) {
@@ -73,7 +72,6 @@ export default function PatientDetailPage() {
   const [sales, setSales] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
   const [timeline, setTimeline] = useState<any[]>([]);
-  const [photos, setPhotos] = useState<any[]>([]);
   const [insights, setInsights] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
   const [loadedTabs, setLoadedTabs] = useState<Record<string, boolean>>({});
@@ -133,9 +131,6 @@ export default function PatientDetailPage() {
         } else if (activeTab === "FINANCEIRO") {
           const res = await fetch(`/api/sales?patientId=${id}`);
           if (!cancelled) setSales(res.ok ? await res.json() : []);
-        } else if (activeTab === "GALERIA") {
-          const res = await fetch(`/api/patients/${id}/photos`);
-          if (!cancelled) setPhotos(res.ok ? await res.json() : []);
         }
       } catch (error) {
         console.error(`Erro ao carregar aba ${activeTab}:`, error);
@@ -148,7 +143,7 @@ export default function PatientDetailPage() {
       }
     }
 
-    if (["TIMELINE", "CONTRATOS", "PRONTUARIO", "FINANCEIRO", "GALERIA"].includes(activeTab)) {
+    if (["TIMELINE", "CONTRATOS", "PRONTUARIO", "FINANCEIRO"].includes(activeTab)) {
       loadTabData();
     } else {
       setLoadedTabs((prev) => ({ ...prev, [activeTab]: true }));
@@ -337,13 +332,12 @@ export default function PatientDetailPage() {
           {[
             { id: "GERAL", label: "Informações", icon: <User size={14}/> },
             { id: "TIMELINE", label: "Timeline", icon: <Clock3 size={14}/> },
-            { id: "PRONTUARIO", label: "Prontuário & Evolução", icon: <FileText size={14}/> },
+            { id: "PRONTUARIO", label: "Evolução & Fotos", icon: <FileText size={14}/> },
             { id: "SEGURANCA", label: "Segurança", icon: <ShieldCheck size={14}/> },
             { id: "PLANO", label: "Plano de Tratamento", icon: <Layout size={14}/> },
             { id: "WHATSAPP", label: "Pós & WhatsApp", icon: <MessageCircle size={14}/> },
             { id: "CONTRATOS", label: "Contratos", icon: <PenTool size={14}/> },
             { id: "FINANCEIRO", label: "Financeiro", icon: <DollarSign size={14}/> },
-            { id: "GALERIA", label: "Antes e Depois", icon: <Images size={14}/> },
           ].map(tab => (
             <button
               key={tab.id}
@@ -484,31 +478,6 @@ export default function PatientDetailPage() {
             </div>
           )}
 
-          {/* ABA GALERIA ANTES E DEPOIS */}
-          {activeTab === "GALERIA" && (
-            <div className="bg-white border border-[rgba(90,31,43,.10)] p-10 rounded-sm shadow-sm animate-in fade-in duration-500">
-              <h3 className="font-serif text-xl uppercase tracking-widest mb-4">Galeria Antes e Depois</h3>
-              <p className="text-sm text-gray-500 leading-7 max-w-2xl">
-                Fotos clínicas e registros autorizados ficam separados para proteger o prontuário da paciente e facilitar o uso apenas quando houver autorização.
-              </p>
-              <div className="mt-8 grid gap-4 md:grid-cols-2">
-                {photos.length === 0 ? (
-                  <div className="md:col-span-2 rounded-3xl border border-dashed border-[#5A1F2B]/20 bg-[#F7F2EA]/60 p-10 text-center text-sm text-[#5B3A2E]/60">
-                    Nenhuma imagem cadastrada ainda.
-                  </div>
-                ) : photos.map((photo: any) => (
-                  <div key={photo.id} className="rounded-3xl border border-[rgba(90,31,43,.10)] bg-[#F7F2EA]/60 p-5">
-                    {photo.imageUrl && <img src={photo.imageUrl} alt={photo.title || "Registro clínico"} loading="lazy" decoding="async" className="mb-4 h-56 w-full rounded-2xl object-cover" />}
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#5A1F2B]">{new Date(photo.takenAt).toLocaleDateString("pt-BR")}</p>
-                    <p className="mt-2 text-sm font-bold text-[#1E1A18]">{photo.title || photo.procedureName || "Registro clínico"}</p>
-                    <p className="mt-2 text-[12px] text-[#5B3A2E]/65">Tipo: {photo.photoType} • Autorização: {photo.imageAuthorized ? "Sim" : "Não"}</p>
-                    {photo.notes && <p className="mt-3 text-[12px] leading-6 text-[#5B3A2E]/65">{photo.notes}</p>}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
           {/* ABA PRONTUÁRIO COM ASSINATURA AUTOMÁTICA */}
           {activeTab === "PRONTUARIO" && patient?.id && (
               <div className="animate-in fade-in duration-500">
@@ -516,7 +485,6 @@ export default function PatientDetailPage() {
                   patient={{ id: patient.id, name: patient.name || "Paciente", phone: patient.phone }} 
                   contractSignature={contracts.find(c => c.status === "SIGNED")?.signatureImage}
                 />
-                <StructuredEvolutionPremiumSection patientId={patient.id} />
               </div>
           )}
           

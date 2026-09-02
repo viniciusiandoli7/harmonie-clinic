@@ -1,12 +1,21 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
+import type { ReactNode } from "react";
 import {
-  Activity, Camera, FileText, Plus, Trash2, 
-  X, CheckCircle2, ShieldCheck
+  Activity,
+  CalendarDays,
+  Camera,
+  CheckCircle2,
+  FileText,
+  Image as ImageIcon,
+  Plus,
+  ShieldCheck,
+  Trash2,
+  X,
 } from "lucide-react";
 
-type Patient = { id: string; name: string; phone?: string | null; };
+type Patient = { id: string; name: string; phone?: string | null };
 
 type EvolutionSession = {
   id: string;
@@ -15,7 +24,7 @@ type EvolutionSession = {
   performedProcedure?: string | null;
   bodyMeasurements?: string | null;
   clinicalNotes?: string | null;
-  imagesJson?: any; 
+  imagesJson?: unknown;
 };
 
 type EvolutionPlan = {
@@ -28,42 +37,130 @@ type EvolutionPlan = {
   sessions: EvolutionSession[];
 };
 
-type Props = { patient: Patient; contractSignature?: string | null; };
+type LegacyPhoto = {
+  id: string;
+  title?: string | null;
+  procedureName?: string | null;
+  imageUrl: string;
+  takenAt: string;
+  notes?: string | null;
+};
+
+type LegacyStructuredEvolution = {
+  id: string;
+  createdAt: string;
+  procedurePerformed: string;
+  productUsed?: string | null;
+  batch?: string | null;
+  bodyArea?: string | null;
+  quantity?: string | null;
+  complaint?: string | null;
+  clinicalAssessment?: string | null;
+  intercurrences?: string | null;
+  guidance?: string | null;
+};
+
+type Props = { patient: Patient; contractSignature?: string | null };
+
+type UploadConfig =
+  | {
+      mode: "signed";
+      cloudName: string;
+      apiKey: string;
+      timestamp: number;
+      folder: string;
+      signature: string;
+    }
+  | {
+      mode: "unsigned";
+      cloudName: string;
+      uploadPreset: string;
+      folder?: string;
+    };
+
+function localDateInputValue() {
+  const now = new Date();
+  const offset = now.getTimezoneOffset();
+  return new Date(now.getTime() - offset * 60_000).toISOString().slice(0, 10);
+}
 
 function formatDate(value?: string | null) {
   if (!value) return "—";
   return new Date(value).toLocaleDateString("pt-BR", {
-    day: "2-digit", month: "2-digit", year: "numeric"
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "America/Sao_Paulo",
   });
 }
 
-function FieldLabel({ children }: { children: React.ReactNode }) {
-  return <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#96A4C1]">{children}</label>;
+function parseImages(value: unknown): string[] {
+  if (Array.isArray(value)) {
+    return value.filter((item): item is string => typeof item === "string" && /^https:\/\//i.test(item));
+  }
+  if (typeof value === "string") {
+    try {
+      const parsed = JSON.parse(value);
+      return Array.isArray(parsed)
+        ? parsed.filter((item): item is string => typeof item === "string" && /^https:\/\//i.test(item))
+        : [];
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
+
+function FieldLabel({ children }: { children: ReactNode }) {
+  return (
+    <label className="mb-2 block text-[10px] font-bold uppercase tracking-[0.18em] text-[#5A1F2B]/65">
+      {children}
+    </label>
+  );
+}
+
+async function getUploadConfig(): Promise<UploadConfig> {
+  const res = await fetch("/api/uploads/clinical-image-signature", {
+    method: "POST",
+    cache: "no-store",
+  });
+  const data = await res.json().catch(() => null);
+  if (!res.ok) {
+    throw new Error(data?.error || "O armazenamento de fotos não está configurado.");
+  }
+  return data as UploadConfig;
 }
 
 async function uploadClinicalImage(file: File) {
-  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || "domf1tnzd";
-  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET || "harmonie_fotos";
-
   if (!file.type.startsWith("image/")) {
     throw new Error("Selecione apenas arquivos de imagem.");
   }
   if (file.size > 10 * 1024 * 1024) {
-    throw new Error("A imagem deve ter no máximo 10 MB.");
+    throw new Error("Cada foto deve ter no máximo 10 MB.");
   }
 
+  const config = await getUploadConfig();
   const formData = new FormData();
   formData.append("file", file);
-  formData.append("upload_preset", uploadPreset);
 
-  const res = await fetch(`https://api.cloudinary.com/v1_1/${cloudName}/image/upload`, {
+  if (config.mode === "signed") {
+    formData.append("api_key", config.apiKey);
+    formData.append("timestamp", String(config.timestamp));
+    formData.append("folder", config.folder);
+    formData.append("signature", config.signature);
+  } else {
+    formData.append("upload_preset", config.uploadPreset);
+    if (config.folder) formData.append("folder", config.folder);
+  }
+
+  const res = await fetch(`https://api.cloudinary.com/v1_1/${config.cloudName}/image/upload`, {
     method: "POST",
     body: formData,
   });
-
   const data = await res.json().catch(() => null);
   if (!res.ok || !data?.secure_url) {
-    throw new Error("Não foi possível enviar a foto. Verifique a conexão e tente novamente.");
+    const cloudinaryMessage = data?.error?.message;
+    throw new Error(cloudinaryMessage || "Não foi possível enviar a foto. Tente novamente.");
   }
 
   return data.secure_url as string;
@@ -71,298 +168,518 @@ async function uploadClinicalImage(file: File) {
 
 export default function ClinicalEvolutionSection({ patient, contractSignature }: Props) {
   const [plans, setPlans] = useState<EvolutionPlan[]>([]);
+  const [legacyPhotos, setLegacyPhotos] = useState<LegacyPhoto[]>([]);
+  const [legacyStructuredEvolutions, setLegacyStructuredEvolutions] = useState<LegacyStructuredEvolution[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedPlanId, setExpandedPlanId] = useState<string | null>(null);
 
-  // Estados para nova sessão dentro do prontuário
-  const [sessionNumber, setSessionNumber] = useState(1);
-  const [performedProcedure, setPerformedProcedure] = useState("");
-  const [bodyMeasurements, setBodyMeasurements] = useState("");
-  const [clinicalNotes, setClinicalNotes] = useState("");
+  const [sessionDate, setSessionDate] = useState(localDateInputValue());
+  const [description, setDescription] = useState("");
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
-  const [recommendedReturn, setRecommendedReturn] = useState("");
-  const [returnTime, setReturnTime] = useState("10:00");
+  const [saving, setSaving] = useState(false);
 
-  async function loadPlans() {
+  async function loadData() {
     setLoading(true);
     try {
-      const res = await fetch(`/api/patients/${patient.id}/evolution`, { cache: "no-store" });
-      const data = await res.json();
-      setPlans(Array.isArray(data) ? data : []);
-    } catch (err) { 
-      console.error(err); 
-    } finally { 
-      setLoading(false); 
+      const [plansRes, photosRes, structuredRes] = await Promise.all([
+        fetch(`/api/patients/${patient.id}/evolution`, { cache: "no-store" }),
+        fetch(`/api/patients/${patient.id}/photos`, { cache: "no-store" }),
+        fetch(`/api/patients/${patient.id}/structured-evolutions`, { cache: "no-store" }),
+      ]);
+
+      const plansData = plansRes.ok ? await plansRes.json() : [];
+      const photosData = photosRes.ok ? await photosRes.json() : [];
+      const structuredData = structuredRes.ok ? await structuredRes.json() : [];
+      setPlans(Array.isArray(plansData) ? plansData : []);
+      setLegacyPhotos(Array.isArray(photosData) ? photosData : []);
+      setLegacyStructuredEvolutions(Array.isArray(structuredData) ? structuredData : []);
+    } catch (error) {
+      console.error("Erro ao carregar evolução clínica:", error);
+    } finally {
+      setLoading(false);
     }
   }
 
-  useEffect(() => { loadPlans(); }, [patient.id]);
+  useEffect(() => {
+    loadData();
+  }, [patient.id]);
 
-  async function removePlan(planId: string) {
-    if (!window.confirm("Excluir este histórico e todas as sessões associadas?")) return;
-    await fetch(`/api/evolution-plans/${planId}`, { method: "DELETE" });
-    loadPlans();
+  function resetForm() {
+    setSessionDate(localDateInputValue());
+    setDescription("");
+    setUploadedImages([]);
   }
 
-  const handleExportPDF = async (plan: EvolutionPlan) => {
-    const element = document.getElementById(`evolution-plan-${plan.id}`);
-    if (!element) return;
-    const printWindow = window.open('', '', 'width=900,height=800');
-    printWindow?.document.write(`<html><head><title>Evolução</title><style>body { font-family: serif; padding: 40px; color: #1E1A18; background: #F7F2EA !important; } .no-print, button, input, textarea { display: none !important; } .pdf-h { border-bottom: 2px solid #5A1F2B; margin-bottom: 30px; padding-bottom: 10px; }</style></head><body><div class="pdf-h"><h1 style="color: #5A1F2B; text-transform: uppercase; font-size: 12px;">Mariana Thomaz Carmona</h1><h2 style="font-size: 24px;">Acompanhamento: ${patient.name}</h2></div>${element.innerHTML}</body></html>`);
-    printWindow?.document.close();
-    setTimeout(() => { printWindow?.print(); printWindow?.close(); }, 1200);
-  };
+  function togglePlan(planId: string) {
+    setExpandedPlanId((current) => {
+      const next = current === planId ? null : planId;
+      if (next) resetForm();
+      return next;
+    });
+  }
 
-  async function handleCreateImagesUpload(files: FileList | null) {
+  async function handleImagesUpload(files: FileList | null) {
     if (!files?.length) return;
+
+    const availableSlots = Math.max(0, 20 - uploadedImages.length);
+    if (!availableSlots) {
+      alert("Este registro já atingiu o limite de 20 fotos.");
+      return;
+    }
+
+    const selectedFiles = Array.from(files).slice(0, availableSlots);
     setUploadingImages(true);
     try {
-      const urls = await Promise.all(Array.from(files).map((file) => uploadClinicalImage(file)));
-      setUploadedImages(prev => [...prev, ...urls]);
-    } catch (err: any) { 
-      alert("Erro ao subir fotos: " + err.message); 
-    } finally { setUploadingImages(false); }
+      // Upload sequencial evita estourar memória/rede no iPad quando várias fotos
+      // de alta resolução são selecionadas ao mesmo tempo.
+      const newUrls: string[] = [];
+      for (const file of selectedFiles) {
+        newUrls.push(await uploadClinicalImage(file));
+      }
+      setUploadedImages((prev) => [...prev, ...newUrls]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível enviar as fotos.";
+      alert(`Erro ao enviar foto: ${message}`);
+    } finally {
+      setUploadingImages(false);
+    }
   }
 
-  async function createSession(planId: string) {
-    if (!performedProcedure) return alert("Preencha o procedimento realizado hoje.");
-    const res = await fetch(`/api/evolution-plans/${planId}/sessions`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        sessionNumber,
-        performedProcedure,
-        bodyMeasurements,
-        clinicalNotes,
-        images: uploadedImages,
-        recommendedReturn,
-        returnTime,
-      }),
-    });
-    if (res.ok) {
-      setPerformedProcedure("");
-      setBodyMeasurements("");
-      setClinicalNotes("");
-      setUploadedImages([]);
-      setRecommendedReturn("");
-      setReturnTime("10:00");
-      loadPlans();
-    } else {
+  async function saveEvolution(plan: EvolutionPlan) {
+    const cleanDescription = description.trim();
+    if (!sessionDate) {
+      alert("Informe a data do atendimento.");
+      return;
+    }
+    if (!cleanDescription) {
+      alert("Descreva o que foi realizado no atendimento.");
+      return;
+    }
+    if (uploadingImages) {
+      alert("Aguarde o envio das fotos terminar antes de salvar.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      const nextSessionNumber = Math.max(plan.completedSessions, plan.sessions?.length || 0) + 1;
+      const res = await fetch(`/api/evolution-plans/${plan.id}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          sessionNumber: nextSessionNumber,
+          // Meio-dia UTC evita a data aparecer como o dia anterior no Brasil.
+          sessionDate: `${sessionDate}T12:00:00.000Z`,
+          performedProcedure: plan.treatmentName,
+          clinicalNotes: cleanDescription,
+          images: uploadedImages,
+        }),
+      });
+
       const data = await res.json().catch(() => null);
-      alert(data?.error || "Erro ao salvar o registro da sessão.");
+      if (!res.ok) {
+        throw new Error(data?.error || "Não foi possível salvar a evolução.");
+      }
+
+      resetForm();
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível salvar a evolução.";
+      alert(message);
+    } finally {
+      setSaving(false);
     }
   }
 
   async function removeSession(sessionId: string) {
-    if (!window.confirm("Excluir registro da sessão?")) return;
-    await fetch(`/api/evolution-sessions/${sessionId}`, { method: "DELETE" });
-    loadPlans();
+    if (!window.confirm("Excluir este registro de evolução?")) return;
+    const res = await fetch(`/api/evolution-sessions/${sessionId}`, { method: "DELETE" });
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      alert(data?.error || "Não foi possível excluir o registro.");
+      return;
+    }
+    await loadData();
   }
 
-  const activePlan = useMemo(() => plans.find(p => p.id === expandedPlanId) ?? null, [plans, expandedPlanId]);
-  useEffect(() => {
-    if (activePlan) {
-      setSessionNumber((activePlan.completedSessions || 0) + 1);
-      setRecommendedReturn("");
-      setReturnTime("10:00");
+  async function removePlan(planId: string) {
+    if (!window.confirm("Excluir este prontuário e todos os registros vinculados a ele?")) return;
+    const res = await fetch(`/api/evolution-plans/${planId}`, { method: "DELETE" });
+    if (!res.ok) {
+      alert("Não foi possível excluir o prontuário.");
+      return;
     }
-  }, [activePlan]);
+    if (expandedPlanId === planId) setExpandedPlanId(null);
+    await loadData();
+  }
+
+  function handleExportPDF(plan: EvolutionPlan) {
+    const element = document.getElementById(`evolution-plan-${plan.id}`);
+    if (!element) return;
+
+    const printWindow = window.open("", "", "width=900,height=800");
+    printWindow?.document.write(`
+      <html>
+        <head>
+          <title>Evolução clínica</title>
+          <style>
+            body { font-family: Arial, sans-serif; padding: 40px; color: #1E1A18; }
+            .no-print, button, input, textarea, label[for] { display: none !important; }
+            img { max-width: 180px; max-height: 180px; object-fit: cover; margin: 6px; }
+          </style>
+        </head>
+        <body>
+          <h1 style="font-size:12px;text-transform:uppercase;color:#5A1F2B;">Harmonie Clinic</h1>
+          <h2 style="font-size:22px;">Evolução clínica — ${patient.name}</h2>
+          ${element.innerHTML}
+        </body>
+      </html>
+    `);
+    printWindow?.document.close();
+    setTimeout(() => {
+      printWindow?.print();
+      printWindow?.close();
+    }, 700);
+  }
 
   return (
     <div className="space-y-6 font-sans">
-      
-      <div className="bg-white border border-[#ECE7DD] p-5 rounded-sm shadow-sm">
-        <h3 className="font-serif text-lg text-[#111]">Histórico Clínico</h3>
-        <p className="text-[10px] text-gray-500 uppercase tracking-widest mt-1">
-          Pacotes vendidos e registros de atendimento
-        </p>
-      </div>
+      <section className="rounded-sm border border-[#ECE7DD] bg-white p-6 shadow-sm">
+        <div className="flex items-start gap-4">
+          <div className="rounded-2xl bg-[#5A1F2B]/10 p-3 text-[#5A1F2B]">
+            <FileText size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#5A1F2B]/70">Prontuário clínico</p>
+            <h3 className="mt-1 font-serif text-2xl uppercase tracking-widest text-[#111]">Evolução & Fotos</h3>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5B3A2E]/60">
+              Um registro simples por atendimento: data, descrição do que foi realizado e fotos clínicas no mesmo lugar.
+            </p>
+          </div>
+        </div>
+      </section>
 
-      {/* MENSAGEM SE TIVER VAZIO */}
-      {plans.length === 0 && !loading && (
-        <div className="bg-white border border-[#ECE7DD] rounded-sm p-10 text-center shadow-sm">
-           <h3 className="font-serif text-lg text-[#111] mb-2">Nenhum histórico clínico</h3>
-           <p className="text-[11px] text-gray-400 uppercase tracking-widest">
-             Feche uma venda no caixa para iniciar o prontuário da paciente.
-           </p>
+      {loading && (
+        <div className="rounded-sm border border-[#ECE7DD] bg-white p-10 text-center text-sm text-gray-400">
+          Carregando histórico clínico…
         </div>
       )}
 
-      {/* LISTA DE PRONTUÁRIOS (VENDAS OU MANUAIS) */}
+      {!loading && plans.length === 0 && (
+        <div className="rounded-sm border border-[#ECE7DD] bg-white p-10 text-center shadow-sm">
+          <h3 className="mb-2 font-serif text-lg text-[#111]">Nenhum procedimento vinculado</h3>
+          <p className="text-[11px] uppercase tracking-widest text-gray-400">
+            O prontuário de evolução é liberado quando existe um procedimento ou pacote vinculado à paciente.
+          </p>
+        </div>
+      )}
+
       <div className="space-y-4">
         {plans.map((plan) => (
-          <div key={plan.id} id={`evolution-plan-${plan.id}`} className="border border-[#ECE7DD] bg-white rounded-sm overflow-hidden">
-            
-            {/* CABEÇALHO DO PRONTUÁRIO */}
-            <div className="flex justify-between items-center px-6 py-5 border-b border-gray-50 bg-[#FCFAF6]/50">
+          <section
+            key={plan.id}
+            id={`evolution-plan-${plan.id}`}
+            className="overflow-hidden rounded-sm border border-[#ECE7DD] bg-white shadow-sm"
+          >
+            <div className="flex flex-col gap-4 border-b border-gray-50 bg-[#FCFAF6]/60 px-6 py-5 md:flex-row md:items-center md:justify-between">
               <div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <h4 className="font-serif text-xl uppercase text-[#111]">{plan.treatmentName}</h4>
                   {!plan.packageName && (
-                    <span className="text-[8px] bg-gray-200 text-gray-600 px-2 py-0.5 rounded uppercase font-bold tracking-wider">Manual</span>
+                    <span className="rounded bg-gray-100 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-gray-500">
+                      Avulso
+                    </span>
                   )}
                 </div>
-                <p className="text-[9px] font-bold text-gray-400 uppercase mt-1">
+                <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">
                   Sessões: {plan.completedSessions}/{plan.totalSessions}
-                  {plan.packageName ? ` • Pacote Vendido: ${plan.packageName}` : ''}
+                  {plan.packageName ? ` • ${plan.packageName}` : ""}
                 </p>
               </div>
-              <div className="flex gap-2 no-print">
-                <button onClick={() => handleExportPDF(plan)} className="h-9 border border-[#C8A35F] px-4 text-[10px] font-bold uppercase text-[#C8A35F] flex items-center gap-2 hover:bg-[#FAF8F3] transition-colors">
+
+              <div className="no-print flex flex-wrap gap-2">
+                <button
+                  onClick={() => handleExportPDF(plan)}
+                  className="flex h-9 items-center gap-2 border border-[#C8A35F] px-4 text-[10px] font-bold uppercase text-[#C8A35F] transition-colors hover:bg-[#FAF8F3]"
+                >
                   <FileText size={14} /> PDF
                 </button>
-                <button onClick={() => setExpandedPlanId(expandedPlanId === plan.id ? null : plan.id)} className={`h-9 px-6 text-[10px] font-bold uppercase transition-all shadow-sm ${expandedPlanId === plan.id ? 'bg-gray-100 text-gray-600' : 'bg-[#111] text-white hover:bg-[#C8A35F]'}`}>
-                  {expandedPlanId === plan.id ? "Fechar" : "Abrir Atendimento"}
+                <button
+                  onClick={() => togglePlan(plan.id)}
+                  className={`h-9 px-5 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all ${
+                    expandedPlanId === plan.id
+                      ? "bg-gray-100 text-gray-600"
+                      : "bg-[#111] text-white hover:bg-[#5A1F2B]"
+                  }`}
+                >
+                  {expandedPlanId === plan.id ? "Fechar" : "Nova evolução"}
                 </button>
-                <button onClick={() => removePlan(plan.id)} className="h-9 border border-red-50 px-2 text-red-200 hover:text-red-500 transition-colors">
+                <button
+                  onClick={() => removePlan(plan.id)}
+                  aria-label="Excluir prontuário"
+                  className="h-9 border border-red-50 px-2 text-red-200 transition-colors hover:text-red-500"
+                >
                   <Trash2 size={16} />
                 </button>
               </div>
             </div>
 
             {expandedPlanId === plan.id && (
-              <div className="p-6 bg-white animate-in fade-in duration-300">
-                {/* FORM DE NOVA SESSÃO */}
-                <div className="bg-[#FAF8F3] border border-[#ECE7DD] p-6 mb-10 rounded-sm shadow-inner no-print">
-                  <div className="grid gap-6 md:grid-cols-4 mb-6">
+              <div className="animate-in fade-in duration-300">
+                <div className="no-print border-b border-[#ECE7DD] bg-[#FAF8F3] p-6">
+                  <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
                     <div>
-                      <FieldLabel>Nº Sessão</FieldLabel>
-                      <input type="number" value={sessionNumber} onChange={(e) => setSessionNumber(Number(e.target.value))} className="h-11 w-full border border-[#ECE7DD] bg-white px-3 text-sm outline-none focus:border-[#C8A35F]" />
-                    </div>
-                    <div className="md:col-span-3">
-                      <FieldLabel>Procedimento realizado hoje *</FieldLabel>
-                      <input value={performedProcedure} onChange={(e) => setPerformedProcedure(e.target.value)} placeholder="Ex: Avaliação Inicial, Aplicação de Toxina..." className="h-11 w-full border border-[#ECE7DD] bg-white px-3 text-sm outline-none focus:border-[#C8A35F]" />
-                    </div>
-                  </div>
-                  <div className="grid gap-6 md:grid-cols-2 mb-6">
-                    <div>
-                      <FieldLabel>Medidas e Parâmetros</FieldLabel>
-                      <textarea value={bodyMeasurements} onChange={(e) => setBodyMeasurements(e.target.value)} className="min-h-24 w-full border border-[#ECE7DD] bg-white p-3 text-sm outline-none focus:border-[#C8A35F] resize-none" />
-                    </div>
-                    <div>
-                      <FieldLabel>Notas Clínicas</FieldLabel>
-                      <textarea value={clinicalNotes} onChange={(e) => setClinicalNotes(e.target.value)} className="min-h-24 w-full border border-[#ECE7DD] bg-white p-3 text-sm outline-none focus:border-[#C8A35F] resize-none" />
-                    </div>
-                  </div>
-                  <div className="flex flex-col gap-6 border-t border-[#ECE7DD] pt-6">
-                    <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-                      <div className="flex-1">
-                        <FieldLabel>Fotos da Sessão</FieldLabel>
-                        <label className={`flex h-12 cursor-pointer items-center justify-center gap-3 border-2 border-dashed rounded transition-all ${uploadingImages ? 'border-gray-200 bg-gray-50' : 'border-[#C8A35F]/30 bg-white hover:border-[#C8A35F] hover:bg-[#FCFAF6]'}`}>
-                          {uploadingImages ? <Activity size={18} className="animate-spin text-gray-400" /> : <Camera size={18} className="text-[#C8A35F]" />}
-                          <span className="text-[10px] font-bold uppercase text-[#C8A35F]">{uploadingImages ? "Subindo..." : "Selecionar Fotos"}</span>
-                          <input type="file" accept="image/*" multiple className="hidden" disabled={uploadingImages} onChange={(e) => handleCreateImagesUpload(e.target.files)} />
-                        </label>
-                        <div className="flex gap-2 mt-4 overflow-x-auto pb-2">
-                          {uploadedImages.map((img, i) => (
-                            <div key={i} className="h-16 w-16 border rounded overflow-hidden relative shadow-sm group shrink-0">
-                              <img src={img} loading="lazy" decoding="async" className="h-full w-full object-cover" />
-                              <button onClick={() => setUploadedImages(prev => prev.filter((_, idx) => idx !== i))} className="absolute inset-0 bg-black/40 text-white opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"><X size={14}/></button>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-
-                      <div className="rounded-sm border border-[#ECE7DD] bg-white p-4">
-                        <FieldLabel>Retorno automático na agenda</FieldLabel>
-                        <p className="text-[12px] leading-5 text-gray-500">
-                          Preencheu a data? O sistema já agenda o retorno automaticamente na <strong className="text-[#5A1F2B]">Sala B</strong>.
-                        </p>
-
-                        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                          <div>
-                            <FieldLabel>Data do retorno</FieldLabel>
-                            <input
-                              type="date"
-                              value={recommendedReturn}
-                              onChange={(e) => setRecommendedReturn(e.target.value)}
-                              className="h-11 w-full border border-[#ECE7DD] bg-[#FCFAF6] px-3 text-sm outline-none focus:border-[#C8A35F] focus:bg-white transition-colors"
-                            />
-                          </div>
-                          <div>
-                            <FieldLabel>Horário</FieldLabel>
-                            <input
-                              type="time"
-                              value={returnTime}
-                              onChange={(e) => setReturnTime(e.target.value || "10:00")}
-                              className="h-11 w-full border border-[#ECE7DD] bg-[#FCFAF6] px-3 text-sm outline-none focus:border-[#C8A35F] focus:bg-white transition-colors"
-                            />
-                          </div>
-                        </div>
-
-                        <div className="mt-4 rounded-sm border border-dashed border-[#ECE7DD] bg-[#FCFAF6] p-3 text-[11px] leading-5 text-gray-500">
-                          Deixe a data vazia apenas quando não quiser marcar retorno. Se a Sala B estiver ocupada no horário escolhido, o sistema tenta encaixar no próximo horário livre do mesmo dia.
-                        </div>
+                      <FieldLabel>Data do atendimento</FieldLabel>
+                      <div className="relative">
+                        <CalendarDays size={16} className="pointer-events-none absolute left-3 top-3.5 text-[#5A1F2B]/50" />
+                        <input
+                          type="date"
+                          value={sessionDate}
+                          onChange={(event) => setSessionDate(event.target.value)}
+                          className="h-11 w-full border border-[#ECE7DD] bg-white pl-10 pr-3 text-sm outline-none transition-colors focus:border-[#C8A35F]"
+                        />
                       </div>
                     </div>
 
-                    <div className="flex justify-end">
-                      <button onClick={() => createSession(plan.id)} className="h-12 bg-[#111] text-white px-10 text-[10px] font-bold uppercase tracking-[0.2em] flex items-center gap-3 hover:bg-[#C8A35F] shadow-lg active:scale-95 transition-all">
-                        <Plus size={18} /> Salvar Registro
-                      </button>
+                    <div>
+                      <FieldLabel>Descrição do que foi realizado</FieldLabel>
+                      <textarea
+                        value={description}
+                        onChange={(event) => setDescription(event.target.value)}
+                        placeholder="Ex.: realizada aplicação de toxina em terço superior, paciente sem intercorrências…"
+                        className="min-h-28 w-full resize-y border border-[#ECE7DD] bg-white p-3 text-sm leading-6 outline-none transition-colors focus:border-[#C8A35F]"
+                      />
                     </div>
+                  </div>
+
+                  <div className="mt-6">
+                    <FieldLabel>Fotos do atendimento</FieldLabel>
+                    <label className={`flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-sm border-2 border-dashed px-5 py-5 text-center transition-all ${
+                      uploadingImages
+                        ? "cursor-wait border-gray-200 bg-gray-50"
+                        : "border-[#C8A35F]/35 bg-white hover:border-[#C8A35F] hover:bg-[#FCFAF6]"
+                    }`}>
+                      {uploadingImages ? (
+                        <Activity size={22} className="animate-spin text-gray-400" />
+                      ) : (
+                        <Camera size={22} className="text-[#C8A35F]" />
+                      )}
+                      <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#5A1F2B]">
+                        {uploadingImages ? "Enviando fotos…" : "Adicionar fotos"}
+                      </span>
+                      <span className="text-[11px] text-gray-400">Você pode selecionar várias imagens de uma vez.</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        disabled={uploadingImages}
+                        onChange={(event) => {
+                          handleImagesUpload(event.target.files);
+                          event.currentTarget.value = "";
+                        }}
+                      />
+                    </label>
+
+                    {uploadedImages.length > 0 && (
+                      <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+                        {uploadedImages.map((imageUrl, index) => (
+                          <div key={`${imageUrl}-${index}`} className="group relative aspect-square overflow-hidden rounded-sm border border-[#ECE7DD] bg-white shadow-sm">
+                            <img src={imageUrl} alt={`Foto ${index + 1}`} className="h-full w-full object-cover" />
+                            <button
+                              type="button"
+                              onClick={() => setUploadedImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                              aria-label="Remover foto"
+                              className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="mt-6 flex flex-col gap-3 border-t border-[#ECE7DD] pt-5 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-[11px] leading-5 text-gray-400">
+                      Este registro será salvo como a evolução nº {Math.max(plan.completedSessions, plan.sessions?.length || 0) + 1} deste procedimento.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => saveEvolution(plan)}
+                      disabled={saving || uploadingImages}
+                      className="flex h-12 items-center justify-center gap-3 bg-[#111] px-8 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-lg transition-all hover:bg-[#5A1F2B] disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {saving ? <Activity size={17} className="animate-spin" /> : <Plus size={17} />}
+                      {saving ? "Salvando…" : "Salvar evolução"}
+                    </button>
                   </div>
                 </div>
 
-                {/* HISTÓRICO DE SESSÕES DAQUELE PRONTUÁRIO */}
-                <div className="space-y-6">
-                  {(plan.sessions || []).map((session) => {
-                    let sessionImages: string[] = [];
-                    try {
-                      sessionImages = Array.isArray(session.imagesJson)
-                        ? session.imagesJson
-                        : (typeof session.imagesJson === "string" ? JSON.parse(session.imagesJson || "[]") : []);
-                    } catch {
-                      sessionImages = [];
-                    }
-                    return (
-                      <div key={session.id} className="border border-[#ECE7DD] bg-white p-6 rounded-sm flex flex-col md:flex-row gap-8 relative group">
-                        <button onClick={() => removeSession(session.id)} className="absolute top-4 right-4 text-gray-200 hover:text-red-500 no-print opacity-0 group-hover:opacity-100 transition-all"><Trash2 size={16} /></button>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-3 mb-4">
-                            <span className="text-[10px] font-black text-[#C8A35F] uppercase bg-[#FAF8F3] px-2 py-1 rounded">Sessão {session.sessionNumber}</span>
-                            <span className="text-[11px] text-gray-400 font-medium">{formatDate(session.sessionDate)}</span>
-                          </div>
-                          <div className="space-y-4">
-                              <div><FieldLabel>Procedimento</FieldLabel><p className="text-sm text-[#111] font-medium leading-relaxed">{session.performedProcedure || "—"}</p></div>
-                              <div className="grid grid-cols-2 gap-8 mt-4">
-                                  <div><FieldLabel>Medidas e Parâmetros</FieldLabel><p className="text-[12px] text-gray-600 whitespace-pre-line">{session.bodyMeasurements || "—"}</p></div>
-                                  <div><FieldLabel>Notas Clínicas</FieldLabel><p className="text-[12px] text-gray-600 whitespace-pre-line">{session.clinicalNotes || "—"}</p></div>
-                              </div>
-                              {sessionImages.length > 0 && (
-                                  <div className="mt-4 flex gap-2 flex-wrap">
-                                      {sessionImages.map((img: string, i: number) => (
-                                          <a key={i} href={img} target="_blank" rel="noreferrer" className="h-20 w-20 border rounded shadow-sm overflow-hidden hover:scale-105 transition-transform"><img src={img} loading="lazy" decoding="async" className="h-full w-full object-cover" /></a>
-                                      ))}
-                                  </div>
-                              )}
-                          </div>
-                        </div>
-                        
-                        <div className="w-full md:w-56 bg-[#FCFAF6] border border-[#ECE7DD] p-5 flex flex-col items-center justify-center text-center rounded-sm shadow-sm">
-                          <span className="text-[8px] font-bold text-[#96A4C1] uppercase tracking-widest mb-3">Visto de Autenticidade</span>
-                          {contractSignature ? (
-                            <div className="animate-in fade-in zoom-in duration-700">
-                              <img src={contractSignature} className="h-12 object-contain mix-blend-multiply mb-2" />
-                              <div className="flex items-center justify-center gap-1.5 text-[8px] text-emerald-600 font-black uppercase tracking-tighter"><CheckCircle2 size={12} /> Validado via Contrato</div>
+                <div className="space-y-4 p-6">
+                  {(plan.sessions || []).length === 0 ? (
+                    <div className="rounded-sm border border-dashed border-[#5A1F2B]/15 bg-[#FCFAF6] p-8 text-center text-sm text-gray-400">
+                      Nenhuma evolução registrada para este procedimento ainda.
+                    </div>
+                  ) : (
+                    (plan.sessions || []).map((session) => {
+                      const sessionImages = parseImages(session.imagesJson);
+                      const mainDescription = session.clinicalNotes || session.bodyMeasurements || session.performedProcedure || "Registro clínico";
+                      const hasLegacyExtra = Boolean(
+                        session.bodyMeasurements &&
+                          session.clinicalNotes &&
+                          !session.clinicalNotes.includes(session.bodyMeasurements)
+                      );
+
+                      return (
+                        <article key={session.id} className="group relative rounded-sm border border-[#ECE7DD] bg-white p-5">
+                          <button
+                            onClick={() => removeSession(session.id)}
+                            aria-label="Excluir evolução"
+                            className="no-print absolute right-4 top-4 text-gray-200 opacity-100 transition-all hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+
+                          <div className="pr-8">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <span className="rounded bg-[#F7F2EA] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#5A1F2B]">
+                                Evolução {session.sessionNumber}
+                              </span>
+                              <span className="text-[11px] font-medium text-gray-400">{formatDate(session.sessionDate)}</span>
                             </div>
-                          ) : (
-                            <div className="flex flex-col items-center gap-1">
-                              <ShieldCheck size={20} className="text-amber-300 mb-1" />
-                              <span className="text-[8px] text-amber-500 font-bold uppercase italic leading-tight text-center">Aguardando Assinatura</span>
+
+                            <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#2C2724]">{mainDescription}</p>
+                            {hasLegacyExtra && (
+                              <p className="mt-3 whitespace-pre-line rounded-sm bg-[#FCFAF6] p-3 text-[12px] leading-6 text-gray-500">
+                                {session.bodyMeasurements}
+                              </p>
+                            )}
+                          </div>
+
+                          {sessionImages.length > 0 && (
+                            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                              {sessionImages.map((imageUrl, index) => (
+                                <a
+                                  key={`${session.id}-${index}`}
+                                  href={imageUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="group/image relative aspect-[4/3] overflow-hidden rounded-sm border border-[#ECE7DD] bg-[#F7F2EA]"
+                                >
+                                  <img
+                                    src={imageUrl}
+                                    alt={`Foto da evolução ${session.sessionNumber}`}
+                                    loading="lazy"
+                                    decoding="async"
+                                    className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-[1.03]"
+                                  />
+                                </a>
+                              ))}
                             </div>
                           )}
-                        </div>
-                      </div>
-                    );
-                  })}
+
+                          <div className="mt-5 flex items-center gap-2 border-t border-[#F2EEE7] pt-4 text-[9px] font-bold uppercase tracking-wider">
+                            {contractSignature ? (
+                              <span className="flex items-center gap-1.5 text-emerald-600">
+                                <CheckCircle2 size={12} /> Contrato da paciente assinado
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-1.5 text-amber-500">
+                                <ShieldCheck size={12} /> Contrato ainda sem assinatura
+                              </span>
+                            )}
+                          </div>
+                        </article>
+                      );
+                    })
+                  )}
                 </div>
               </div>
             )}
-          </div>
+          </section>
         ))}
       </div>
+
+      {legacyStructuredEvolutions.length > 0 && (
+        <section className="rounded-sm border border-[#ECE7DD] bg-white p-6 shadow-sm">
+          <div>
+            <h4 className="font-serif text-lg uppercase tracking-wider text-[#111]">Evoluções anteriores</h4>
+            <p className="mt-1 text-[11px] leading-5 text-gray-400">
+              Registros criados no modelo antigo foram mantidos somente para consulta; nada foi apagado.
+            </p>
+          </div>
+          <div className="mt-5 space-y-3">
+            {legacyStructuredEvolutions.map((item) => {
+              const details = [
+                item.productUsed ? `Produto: ${item.productUsed}` : null,
+                item.batch ? `Lote: ${item.batch}` : null,
+                item.bodyArea ? `Região: ${item.bodyArea}` : null,
+                item.quantity ? `Quantidade: ${item.quantity}` : null,
+                item.complaint ? `Queixa: ${item.complaint}` : null,
+                item.clinicalAssessment ? `Avaliação: ${item.clinicalAssessment}` : null,
+                item.intercurrences ? `Intercorrências: ${item.intercurrences}` : null,
+                item.guidance ? `Orientações: ${item.guidance}` : null,
+              ].filter(Boolean);
+
+              return (
+                <article key={item.id} className="rounded-sm border border-[#ECE7DD] bg-[#FCFAF6] p-4">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-[#5A1F2B]">{formatDate(item.createdAt)}</span>
+                    <span className="text-sm font-semibold text-[#2C2724]">{item.procedurePerformed}</span>
+                  </div>
+                  {details.length > 0 && (
+                    <p className="mt-3 whitespace-pre-line text-[12px] leading-6 text-gray-500">{details.join("\n")}</p>
+                  )}
+                </article>
+              );
+            })}
+          </div>
+        </section>
+      )}
+
+      {legacyPhotos.length > 0 && (
+        <section className="rounded-sm border border-[#ECE7DD] bg-white p-6 shadow-sm">
+          <div className="flex items-start gap-3">
+            <div className="rounded-xl bg-[#F7F2EA] p-2.5 text-[#5A1F2B]">
+              <ImageIcon size={18} />
+            </div>
+            <div>
+              <h4 className="font-serif text-lg uppercase tracking-wider text-[#111]">Fotos anteriores</h4>
+              <p className="mt-1 text-[11px] leading-5 text-gray-400">
+                Imagens que já estavam cadastradas na antiga aba “Antes e Depois” foram preservadas aqui.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
+            {legacyPhotos.map((photo) => (
+              <a
+                key={photo.id}
+                href={photo.imageUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="group overflow-hidden rounded-sm border border-[#ECE7DD] bg-[#FCFAF6]"
+              >
+                <div className="aspect-[4/3] overflow-hidden bg-[#F7F2EA]">
+                  <img
+                    src={photo.imageUrl}
+                    alt={photo.title || photo.procedureName || "Foto clínica"}
+                    loading="lazy"
+                    decoding="async"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                  />
+                </div>
+                <div className="p-3">
+                  <p className="text-[9px] font-bold uppercase tracking-wider text-[#5A1F2B]">{formatDate(photo.takenAt)}</p>
+                  <p className="mt-1 truncate text-[11px] text-[#2C2724]">{photo.title || photo.procedureName || "Registro clínico"}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

@@ -5,11 +5,13 @@ import { useParams, useRouter } from "next/navigation";
 import { 
   ChevronLeft, User, FileText, Layout, DollarSign, 
   Calendar, ShieldCheck, MoreHorizontal, Trash2, Edit3,
-  PenTool, Clock3, MessageCircle
+  PenTool, Clock3, MessageCircle, Camera, PlusCircle, Ban
 } from "lucide-react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { generateContractPdf } from "@/lib/contractPdf";
+import { CONTRACTOR_INFO } from "@/lib/contractLegalCore";
+import { generateImageAuthorizationPdf } from "@/lib/imageAuthorizationPdf";
 
 // Abas clínicas pesadas são baixadas somente quando necessárias.
 const ClinicalEvolutionSection = dynamic(() => import("@/components/patients/ClinicalEvolutionSection"));
@@ -71,6 +73,8 @@ export default function PatientDetailPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
+  const [imageAuthorizations, setImageAuthorizations] = useState<any[]>([]);
+  const [imageAuthorizationBusy, setImageAuthorizationBusy] = useState(false);
   const [timeline, setTimeline] = useState<any[]>([]);
   const [insights, setInsights] = useState<any>(null);
   const [plan, setPlan] = useState<any>(null);
@@ -125,7 +129,16 @@ export default function PatientDetailPage() {
           const res = await fetch(`/api/patients/${id}/timeline`);
           const data = res.ok ? await res.json() : { timeline: [] };
           if (!cancelled) setTimeline(data.timeline || []);
-        } else if (activeTab === "CONTRATOS" || activeTab === "PRONTUARIO") {
+        } else if (activeTab === "CONTRATOS") {
+          const [contractsRes, imageAuthRes] = await Promise.all([
+            fetch(`/api/patients/${id}/contracts`),
+            fetch(`/api/patients/${id}/image-authorizations`),
+          ]);
+          if (!cancelled) {
+            setContracts(contractsRes.ok ? await contractsRes.json() : []);
+            setImageAuthorizations(imageAuthRes.ok ? await imageAuthRes.json() : []);
+          }
+        } else if (activeTab === "PRONTUARIO") {
           const res = await fetch(`/api/patients/${id}/contracts`);
           if (!cancelled) setContracts(res.ok ? await res.json() : []);
         } else if (activeTab === "FINANCEIRO") {
@@ -136,9 +149,7 @@ export default function PatientDetailPage() {
         console.error(`Erro ao carregar aba ${activeTab}:`, error);
       } finally {
         if (!cancelled) {
-          setLoadedTabs((prev) => activeTab === "CONTRATOS" || activeTab === "PRONTUARIO"
-            ? { ...prev, CONTRATOS: true, PRONTUARIO: true }
-            : { ...prev, [activeTab]: true });
+          setLoadedTabs((prev) => ({ ...prev, [activeTab]: true }));
         }
       }
     }
@@ -183,6 +194,72 @@ export default function PatientDetailPage() {
     }
   };
 
+  const refreshImageAuthorizations = async () => {
+    const res = await fetch(`/api/patients/${id}/image-authorizations`, { cache: "no-store" });
+    const data = res.ok ? await res.json() : [];
+    setImageAuthorizations(Array.isArray(data) ? data : []);
+    return Array.isArray(data) ? data : [];
+  };
+
+  const createImageAuthorization = async () => {
+    setImageAuthorizationBusy(true);
+    try {
+      const res = await fetch(`/api/patients/${id}/image-authorizations`, { method: "POST" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Não foi possível gerar a autorização.");
+      await refreshImageAuthorizations();
+      return data;
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível gerar a autorização.");
+      return null;
+    } finally {
+      setImageAuthorizationBusy(false);
+    }
+  };
+
+  const sendWhatsAppImageAuthorization = (authorization: any) => {
+    const link = `${window.location.origin}/autorizar-imagem/${authorization.token}`;
+    const phone = patient?.phone ? patient.phone.replace(/\D/g, "") : "";
+    const firstName = String(patient?.name || "").split(" ")[0] || "";
+    const message = `Olá${firstName ? `, ${firstName}` : ""}! 😊\n\nSegue o link seguro para você ler, selecionar e assinar a autorização de uso de imagem e voz:\n\n${link}\n\nA autorização é facultativa e independente do seu atendimento.`;
+    const url = phone
+      ? `https://api.whatsapp.com/send?phone=55${phone}&text=${encodeURIComponent(message)}`
+      : `https://api.whatsapp.com/send?text=${encodeURIComponent(message)}`;
+    window.open(url, "_blank");
+  };
+
+  const revokeImageAuthorization = async (authorization: any) => {
+    if (!window.confirm("Revogar esta autorização? O registro histórico será preservado e o sistema deixará de indicar liberação para novas divulgações.")) return;
+    setImageAuthorizationBusy(true);
+    try {
+      const res = await fetch(`/api/patients/${id}/image-authorizations/${authorization.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "REVOKE", reason: "Revogação solicitada pela paciente" }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Não foi possível revogar a autorização.");
+      await refreshImageAuthorizations();
+      setPatient((current: any) => current ? { ...current, imageAuthorized: Boolean(data?.imageAuthorized) } : current);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível revogar a autorização.");
+    } finally {
+      setImageAuthorizationBusy(false);
+    }
+  };
+
+  const downloadImageAuthorizationPdf = async (authorization: any) => {
+    try {
+      await generateImageAuthorizationPdf({
+        patient: { name: patient?.name, cpf: patient?.cpf },
+        authorization,
+      });
+    } catch (error) {
+      console.error(error);
+      alert("Não foi possível gerar o PDF da autorização.");
+    }
+  };
+
   const normalizeContractItems = (itemsJson: any, total: number) => {
     if (Array.isArray(itemsJson)) {
       return itemsJson.map((item) => ({
@@ -216,7 +293,10 @@ export default function PatientDetailPage() {
   const downloadContractPdf = async (contract: any) => {
     try {
       const items = normalizeContractItems(contract.itemsJson, Number(contract.total || 0));
-      const subtotal = items.reduce((sum: number, item: any) => sum + Number(item.total || 0), 0) || Number(contract.total || 0);
+      const contractTotal = Number(contract.total || 0);
+      const itemsSubtotal = items.reduce((sum: number, item: any) => sum + Number(item.total || 0), 0);
+      const subtotal = Math.max(itemsSubtotal || contractTotal, contractTotal);
+      const discount = Math.max(0, subtotal - contractTotal);
 
       await generateContractPdf({
         filename: `${String(contract.title || "contrato")
@@ -232,21 +312,27 @@ export default function PatientDetailPage() {
           rg: patient?.rg,
           phone: patient?.phone,
           birthDate: patient?.birthDate,
+          email: patient?.email,
+          address: patient?.address,
+          addressNumber: patient?.addressNumber,
+          addressComplement: patient?.addressComplement,
+          neighborhood: patient?.neighborhood,
+          city: patient?.city,
+          state: patient?.state,
+          zipCode: patient?.zipCode,
         },
-        clinic: {
-          companyName: "Mariana Thomaz Carmona",
-          cnpj: "57.007.483/0001-73",
-          address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista",
-          email: "marianacarmona447@gmail.com",
-        },
+        clinic: CONTRACTOR_INFO,
         items,
         subtotal,
-        discount: 0,
-        total: Number(contract.total || subtotal || 0),
+        discount,
+        total: contractTotal || subtotal,
         paymentMethodLabel: "Conforme venda registrada",
         paymentDetails: "Contrato gerado a partir do fechamento da venda.",
         contentHtml: contract.content,
         contractDate: contract.createdAt,
+        contractToken: contract.token,
+        contractNumber: contract.contractNumber,
+        validUntil: contract.validUntil,
         status: contract.status,
         signatureName: contract.signatureName,
         signatureImage: contract.signatureImage,
@@ -528,51 +614,95 @@ export default function PatientDetailPage() {
 
           {/* ABA CONTRATOS */}
           {activeTab === "CONTRATOS" && (
-            <div className="bg-white border border-[rgba(90,31,43,.10)] p-10 rounded-sm shadow-sm animate-in fade-in duration-500 font-sans">
-               <h3 className="font-serif text-xl uppercase tracking-widest mb-8">Contratos Gerados</h3>
-               <div className="space-y-4">
-                 {contracts.length > 0 ? contracts.map(c => (
-                   <div key={c.id} className="flex justify-between items-center border-b pb-4 group">
-                     <div>
-                       <p className="text-[10px] font-bold text-gray-400 uppercase">{new Date(c.createdAt).toLocaleDateString()}</p>
-                       <p className="text-sm font-bold text-[#1E1A18]">{c.title}</p>
-                     </div>
-                     <div className="flex items-center gap-3 text-right">
+            <div className="space-y-6 animate-in fade-in duration-500 font-sans">
+              <section className="bg-white border border-[rgba(90,31,43,.10)] p-6 md:p-10 rounded-sm shadow-sm">
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between mb-7">
+                  <div>
+                    <div className="flex items-center gap-2 text-[#5A1F2B]"><Camera size={16}/><span className="text-[9px] font-bold uppercase tracking-[0.2em]">Documento independente</span></div>
+                    <h3 className="font-serif text-xl uppercase tracking-widest mt-2">Autorização de Uso de Imagem e Voz</h3>
+                    <p className="mt-2 max-w-2xl text-xs leading-relaxed text-[#64748B]">Disponível para todas as pacientes, independentemente de compra ou contrato. Fotos clínicas do prontuário não significam autorização para divulgação.</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={imageAuthorizationBusy}
+                    onClick={createImageAuthorization}
+                    className="shrink-0 inline-flex items-center justify-center gap-2 bg-[#1E1A18] px-4 py-3 text-[9px] font-bold uppercase tracking-widest text-white hover:bg-[#5A1F2B] disabled:opacity-50"
+                  >
+                    <PlusCircle size={14}/> Gerar autorização
+                  </button>
+                </div>
+
+                {imageAuthorizations.length > 0 ? (
+                  <div className="space-y-3">
+                    {imageAuthorizations.map((authorization) => {
+                      const contentLabels: Record<string, string> = {
+                        photos: "Fotografias", before_after: "Antes e depois", videos: "Vídeos", identifiable_face: "Rosto identificável", non_identifiable: "Sem exposição intencional da identidade", voice_testimonial: "Voz/depoimento"
+                      };
+                      const channelLabels: Record<string, string> = {
+                        social_site: "Redes sociais/site", educational_portfolio: "Educativo/institucional/portfólio", sponsored_ads: "Anúncios patrocinados"
+                      };
+                      const selectedContent = Array.isArray(authorization.contentTypesJson) ? authorization.contentTypesJson.map((key: string) => contentLabels[key] || key) : [];
+                      const selectedChannels = Array.isArray(authorization.channelsJson) ? authorization.channelsJson.map((key: string) => channelLabels[key] || key) : [];
+                      return (
+                        <div key={authorization.id} className="border border-[#ECE7DD] bg-[#FCFAF6] p-4 md:p-5">
+                          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                            <div className="min-w-0">
+                              <p className="text-[9px] font-bold uppercase tracking-widest text-gray-400">{new Date(authorization.createdAt).toLocaleDateString("pt-BR")}</p>
+                              <div className="mt-1 flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-bold text-[#1E1A18]">Autorização de imagem e voz</p>
+                                {authorization.status === "SIGNED" && <span className="rounded bg-emerald-50 px-2 py-1 text-[9px] font-bold uppercase text-emerald-700">✓ Autorizado</span>}
+                                {authorization.status === "PENDING" && <span className="rounded bg-amber-50 px-2 py-1 text-[9px] font-bold uppercase text-amber-700">⏳ Pendente</span>}
+                                {authorization.status === "REVOKED" && <span className="rounded bg-red-50 px-2 py-1 text-[9px] font-bold uppercase text-red-700">Revogado</span>}
+                                {authorization.status === "CANCELED" && <span className="rounded bg-gray-100 px-2 py-1 text-[9px] font-bold uppercase text-gray-500">Cancelado</span>}
+                              </div>
+                              {authorization.status === "SIGNED" && (
+                                <div className="mt-2 max-w-2xl text-[10px] leading-relaxed text-[#64748B]">
+                                  <div><strong>Conteúdo:</strong> {selectedContent.join(" • ") || "—"}</div>
+                                  <div><strong>Canais:</strong> {selectedChannels.join(" • ") || "—"}</div>
+                                  {authorization.signedAt && <div><strong>Assinado em:</strong> {new Date(authorization.signedAt).toLocaleString("pt-BR")}</div>}
+                                </div>
+                              )}
+                              {authorization.status === "REVOKED" && authorization.revokedAt && <p className="mt-2 text-[10px] text-red-600">Revogado em {new Date(authorization.revokedAt).toLocaleString("pt-BR")}. Histórico preservado.</p>}
+                            </div>
+
+                            <div className="flex flex-wrap items-center gap-2">
+                              <button onClick={() => downloadImageAuthorizationPdf(authorization)} className="inline-flex items-center gap-1.5 border border-[#C8A35F] bg-white px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-[#5A1F2B]"><FileText size={12}/> PDF</button>
+                              {authorization.status === "PENDING" && <button onClick={() => sendWhatsAppImageAuthorization(authorization)} className="inline-flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-emerald-700"><MessageCircle size={12}/> Enviar WhatsApp</button>}
+                              {authorization.status === "SIGNED" && <button disabled={imageAuthorizationBusy} onClick={() => revokeImageAuthorization(authorization)} className="inline-flex items-center gap-1.5 border border-red-200 bg-red-50 px-3 py-2 text-[9px] font-bold uppercase tracking-widest text-red-700 disabled:opacity-50"><Ban size={12}/> Revogar</button>}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-[#D8C4AE] bg-[#FCFAF6] p-6 text-center text-sm text-[#64748B]">Ainda não existe autorização de divulgação para esta paciente. O atendimento e os registros clínicos podem continuar normalmente.</div>
+                )}
+              </section>
+
+              <section className="bg-white border border-[rgba(90,31,43,.10)] p-6 md:p-10 rounded-sm shadow-sm">
+                <h3 className="font-serif text-xl uppercase tracking-widest mb-8">Contratos de Prestação de Serviços</h3>
+                <div className="space-y-4">
+                  {contracts.length > 0 ? contracts.map(c => (
+                    <div key={c.id} className="flex flex-col gap-3 md:flex-row md:justify-between md:items-center border-b pb-4 group">
+                      <div>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase">{new Date(c.createdAt).toLocaleDateString()}</p>
+                        <p className="text-sm font-bold text-[#1E1A18]">{c.title}</p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-3 text-right">
                         <div>
                           <p className="text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded">
-                             {c.status === "SIGNED" ? (
-                               <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded">✅ Assinado</span>
-                             ) : (
-                               <span className="text-amber-600 bg-amber-50 px-3 py-1 rounded">⏳ Pendente</span>
-                             )}
+                            {c.status === "SIGNED" ? <span className="text-emerald-600 bg-emerald-50 px-3 py-1 rounded">✅ Assinado</span> : <span className="text-amber-600 bg-amber-50 px-3 py-1 rounded">⏳ Pendente</span>}
                           </p>
                         </div>
-
-                        <button
-                          onClick={() => downloadContractPdf(c)}
-                          className="text-[9px] border border-[#C8A35F] bg-[#FAF8F3] text-[#5A1F2B] px-4 py-2 rounded font-bold uppercase tracking-widest hover:bg-[#F7F2EA] transition-colors flex items-center gap-2 shadow-sm"
-                        >
-                           <FileText size={12}/> PDF
-                        </button>
-
-                        {c.status !== "SIGNED" && (
-                          <button
-                            onClick={() => sendWhatsAppContract(c)}
-                            className="text-[9px] border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-2 rounded font-bold uppercase tracking-widest hover:bg-emerald-100 transition-colors flex items-center gap-2 shadow-sm"
-                          >
-                             <FileText size={12}/> Enviar WhatsApp
-                          </button>
-                        )}
-
-                        {c.status === "SIGNED" && c.signatureImage && (
-                          <img src={c.signatureImage} alt="Visto" className="h-8 object-contain" />
-                        )}
-                     </div>
-                   </div>
-                 )) : (
-                   <p className="text-sm text-gray-400 italic">Nenhum contrato encontrado.</p>
-                 )}
-               </div>
+                        <button onClick={() => downloadContractPdf(c)} className="text-[9px] border border-[#C8A35F] bg-[#FAF8F3] text-[#5A1F2B] px-4 py-2 rounded font-bold uppercase tracking-widest hover:bg-[#F7F2EA] transition-colors flex items-center gap-2 shadow-sm"><FileText size={12}/> PDF</button>
+                        {c.status !== "SIGNED" && <button onClick={() => sendWhatsAppContract(c)} className="text-[9px] border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-2 rounded font-bold uppercase tracking-widest hover:bg-emerald-100 transition-colors flex items-center gap-2 shadow-sm"><FileText size={12}/> Enviar WhatsApp</button>}
+                        {c.status === "SIGNED" && c.signatureImage && <img src={c.signatureImage} alt="Visto" className="h-8 object-contain" />}
+                      </div>
+                    </div>
+                  )) : <p className="text-sm text-gray-400 italic">Nenhum contrato de prestação de serviços encontrado.</p>}
+                </div>
+              </section>
             </div>
           )}
 

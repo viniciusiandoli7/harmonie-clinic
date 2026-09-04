@@ -1,3 +1,15 @@
+import {
+  CONTRACTOR_INFO,
+  CONTRACT_ACCEPTANCE_TEXT,
+  GENERAL_CONTRACT_CLAUSES,
+  formatContractNumber,
+  getContractUseByDate,
+} from "./contractLegalCore";
+import {
+  UPDATED_TREATMENT_TERMS_PLAIN,
+  UPDATED_TREATMENT_TITLES,
+} from "./contractTreatmentTerms";
+
 type ContractItem = {
   description: string;
   quantity: number;
@@ -693,6 +705,52 @@ const TREATMENT_TEXTS: Record<string, string> = {
   `
 };
 
+
+function escapeContractHtml(value: string) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
+function renderUpdatedTreatmentTerm(text: string) {
+  const headings = new Set([
+    "CONTRAINDICAÇÕES E PRECAUÇÕES",
+    "POSSÍVEIS EFEITOS E RISCOS",
+    "ORIENTAÇÕES PÓS-PROCEDIMENTO",
+    "SINAIS DE ALERTA",
+    "CIÊNCIA, CONSENTIMENTO E AUTORIZAÇÃO",
+    "RETORNO E EVENTUAL RETOQUE",
+    "O QUE É ESPERADO APÓS O PROCEDIMENTO",
+  ]);
+
+  return String(text || "")
+    .trim()
+    .split(/\n\s*\n/)
+    .map((block) => block.trim())
+    .filter(Boolean)
+    .map((block) => {
+      const lines = block.split(/\n/).map((line) => line.trim()).filter(Boolean);
+      if (lines.length === 1 && headings.has(lines[0])) {
+        return `<h4 class="term-subheading">${escapeContractHtml(lines[0])}</h4>`;
+      }
+
+      if (lines.length > 1 && lines[0].endsWith(":")) {
+        return `<p>${escapeContractHtml(lines[0])}</p><ul class="term-list">${lines.slice(1).map((line) => `<li>${escapeContractHtml(line.replace(/;$/, ""))}</li>`).join("")}</ul>`;
+      }
+
+      return lines.map((line) => `<p>${escapeContractHtml(line)}</p>`).join("");
+    })
+    .join("");
+}
+
+const CONTRACT_TREATMENT_TEXTS: Record<string, string> = { ...TREATMENT_TEXTS };
+for (const [key, value] of Object.entries(UPDATED_TREATMENT_TERMS_PLAIN)) {
+  CONTRACT_TREATMENT_TEXTS[key] = renderUpdatedTreatmentTerm(value);
+}
+
 const TREATMENT_ALIASES: Record<string, string> = {
   "PEELING RETINOL": "PEELING",
   "PEELING LÁCTICO": "PEELING",
@@ -720,8 +778,23 @@ const TREATMENT_ALIASES: Record<string, string> = {
   "MICROAGULHAMENTO BIORREGENERADOR": "MICROAGULHAMENTO",
 
   "JATO DE PLASMA": "JATO DE PLASMA",
+  "INTRADERMOTERAPIA": "INTRADERMOTERAPIA",
+  "MESOTERAPIA": "INTRADERMOTERAPIA",
+  "INTRADERMOTERAPIA LOCAL": "INTRADERMOTERAPIA",
+  "INTRADERMOTERAPIA IM": "INTRADERMOTERAPIA",
   "ULTRASSOM MICROFOCADO E MACROFOCADO": "ULTRASSOM MICRO E MACROFOCADO",
   "ULTRASSOM MICRO E MACROFOCADO": "ULTRASSOM MICRO E MACROFOCADO",
+
+  "LASER DE CO2 FRACIONADO": "LASER CO2 FRACIONADO",
+  "LASER CO2 FRACIONADO": "LASER CO2 FRACIONADO",
+  "LASER DE CO₂ FRACIONADO": "LASER CO2 FRACIONADO",
+  "LASER THULIUM": "LASER THULIUM",
+  "LASER DE THULIUM": "LASER THULIUM",
+  "LIMPEZA DE PELE": "LIMPEZA DE PELE",
+  "SUBCISAO": "SUBCISAO",
+  "SUBCISÃO": "SUBCISAO",
+  "PEELING QUIMICO": "PEELING",
+  "BIOESTIMULADOR DE COLAGENO": "BIOESTIMULADOR",
 };
 
 function normalizeTreatmentKey(value: string) {
@@ -753,7 +826,7 @@ function findTreatmentClauseKey(description: string) {
 
   if (aliasKey) return TREATMENT_ALIASES[aliasKey];
 
-  return Object.keys(TREATMENT_TEXTS).find((key) => {
+  return Object.keys(CONTRACT_TREATMENT_TEXTS).find((key) => {
     const normalizedKey = normalizeTreatmentKey(key);
     return normalizedDescription.includes(normalizedKey) || normalizedKey.includes(normalizedDescription);
   }) || null;
@@ -761,18 +834,42 @@ function findTreatmentClauseKey(description: string) {
 
 
 
+function formatPatientAddress(patient: {
+  address?: string | null; addressNumber?: string | null; addressComplement?: string | null;
+  neighborhood?: string | null; city?: string | null; state?: string | null; zipCode?: string | null;
+}) {
+  const street = [patient.address, patient.addressNumber].filter(Boolean).join(", ");
+  const locality = [patient.neighborhood, patient.city, patient.state].filter(Boolean).join(" - ");
+  const parts = [street, patient.addressComplement, locality, patient.zipCode ? `CEP ${patient.zipCode}` : ""].filter(Boolean);
+  return parts.join(" • ") || "Não informado";
+}
+
 export function buildContractHtml(params: {
-  patient: { name: string; email?: string | null; phone?: string | null; birthDate?: string | Date | null; cpf?: string | null; rg?: string | null; };
-  clinic: { companyName: string; cnpj: string; address: string; email: string; };
+  patient: {
+    name: string; email?: string | null; phone?: string | null; birthDate?: string | Date | null; cpf?: string | null; rg?: string | null;
+    address?: string | null; addressNumber?: string | null; addressComplement?: string | null; neighborhood?: string | null;
+    city?: string | null; state?: string | null; zipCode?: string | null;
+  };
+  clinic?: { companyName?: string; cnpj?: string; address?: string; email?: string; responsibleProfessional?: string; };
   items: ContractItem[];
   subtotal: number; discount: number; total: number;
   paymentMethodLabel: string; paymentDetails?: string | null; contractDate?: string | Date | null;
+  contractToken?: string | null; contractNumber?: string | null; validUntil?: string | Date | null;
 }) {
-  const contractDate = formatDate(params.contractDate ?? new Date());
+  const rawContractDate = params.contractDate ?? new Date();
+  const contractDate = formatDate(rawContractDate);
+  const useByDate = formatDate(params.validUntil ?? getContractUseByDate(rawContractDate));
+  const contractNumber = params.contractNumber || formatContractNumber(params.contractToken, rawContractDate);
+  const clinic = { ...CONTRACTOR_INFO, ...(params.clinic || {}) };
+  const patientAddress = formatPatientAddress(params.patient);
   const patientCpf = params.patient.cpf || "Não informado";
   const patientRg = params.patient.rg || "Não informado";
   const patientPhone = params.patient.phone || "Não informado";
   const patientBirthDate = formatDate(params.patient.birthDate) || "Não informado";
+  const itemSubtotal = Math.round(params.items.reduce((sum, item) => sum + Number(item.total || 0), 0) * 100) / 100;
+  const authoritativeTotal = Math.round(Math.max(0, Number(params.total || 0)) * 100) / 100;
+  const displayedSubtotal = Math.round(Math.max(itemSubtotal, Number(params.subtotal || 0), authoritativeTotal) * 100) / 100;
+  const displayedDiscount = Math.round(Math.max(0, displayedSubtotal - authoritativeTotal) * 100) / 100;
 
   const itemsRows = params.items.map((item, index) => `
     <tr>
@@ -787,20 +884,31 @@ export function buildContractHtml(params: {
     </tr>
   `).join("");
 
-  const specificTreatmentsHtml = params.items.map((item) => {
-    const foundKey = findTreatmentClauseKey(item.description);
+  const specificTreatmentKeys = Array.from(new Set(
+    params.items
+      .map((item) => findTreatmentClauseKey(item.description))
+      .filter((key): key is string => Boolean(key))
+  ));
 
-    const clauseText = foundKey ? TREATMENT_TEXTS[foundKey] : null;
+  const specificTreatmentsHtml = specificTreatmentKeys.map((foundKey) => {
+    const clauseText = CONTRACT_TREATMENT_TEXTS[foundKey];
 
     if (!clauseText) return "";
 
     return `
       <section class="contract-section procedure-section">
-        <h3>Termo específico — ${foundKey}</h3>
+        <h3>${UPDATED_TREATMENT_TITLES[foundKey] || `Termo específico — ${foundKey}`}</h3>
         <div class="procedure-text">${clauseText}</div>
       </section>
     `;
   }).join("");
+
+  const generalClausesHtml = GENERAL_CONTRACT_CLAUSES.map((clause) => `
+    <div class="general-clause">
+      <p class="clause-heading"><strong>${clause.number}. ${clause.title}</strong></p>
+      ${clause.paragraphs.map((paragraph) => `<p>${paragraph}</p>`).join("")}
+    </div>
+  `).join("");
 
   return `
     <div class="contract-document">
@@ -874,7 +982,7 @@ export function buildContractHtml(params: {
           border: 1px solid #E4D8CA;
           background: #F7F2EA;
           padding: 12px;
-          min-height: 94px;
+          min-height: 122px;
         }
 
         .info-card h3,
@@ -983,6 +1091,27 @@ export function buildContractHtml(params: {
           text-align: justify;
         }
 
+        .clause-heading {
+          color: #1E1A18;
+          margin-top: 12px !important;
+        }
+
+        .term-subheading {
+          margin: 14px 0 6px;
+          color: #1E1A18;
+          font-size: 9.5px;
+          letter-spacing: 0.08em;
+        }
+
+        .term-list {
+          margin: 5px 0 10px 18px;
+          padding: 0;
+        }
+
+        .term-list li {
+          margin: 3px 0;
+        }
+
         .procedure-section {
           page-break-before: auto;
         }
@@ -1022,6 +1151,41 @@ export function buildContractHtml(params: {
           min-height: 42px;
         }
 
+        .fixed-signature-box {
+          max-width: 360px;
+          margin: 24px auto 18px;
+          text-align: center;
+        }
+
+        .fixed-signature-name {
+          font-family: "Brush Script MT", "Segoe Script", cursive;
+          font-size: 25px;
+          font-style: italic;
+          margin-bottom: 3px;
+          color: #1E1A18;
+        }
+
+        .fixed-signature-rule {
+          border-top: 1px solid #1E1A18;
+          margin: 0 auto 8px;
+          max-width: 260px;
+        }
+
+        .acceptance-box {
+          margin-top: 18px;
+          border: 1px solid #D8C4AE;
+          background: #F7F2EA;
+          padding: 14px;
+          text-align: justify;
+        }
+
+        .patient-signature-note {
+          text-align: center;
+          margin-top: 12px;
+          font-size: 9.5px;
+          color: #5B3A2E;
+        }
+
         .footer-note {
           margin-top: 20px;
           text-align: center;
@@ -1059,7 +1223,7 @@ export function buildContractHtml(params: {
       <header class="contract-header">
         <div class="brand-name">Mariana Thomaz Carmona</div>
         <h1 class="contract-title">Contrato de prestação de serviços estéticos</h1>
-        <div class="contract-subtitle">Documento emitido em ${contractDate}</div>
+        <div class="contract-subtitle">Documento emitido em ${contractDate} • Contrato nº ${contractNumber}</div>
       </header>
 
       <section class="info-grid">
@@ -1070,14 +1234,18 @@ export function buildContractHtml(params: {
           <p><strong>RG:</strong> ${patientRg}</p>
           <p><strong>Nascimento:</strong> ${patientBirthDate}</p>
           <p><strong>Telefone:</strong> ${patientPhone}</p>
+          <p><strong>E-mail:</strong> ${params.patient.email || "Não informado"}</p>
+          <p><strong>Endereço:</strong> ${patientAddress}</p>
         </div>
 
         <div class="info-card">
           <h3>Contratada</h3>
-          <p><strong>Nome:</strong> ${params.clinic.companyName}</p>
-          <p><strong>CNPJ:</strong> ${params.clinic.cnpj}</p>
-          <p><strong>Endereço:</strong> ${params.clinic.address}</p>
-          <p><strong>E-mail:</strong> ${params.clinic.email}</p>
+          <p><strong>Nome/Razão Social:</strong> ${clinic.companyName}</p>
+          <p><strong>CNPJ:</strong> ${clinic.cnpj}</p>
+          <p><strong>Profissional responsável:</strong> ${clinic.responsibleProfessional || CONTRACTOR_INFO.responsibleProfessional}</p>
+          <p><strong>Endereço:</strong> ${clinic.address}</p>
+          <p><strong>E-mail:</strong> ${clinic.email}</p>
+          <p><strong>Contrato nº:</strong> ${contractNumber}</p>
         </div>
       </section>
 
@@ -1104,30 +1272,25 @@ export function buildContractHtml(params: {
         </table>
 
         <div class="totals">
-          <div class="totals-row"><span>Subtotal</span><strong>${formatCurrency(params.subtotal)}</strong></div>
-          <div class="totals-row"><span>Desconto</span><strong>${formatCurrency(params.discount)}</strong></div>
-          <div class="totals-row final"><span>Total a pagar</span><span>${formatCurrency(params.total)}</span></div>
+          <div class="totals-row"><span>Subtotal</span><strong>${formatCurrency(displayedSubtotal)}</strong></div>
+          <div class="totals-row"><span>Desconto</span><strong>${formatCurrency(displayedDiscount)}</strong></div>
+          <div class="totals-row final"><span>Total a pagar</span><span>${formatCurrency(authoritativeTotal)}</span></div>
         </div>
 
         <div class="payment-box">
           <p style="margin: 0 0 5px 0;"><strong>Forma de pagamento:</strong> ${params.paymentMethodLabel}</p>
-          <p style="margin: 0;"><strong>Detalhes:</strong> ${params.paymentDetails || "Pagamento registrado na data de fechamento da venda."}</p>
+          <p style="margin: 0 0 5px 0;"><strong>Detalhes:</strong> ${params.paymentDetails || "Pagamento registrado na data de fechamento da venda."}</p>
+          <p style="margin: 0;"><strong>Prazo para utilização dos serviços contratados:</strong> até ${useByDate}</p>
         </div>
       </section>
 
       <section class="contract-section general-clauses">
         <h3>Cláusulas gerais e termos</h3>
-        <p><strong>1. Objeto e vigência:</strong> O presente contrato tem por objeto a prestação de serviços estéticos pela CONTRATADA, incluindo os tratamentos descritos neste documento. A CONTRATANTE declara estar ciente de que as sessões contratadas devem ser utilizadas dentro do prazo de vigência deste contrato, salvo orientação diversa registrada pela profissional.</p>
-        <p><strong>2. Agendamentos e faltas:</strong> As sessões serão realizadas mediante agendamento prévio. Atrasos, faltas ou cancelamentos em desacordo com a política da clínica poderão implicar perda da sessão, conforme previamente informado à CONTRATANTE.</p>
-        <p><strong>3. Resultados:</strong> A CONTRATANTE declara ciência de que procedimentos estéticos apresentam resposta individual, podendo variar conforme idade, metabolismo, hábitos, cuidados domiciliares, condição clínica, aderência às orientações e características próprias do organismo.</p>
-        <p><strong>4. Desistência:</strong> A desistência ou interrupção do tratamento não implica, por si só, devolução integral de valores. Caso haja necessidade de análise de reembolso, serão considerados procedimentos já realizados, produtos reservados/utilizados, custos administrativos e demais despesas relacionadas ao serviço contratado.</p>
-        <p><strong>5. Anamnese e informações clínicas:</strong> A CONTRATANTE declara ter informado corretamente seus dados pessoais, histórico de saúde, uso de medicações, alergias, procedimentos anteriores, condições clínicas e demais informações relevantes para segurança do atendimento.</p>
-        <p><strong>6. Consentimento e proteção de dados:</strong> A CONTRATANTE autoriza o tratamento dos seus dados pessoais e clínicos para fins de cadastro, prontuário, execução dos serviços, emissão de documentos, comunicação, organização interna, cumprimento de obrigações legais e acompanhamento pós-procedimento, nos termos da legislação aplicável.</p>
-        <p><strong>7. Uso de imagem:</strong> Imagens clínicas poderão ser registradas para acompanhamento interno da evolução. O uso de imagem para divulgação externa somente deverá ocorrer mediante autorização específica da CONTRATANTE.</p>
+        ${generalClausesHtml}
       </section>
 
       <section class="contract-section">
-        <h3>Especificações dos procedimentos</h3>
+        <h3>Termos específicos dos procedimentos</h3>
         <p class="muted">
           A CONTRATANTE declara estar ciente das indicações, contraindicações, possíveis efeitos colaterais e orientações pré e pós-procedimento aplicáveis ao(s) serviço(s) contratado(s).
         </p>
@@ -1135,17 +1298,21 @@ export function buildContractHtml(params: {
       </section>
 
       <section class="signature-section">
+        <h3>Ciência e assinatura</h3>
         <p class="signature-date">São Paulo, ${contractDate}</p>
 
-        <div class="signature-grid">
-          <div class="signature-line">
-            <strong>${params.clinic.companyName}</strong><br/>
-            Contratada
-          </div>
-          <div class="signature-line">
-            <strong>${params.patient.name}</strong><br/>
-            Contratante
-          </div>
+        <div class="fixed-signature-box">
+          <div class="fixed-signature-name">${CONTRACTOR_INFO.professionalName}</div>
+          <div class="fixed-signature-rule"></div>
+          <strong>${CONTRACTOR_INFO.companyName}</strong><br/>
+          CNPJ: ${CONTRACTOR_INFO.cnpj}<br/>
+          ${CONTRACTOR_INFO.professionalName}<br/>
+          ${CONTRACTOR_INFO.professionalCredential}
+        </div>
+
+        <div class="acceptance-box">
+          <p style="margin:0;">${CONTRACT_ACCEPTANCE_TEXT}</p>
+          <div class="patient-signature-note"><strong>CONTRATANTE</strong><br/>Assinatura digital realizada no campo abaixo deste documento.</div>
         </div>
 
         <div class="footer-note">

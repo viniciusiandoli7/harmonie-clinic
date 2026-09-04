@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { buildContractHtml } from "@/lib/contracts";
+import { CONTRACTOR_INFO, formatContractNumber, getContractUseByDate } from "@/lib/contractLegalCore";
 import { closeSaleRaw } from "@/lib/salesCloseSql";
 
 type RawSaleItem = {
@@ -87,7 +88,7 @@ function sanitizeItems(items: RawSaleItem[]) {
       const description = String(item.description || item.productName || "Procedimento").trim();
       const quantity = Math.max(1, Math.floor(toNumber(item.quantity ?? item.qty, 1)));
       const unitPrice = round2(toNumber(item.price ?? item.unitPrice, 0));
-      const totalPrice = round2(toNumber(item.totalPrice, unitPrice * quantity) || unitPrice * quantity);
+      const totalPrice = round2(unitPrice * quantity);
       const observation = item.observation ? String(item.observation).trim() : "";
       return { description, quantity, unitPrice, totalPrice, observation };
     })
@@ -143,6 +144,13 @@ export async function POST(request: NextRequest) {
         birthDate: true,
         cpf: true,
         rg: true,
+        address: true,
+        addressNumber: true,
+        addressComplement: true,
+        neighborhood: true,
+        city: true,
+        state: true,
+        zipCode: true,
       },
     });
 
@@ -156,10 +164,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Adicione pelo menos um procedimento com valor maior que zero." }, { status: 400 });
     }
 
+    // O fechamento no servidor é a fonte única de verdade para valores.
+    // Assim, venda, contrato, financeiro e PDF usam exatamente o mesmo total final.
     const calculatedSubtotal = round2(normalizedItems.reduce((acc, item) => acc + item.totalPrice, 0));
-    const subtotal = round2(toNumber(body.subtotal, calculatedSubtotal) || calculatedSubtotal);
-    const discount = round2(Math.max(0, toNumber(body.discount, 0)));
-    const finalTotal = round2(Math.max(0, toNumber(body.total, subtotal - discount) || subtotal - discount));
+    const subtotal = calculatedSubtotal;
+    const discount = round2(Math.min(subtotal, Math.max(0, toNumber(body.discount, 0))));
+    const finalTotal = round2(Math.max(0, subtotal - discount));
 
     if (finalTotal <= 0) {
       return NextResponse.json({ error: "O total da venda precisa ser maior que zero." }, { status: 400 });
@@ -180,6 +190,9 @@ export async function POST(request: NextRequest) {
     const pendingAmount = round2(Math.max(0, finalTotal - totalPaid));
     const generalTreatmentName = normalizedItems.map((item) => item.description).join(" + ").substring(0, 120);
     const contractToken = String(body.contractToken || `CTR-${crypto.randomUUID().replace(/-/g, "").slice(0, 12).toUpperCase()}`).trim();
+    const contractDate = new Date();
+    const contractNumber = formatContractNumber(contractToken, contractDate);
+    const validUntil = getContractUseByDate(contractDate);
     const origin = request.nextUrl.origin;
     const paymentMethodLabel = payments.length
       ? payments.map((payment) => `${normalizePaymentMethodLabel(payment.originalMethod)} (${payment.amount.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })})`).join(" | ")
@@ -199,20 +212,25 @@ export async function POST(request: NextRequest) {
         birthDate: patient.birthDate,
         cpf: patient.cpf,
         rg: patient.rg,
+        address: patient.address,
+        addressNumber: patient.addressNumber,
+        addressComplement: patient.addressComplement,
+        neighborhood: patient.neighborhood,
+        city: patient.city,
+        state: patient.state,
+        zipCode: patient.zipCode,
       },
-      clinic: {
-        companyName: "Mariana Thomaz Carmona",
-        cnpj: "57.007.483/0001-73",
-        address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista",
-        email: "marianacarmona447@gmail.com",
-      },
+      clinic: CONTRACTOR_INFO,
       items: contractItems,
       subtotal,
       discount,
       total: finalTotal,
       paymentMethodLabel,
       paymentDetails: "Pagamento registrado na data de fechamento da venda.",
-      contractDate: new Date(),
+      contractDate,
+      contractToken,
+      contractNumber,
+      validUntil,
     });
 
     const result = await closeSaleRaw(prisma as any, {
@@ -230,6 +248,8 @@ export async function POST(request: NextRequest) {
       pendingAmount,
       generalTreatmentName,
       contractToken,
+      contractNumber,
+      validUntil,
       contractHtml,
       bodyNotes: body.notes ? String(body.notes) : null,
       goals: body.goals ? String(body.goals) : null,
@@ -246,10 +266,15 @@ export async function POST(request: NextRequest) {
       saleId: result.sale.id,
       contractId: result.contract.id,
       contractToken: result.contract.token,
+      contractNumber: result.contract.contractNumber,
+      validUntil: result.contract.validUntil,
       contractLink,
       whatsappContractLink,
       whatsappReminderLink: null,
       finance: {
+        subtotal,
+        discount,
+        total: finalTotal,
         grossAmount: finalTotal,
         receivedAmount: totalPaid,
         pendingAmount,

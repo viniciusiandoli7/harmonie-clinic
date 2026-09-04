@@ -5,37 +5,10 @@ import { ChevronLeft, ChevronRight, X, CalendarOff } from "lucide-react";
 import AppointmentEditModal from "@/components/calendar/AppointmentEditModal";
 import BlockedTimeQuickModal from "@/components/calendar/BlockedTimeQuickModal";
 import BlockedTimeEditModal from "@/components/calendar/BlockedTimeEditModal";
+import { CLINIC_PROCEDURES } from "@/constants/procedures";
 
 // --- CONFIGURAÇÕES ---
-const PROCEDIMENTOS = [
-  "Peeling Retinol",
-  "Peeling Láctico",
-  "Peeling Mandélico",
-  "Peeling ATA",
-  "Bioestimulador elleva X",
-  "Bioestimulador ácido polilático",
-  "Bioestimulador hidroxiapatita de cálcio",
-  "Preenchedor",
-  "Skinbooster restylane vital",
-  "Skinbooster vitaminas",
-  "Consulta",
-  "Retorno",
-  "Toxina botulínica",
-  "PEIM",
-  "Preenchimento de glúteo",
-  "PDRN",
-  "Microagulhamento com ativos",
-  "Microagulhamento biorregenerador",
-  "Mesoterapia",
-  "Jato de plasma",
-  "Ultrassom microfocado e macrofocado",
-  "Laser CO2",
-  "Laser",
-  "Fios de PDO",
-  "Intradermoterapia local",
-  "Intradermoterapia IM",
-  "Preparação de pele",
-];
+const PROCEDIMENTOS = CLINIC_PROCEDURES;
 
 const HOURS = Array.from({ length: 25 }, (_, i) => {
   const hour = Math.floor(i / 2) + 8;
@@ -259,8 +232,8 @@ export default function AgendaPage() {
 
   // --- SALVAR NOVO AGENDAMENTO (API) ---
   const handleCreateAppointment = async () => {
-    if (!formData.patientId || formData.procedures.length === 0 || !formData.date) {
-      return alert("Preencha o paciente, a data e adicione pelo menos um procedimento.");
+    if (!formData.patientId || formData.procedures.length === 0 || !formData.date || !formData.time) {
+      return alert("Preencha o paciente, a data, o horário e adicione pelo menos um procedimento.");
     }
 
     const [y, m, d] = formData.date.split('-');
@@ -460,12 +433,16 @@ export default function AgendaPage() {
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Horário</label>
-              <input 
-                type="time" 
-                value={formData.time} 
-                onChange={e => setFormData({...formData, time: e.target.value})} 
-                className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none focus:border-[#5A1F2B] transition-colors" 
-              />
+              <select
+                value={formData.time}
+                onChange={e => setFormData(prev => ({ ...prev, time: e.target.value }))}
+                aria-label="Horário do agendamento"
+                className="w-full py-1.5 border-b border-[#EEE] bg-transparent outline-none focus:border-[#5A1F2B] transition-colors cursor-pointer"
+              >
+                {HOURS.map(hour => (
+                  <option key={hour} value={hour}>{hour}</option>
+                ))}
+              </select>
             </div>
             <div className="space-y-1">
               <label className="text-[9px] font-bold uppercase tracking-widest opacity-60">Sala</label>

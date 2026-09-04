@@ -58,7 +58,6 @@ export function buildPatientCreateData(body: PatientPayload): Prisma.PatientCrea
     crmSource: toNullableString(body.crmSource),
     referralName: toNullableString(body.referralName),
     crmStatus: toNullableString(body.crmStatus) || "Novo Lead",
-    imageAuthorized: toBoolean(body.imageAuthorized),
     interestProcedure: toNullableString(body.interestProcedure),
     patientProfile: toNullableString(body.patientProfile),
     commercialNotes: toNullableString(body.commercialNotes),
@@ -95,7 +94,6 @@ export function buildPatientUpdateData(body: PatientPayload): Prisma.PatientUpda
   if (body.crmSource !== undefined) data.crmSource = toNullableString(body.crmSource);
   if (body.referralName !== undefined) data.referralName = toNullableString(body.referralName);
   if (body.crmStatus !== undefined) data.crmStatus = toNullableString(body.crmStatus) || "Novo Lead";
-  if (body.imageAuthorized !== undefined) data.imageAuthorized = toBoolean(body.imageAuthorized);
   if (body.interestProcedure !== undefined) data.interestProcedure = toNullableString(body.interestProcedure);
   if (body.patientProfile !== undefined) data.patientProfile = toNullableString(body.patientProfile);
   if (body.commercialNotes !== undefined) data.commercialNotes = toNullableString(body.commercialNotes);

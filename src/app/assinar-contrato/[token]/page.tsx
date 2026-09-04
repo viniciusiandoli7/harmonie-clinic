@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import SignatureCanvas from "react-signature-canvas";
 import { CheckCircle, Eraser, ShieldCheck } from "lucide-react";
+import { CONTRACT_ACCEPTANCE_TEXT } from "@/lib/contractLegalCore";
 
 type PublicContract = {
   id: string;
@@ -82,7 +83,6 @@ export default function SignContractPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           signatureImage: signatureBase64,
-          signatureName: contract.patient?.name || undefined,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -141,11 +141,12 @@ export default function SignContractPage() {
             <p className="text-[#60759B] text-sm max-w-sm leading-relaxed">
               Seu contrato foi assinado digitalmente com sucesso e já consta no nosso sistema.
             </p>
-            {contract.signedAt && (
-              <p className="mt-4 text-[10px] font-bold uppercase tracking-[0.18em] text-[#96A4C1]">
-                Assinatura registrada em {new Date(contract.signedAt).toLocaleString("pt-BR")}
-              </p>
-            )}
+            <div className="mt-4 text-[10px] font-bold uppercase tracking-[0.18em] text-[#96A4C1] space-y-1">
+              <p>Assinado por: {contract.signatureName || contract.patient?.name || "Contratante"}</p>
+              {contract.signedAt && (
+                <p>Assinado em: {new Date(contract.signedAt).toLocaleString("pt-BR")}</p>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -186,6 +187,10 @@ export default function SignContractPage() {
           </div>
 
           <div className="mx-auto max-w-xl">
+            <div className="mb-6 border border-[#D8C4AE] bg-[#F7F2EA] p-4 text-sm leading-relaxed text-[#3F342F]">
+              {CONTRACT_ACCEPTANCE_TEXT}
+            </div>
+
             <div className="flex justify-between items-end mb-2 px-1">
               <span className="text-[10px] font-bold text-[#96A4C1] uppercase tracking-widest">Sua Assinatura</span>
               <button

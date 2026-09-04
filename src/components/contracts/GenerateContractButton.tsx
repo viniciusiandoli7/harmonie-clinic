@@ -61,7 +61,7 @@ export default function GenerateContractButton(props: Props) {
         return;
       }
 
-      const contractLink = `${window.location.origin}/contracts/${data.token}`;
+      const contractLink = `${window.location.origin}/assinar-contrato/${data.token}`;
       
       // 🛡️ REFINAMENTO: Mensagem de WhatsApp personalizada para a Dra. Mariana
       const message = `Olá, ${props.patient.name.split(' ')[0]}! 🌟\n\nSeu procedimento com a *Dra. Mariana Carmona* foi registrado com sucesso.\n\nPor favor, utilize o link abaixo para assinar seu contrato digital de forma segura:\n\n${contractLink}`;

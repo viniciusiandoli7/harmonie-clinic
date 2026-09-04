@@ -138,6 +138,8 @@ export async function closeSaleRaw(client: PrismaLike, input: {
   pendingAmount: number;
   generalTreatmentName: string;
   contractToken: string;
+  contractNumber: string;
+  validUntil: Date;
   contractHtml: string;
   bodyNotes?: string | null;
   goals?: string | null;
@@ -239,13 +241,15 @@ export async function closeSaleRaw(client: PrismaLike, input: {
   const contractId = randomUUID();
   await strictExecute(
     client,
-    `INSERT INTO "PatientContract" ("id", "patientId", "title", "content", "total", "token", "itemsJson", "status", "signatureName", "signatureImage", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'PENDING', NULL, NULL, NOW(), NOW())`,
+    `INSERT INTO "PatientContract" ("id", "patientId", "title", "content", "total", "token", "contractNumber", "validUntil", "itemsJson", "status", "signatureName", "signatureImage", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, 'PENDING', NULL, NULL, NOW(), NOW())`,
     contractId,
     input.patientId,
     `Contrato - ${new Date().toLocaleDateString("pt-BR")}`,
     input.contractHtml,
     input.finalTotal,
     input.contractToken,
+    input.contractNumber,
+    input.validUntil,
     JSON.stringify(input.normalizedItems)
   );
 
@@ -282,7 +286,7 @@ export async function closeSaleRaw(client: PrismaLike, input: {
 
   return {
     sale: { id: saleId },
-    contract: { id: contractId, token: input.contractToken },
+    contract: { id: contractId, token: input.contractToken, contractNumber: input.contractNumber, validUntil: input.validUntil },
     financialTransaction: { id: financialTransactionId },
   };
 }

@@ -15,13 +15,18 @@ export async function GET(_: Request, context: Ctx) {
 
   try {
     const { id } = paramsSchema.parse(await context.params);
-    const patient = await prisma.patient.findUnique({
-      where: { id },
-      include: { anamnesis: true },
-    });
+    const [patient, activeImageAuthorizations] = await Promise.all([
+      prisma.patient.findUnique({
+        where: { id },
+        include: { anamnesis: true },
+      }),
+      prisma.patientImageAuthorization.count({
+        where: { patientId: id, status: "SIGNED" },
+      }),
+    ]);
 
     if (!patient) return NextResponse.json({ error: "Paciente não encontrado" }, { status: 404 });
-    return NextResponse.json(patient);
+    return NextResponse.json({ ...patient, imageAuthorized: activeImageAuthorizations > 0 });
   } catch (error) {
     console.error("GET /api/patients/[id] error:", error);
     return NextResponse.json({ error: patientErrorMessage(error) || "Erro ao buscar paciente" }, { status: patientErrorStatus(error) || 500 });

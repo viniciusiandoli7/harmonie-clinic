@@ -360,6 +360,8 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
     CREATE TABLE IF NOT EXISTS "PatientContract" (
       "id" TEXT PRIMARY KEY,
       "token" TEXT NOT NULL,
+      "contractNumber" TEXT,
+      "validUntil" TIMESTAMP(3),
       "patientId" TEXT NOT NULL,
       "title" TEXT NOT NULL,
       "content" TEXT NOT NULL,
@@ -378,6 +380,8 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
   await safeExecute(client, `
     ALTER TABLE "PatientContract"
     ADD COLUMN IF NOT EXISTS "token" TEXT,
+    ADD COLUMN IF NOT EXISTS "contractNumber" TEXT,
+    ADD COLUMN IF NOT EXISTS "validUntil" TIMESTAMP(3),
     ADD COLUMN IF NOT EXISTS "patientId" TEXT,
     ADD COLUMN IF NOT EXISTS "title" TEXT NOT NULL DEFAULT 'Contrato',
     ADD COLUMN IF NOT EXISTS "content" TEXT NOT NULL DEFAULT '',
@@ -563,6 +567,7 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialInstallment_patientId_idx" ON "FinancialInstallment"("patientId")`);
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "FinancialInstallment_dueDate_idx" ON "FinancialInstallment"("dueDate")`);
   await safeExecute(client, `CREATE UNIQUE INDEX IF NOT EXISTS "PatientContract_token_key" ON "PatientContract"("token")`);
+  await safeExecute(client, `CREATE UNIQUE INDEX IF NOT EXISTS "PatientContract_contractNumber_key" ON "PatientContract"("contractNumber")`);
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "PatientContract_patientId_idx" ON "PatientContract"("patientId")`);
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "ClinicalEvolution_patientId_idx" ON "ClinicalEvolution"("patientId")`);
 

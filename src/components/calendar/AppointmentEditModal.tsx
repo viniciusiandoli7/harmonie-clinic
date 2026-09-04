@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { X } from "lucide-react";
+import { CLINIC_PROCEDURES } from "@/constants/procedures";
 
 type Patient = {
   id: string;
@@ -34,35 +35,7 @@ type Props = {
 };
 
 // 🛡️ REFINAMENTO: Lista de Procedimentos Atualizada
-const PROCEDURES = [
-  "Peeling Retinol",
-  "Peeling Láctico",
-  "Peeling Mandélico",
-  "Peeling ATA",
-  "Bioestimulador elleva X",
-  "Bioestimulador ácido polilático",
-  "Bioestimulador hidroxiapatita de cálcio",
-  "Preenchedor",
-  "Skinbooster restylane vital",
-  "Skinbooster vitaminas",
-  "Consulta",
-  "Retorno",
-  "Toxina botulínica",
-  "PEIM",
-  "Preenchimento de glúteo",
-  "PDRN",
-  "Microagulhamento com ativos",
-  "Microagulhamento biorregenerador",
-  "Mesoterapia",
-  "Jato de plasma",
-  "Ultrassom microfocado e macrofocado",
-  "Laser CO2",
-  "Laser",
-  "Fios de PDO",
-  "Intradermoterapia local",
-  "Intradermoterapia IM",
-  "Preparação de pele",
-];
+const PROCEDURES = CLINIC_PROCEDURES;
 
 function toLocalInputValue(date: Date) {
   const pad = (n: number) => String(n).padStart(2, "0");

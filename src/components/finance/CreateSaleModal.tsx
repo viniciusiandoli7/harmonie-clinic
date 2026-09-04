@@ -5,38 +5,12 @@ import { X, ShoppingCart, Plus, Trash2, Smartphone } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { buildContractHtml } from "@/lib/contracts";
 import { generateContractPdf } from "@/lib/contractPdf";
+import { CONTRACTOR_INFO } from "@/lib/contractLegalCore";
+import { CLINIC_PROCEDURES } from "@/constants/procedures";
 
 interface Props { open: boolean; onClose: () => void; patient: any; }
 
-const TREATMENTS = [
-  "Peeling Retinol",
-  "Peeling Láctico",
-  "Peeling Mandélico",
-  "Peeling ATA",
-  "Bioestimulador elleva X",
-  "Bioestimulador ácido polilático",
-  "Bioestimulador hidroxiapatita de cálcio",
-  "Preenchedor",
-  "Skinbooster restylane vital",
-  "Skinbooster vitaminas",
-  "Consulta",
-  "Retorno",
-  "Toxina botulínica",
-  "PEIM",
-  "Preenchimento de glúteo",
-  "PDRN",
-  "Microagulhamento com ativos",
-  "Microagulhamento biorregenerador",
-  "Mesoterapia",
-  "Jato de plasma",
-  "Ultrassom microfocado e macrofocado",
-  "Laser CO2",
-  "Laser",
-  "Fios de PDO",
-  "Intradermoterapia local",
-  "Intradermoterapia IM",
-  "Preparação de pele",
-];
+const TREATMENTS = CLINIC_PROCEDURES;
 const PROFESSIONALS = ["Dra. Mariana Carmona"];
 
 export default function CreateSaleModal({ open, onClose, patient }: Props) {
@@ -121,6 +95,12 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
         throw new Error(responseData?.error || "Erro ao salvar a venda.");
       }
 
+      const authoritativeSubtotal = Number(responseData?.finance?.subtotal ?? subtotal);
+      const authoritativeDiscount = Number(responseData?.finance?.discount ?? numDiscount);
+      const authoritativeTotal = Number(responseData?.finance?.total ?? responseData?.finance?.grossAmount ?? finalTotal);
+      const authoritativeContractNumber = responseData?.contractNumber || undefined;
+      const authoritativeValidUntil = responseData?.validUntil || undefined;
+
       const contractItems = cart.map(item => ({
         description: item.description, 
         quantity: item.quantity,
@@ -142,25 +122,40 @@ export default function CreateSaleModal({ open, onClose, patient }: Props) {
         : "Bonificação";
 
       const htmlContent = buildContractHtml({
-        patient: { name: patient.name, cpf: patient.cpf, rg: patient.rg, phone: patient.phone, birthDate: patient.birthDate },
-        clinic: { companyName: "Mariana Thomaz Carmona", cnpj: "57.007.483/0001-73", address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista", email: "marianacarmona447@gmail.com" },
-        items: contractItems, subtotal, discount: numDiscount, total: finalTotal,
-        paymentMethodLabel, signatureImage: null 
-      } as any); 
+        patient: {
+          name: patient.name, cpf: patient.cpf, rg: patient.rg, phone: patient.phone, birthDate: patient.birthDate, email: patient.email,
+          address: patient.address, addressNumber: patient.addressNumber, addressComplement: patient.addressComplement,
+          neighborhood: patient.neighborhood, city: patient.city, state: patient.state, zipCode: patient.zipCode,
+        },
+        clinic: CONTRACTOR_INFO,
+        items: contractItems, subtotal: authoritativeSubtotal, discount: authoritativeDiscount, total: authoritativeTotal,
+        paymentMethodLabel,
+        contractDate: new Date(),
+        contractToken,
+        contractNumber: authoritativeContractNumber,
+        validUntil: authoritativeValidUntil,
+      }); 
 
       await generateContractPdf({
         filename: `Contrato_${patient.name.replace(/\s/g, "_")}.pdf`,
         title: "Contrato de Prestação de Serviços Estéticos",
-        patient: { name: patient.name, cpf: patient.cpf, rg: patient.rg, phone: patient.phone, birthDate: patient.birthDate },
-        clinic: { companyName: "Mariana Thomaz Carmona", cnpj: "57.007.483/0001-73", address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista", email: "marianacarmona447@gmail.com" },
+        patient: {
+          name: patient.name, cpf: patient.cpf, rg: patient.rg, phone: patient.phone, birthDate: patient.birthDate, email: patient.email,
+          address: patient.address, addressNumber: patient.addressNumber, addressComplement: patient.addressComplement,
+          neighborhood: patient.neighborhood, city: patient.city, state: patient.state, zipCode: patient.zipCode,
+        },
+        clinic: CONTRACTOR_INFO,
         items: contractItems,
-        subtotal,
-        discount: numDiscount,
-        total: finalTotal,
+        subtotal: authoritativeSubtotal,
+        discount: authoritativeDiscount,
+        total: authoritativeTotal,
         paymentMethodLabel,
         paymentDetails: "Pagamento registrado na data de fechamento da venda.",
         contentHtml: htmlContent,
         contractDate: new Date(),
+        contractToken,
+        contractNumber: authoritativeContractNumber,
+        validUntil: authoritativeValidUntil,
       });
 
       const link = `${window.location.origin}/assinar-contrato/${contractToken}`;

@@ -72,6 +72,7 @@ model Patient {
   structuredEvolutions StructuredClinicalEvolution[]
   postProcedureTasks PostProcedureTask[]
   evaluationConversions EvaluationConversion[]
+  imageAuthorizations PatientImageAuthorization[]
 
   // ÍNDICES: Para buscas instantâneas por nome, CPF ou Telefone
   @@index([name])
@@ -540,6 +541,8 @@ model PatientConsentDocument {
 model PatientContract {
   id             String         @id @default(uuid())
   token          String         @unique
+  contractNumber String?        @unique
+  validUntil     DateTime?
   patientId      String
   title          String
   content        String
@@ -557,6 +560,30 @@ model PatientContract {
   patient        Patient        @relation(fields: [patientId], references: [id])
 
   @@index([patientId])
+}
+
+model PatientImageAuthorization {
+  id               String                   @id @default(uuid())
+  token            String                   @unique
+  patientId        String
+  title            String                   @default("Termo de Autorização de Uso de Imagem e Voz")
+  status           ImageAuthorizationStatus @default(PENDING)
+  contentTypesJson Json?
+  channelsJson     Json?
+  signatureName    String?
+  signatureImage   String?                  @db.Text
+  signatureIp      String?
+  signedAt         DateTime?
+  revokedAt        DateTime?
+  revokedReason    String?                  @db.Text
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @default(now()) @updatedAt
+
+  patient          Patient                  @relation(fields: [patientId], references: [id], onDelete: Cascade)
+
+  @@index([patientId])
+  @@index([patientId, status])
+  @@index([createdAt])
 }
 
 model Treatment {
@@ -794,6 +821,13 @@ enum Room {
 enum ConsentDocumentStatus {
   PENDING
   SIGNED
+  CANCELED
+}
+
+enum ImageAuthorizationStatus {
+  PENDING
+  SIGNED
+  REVOKED
   CANCELED
 }
 

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { buildContractHtml } from "@/lib/contracts";
+import { CONTRACTOR_INFO, formatContractNumber, getContractUseByDate } from "@/lib/contractLegalCore";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
@@ -65,13 +66,25 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
 
     const patientId = String(body.patientId || "");
-    const items = Array.isArray(body.items) ? body.items : [];
-    const subtotal = Number(body.subtotal || 0);
-    const discount = Number(body.discount || 0);
-    const total = Number(body.total || 0);
+    const rawItems = Array.isArray(body.items) ? body.items : [];
+    const items = rawItems.map((item: any) => {
+      const quantity = Math.max(1, Math.floor(Number(item.quantity || 1)));
+      const unitPrice = Number(item.unitPrice ?? item.price ?? 0) || 0;
+      const lineTotal = unitPrice * quantity;
+      return {
+        description: String(item.description || item.productName || "Procedimento"),
+        quantity,
+        unitPrice,
+        total: Math.round(lineTotal * 100) / 100,
+        observation: item.observation ? String(item.observation) : "",
+      };
+    });
+    const subtotal = Math.round(items.reduce((sum: number, item: any) => sum + Number(item.total || 0), 0) * 100) / 100;
+    const discount = Math.round(Math.min(subtotal, Math.max(0, Number(body.discount || 0))) * 100) / 100;
+    const total = Math.round(Math.max(0, subtotal - discount) * 100) / 100;
     const paymentMethod = String(body.paymentMethod || "OTHER");
     const paymentDetails = String(body.paymentDetails || "");
-    const title = String(body.title || "Contrato de Prestação de Serviços");
+    const title = String(body.title || "Contrato de Prestação de Serviços Estéticos");
 
     if (!patientId) {
       return NextResponse.json({ error: "patientId é obrigatório." }, { status: 400 });
@@ -90,32 +103,40 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Paciente não encontrado." }, { status: 404 });
     }
 
-    // Gera o HTML do contrato usando a sua biblioteca de suporte
+    const token = randomUUID().replace(/-/g, "");
+    const contractDate = new Date();
+    const contractNumber = formatContractNumber(token, contractDate);
+    const validUntil = getContractUseByDate(contractDate);
+
+    // Gera o HTML do contrato usando a mesma fonte de valores que será persistida.
     const content = buildContractHtml({
       patient: {
         name: patient.name,
         email: patient.email,
         phone: patient.phone,
         birthDate: patient.birthDate,
-        cpf: (body.cpf as string) || "",
-        rg: (body.rg as string) || "",
+        cpf: patient.cpf || (body.cpf as string) || "",
+        rg: patient.rg || (body.rg as string) || "",
+        address: patient.address,
+        addressNumber: patient.addressNumber,
+        addressComplement: patient.addressComplement,
+        neighborhood: patient.neighborhood,
+        city: patient.city,
+        state: patient.state,
+        zipCode: patient.zipCode,
       },
-      clinic: {
-        companyName: "Mariana Thomaz Carmona",
-        cnpj: "57.007.483/0001-73",
-        address: "Rua Itapeva, 518 - conjunto 1507 - Bela Vista",
-        email: "marianacarmona447@gmail.com",
-      },
+      clinic: CONTRACTOR_INFO,
       items,
       subtotal,
       discount,
       total,
       paymentMethodLabel: paymentMethodLabel(paymentMethod),
       paymentDetails,
-      contractDate: new Date(),
+      contractDate,
+      contractToken: token,
+      contractNumber,
+      validUntil,
     });
-
-    const token = randomUUID().replace(/-/g, "");
 
     const contract = await prisma.patientContract.create({
       data: {
@@ -124,6 +145,8 @@ export async function POST(req: NextRequest) {
         content,
         total,
         token: token,
+        contractNumber,
+        validUntil,
         itemsJson: items,
       },
     });

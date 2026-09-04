@@ -1,3 +1,11 @@
+import {
+  CONTRACT_ACCEPTANCE_TEXT,
+  CONTRACTOR_INFO,
+  GENERAL_CONTRACT_CLAUSES,
+  formatContractNumber,
+  getContractUseByDate,
+} from "./contractLegalCore";
+
 type ContractPdfItem = {
   description?: string;
   productName?: string;
@@ -18,6 +26,14 @@ type ContractPdfParams = {
     rg?: string | null;
     phone?: string | null;
     birthDate?: string | Date | null;
+    email?: string | null;
+    address?: string | null;
+    addressNumber?: string | null;
+    addressComplement?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+    zipCode?: string | null;
   };
   clinic?: {
     companyName?: string | null;
@@ -33,6 +49,9 @@ type ContractPdfParams = {
   paymentDetails?: string;
   contentHtml?: string | null;
   contractDate?: string | Date | null;
+  contractToken?: string | null;
+  contractNumber?: string | null;
+  validUntil?: string | Date | null;
   status?: string | null;
   signatureName?: string | null;
   signatureImage?: string | null;
@@ -66,6 +85,13 @@ function formatDateTime(value?: string | Date | null) {
   return date.toLocaleString("pt-BR");
 }
 
+function formatPatientAddress(patient: ContractPdfParams["patient"]) {
+  const street = [patient.address, patient.addressNumber].filter(Boolean).join(", ");
+  const locality = [patient.neighborhood, patient.city, patient.state].filter(Boolean).join(" - ");
+  const parts = [street, patient.addressComplement, locality, patient.zipCode ? `CEP ${patient.zipCode}` : ""].filter(Boolean);
+  return parts.join(" • ") || "Não informado";
+}
+
 function cleanText(value?: string | null) {
   return String(value || "")
     .replace(/\u00a0/g, " ")
@@ -85,7 +111,7 @@ function htmlToPlainText(html?: string | null) {
     const documentHtml = parser.parseFromString(raw, "text/html");
     documentHtml.querySelectorAll("style, script").forEach((el) => el.remove());
     documentHtml.querySelectorAll("br").forEach((el) => el.replaceWith("\n"));
-    documentHtml.querySelectorAll("p, div, section, h1, h2, h3, tr").forEach((el) => {
+    documentHtml.querySelectorAll("p, div, section, h1, h2, h3, h4, li, tr").forEach((el) => {
       el.appendChild(documentHtml.createTextNode("\n"));
     });
 
@@ -97,7 +123,7 @@ function htmlToPlainText(html?: string | null) {
       .replace(/<style[\s\S]*?<\/style>/gi, "")
       .replace(/<script[\s\S]*?<\/script>/gi, "")
       .replace(/<br\s*\/?>/gi, "\n")
-      .replace(/<\/(p|div|section|h1|h2|h3|tr)>/gi, "\n")
+      .replace(/<\/(p|div|section|h1|h2|h3|h4|li|tr)>/gi, "\n")
       .replace(/<[^>]+>/g, "")
   );
 }
@@ -117,15 +143,25 @@ function extractProcedureTexts(contentHtml?: string | null) {
   }
 
   const fullText = htmlToPlainText(raw);
-  const marker = "Especificações dos procedimentos";
-  const markerIndex = fullText.toLowerCase().indexOf(marker.toLowerCase());
+  const markers = ["Termos específicos dos procedimentos", "Especificações dos procedimentos"];
+  const marker = markers.find((candidate) => fullText.toLowerCase().includes(candidate.toLowerCase()));
+  const markerIndex = marker ? fullText.toLowerCase().indexOf(marker.toLowerCase()) : -1;
 
-  if (markerIndex >= 0) {
+  if (marker && markerIndex >= 0) {
     const text = fullText.slice(markerIndex + marker.length).trim();
     return text ? [text] : [];
   }
 
   return [];
+}
+
+function genericContractDescription(value: string) {
+  const normalized = String(value || "")
+    .toUpperCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+  return normalized.startsWith("PREENCHEDOR") ? "Preenchedor" : value;
 }
 
 function normalizeItems(items?: ContractPdfItem[]) {
@@ -135,7 +171,7 @@ function normalizeItems(items?: ContractPdfItem[]) {
     const unitPrice = toNumber(item.unitPrice ?? item.price, 0);
     const total = toNumber(item.total ?? item.totalPrice, unitPrice * quantity);
     return {
-      description: cleanText(item.description || item.productName || "Procedimento"),
+      description: genericContractDescription(cleanText(item.description || item.productName || "Procedimento")),
       quantity,
       unitPrice,
       total,
@@ -167,17 +203,22 @@ export async function generateContractPdf(params: ContractPdfParams) {
   let y = marginTop;
 
   const clinic = {
-    companyName: params.clinic?.companyName || "Mariana Thomaz Carmona",
-    cnpj: params.clinic?.cnpj || "57.007.483/0001-73",
-    address: params.clinic?.address || "Rua Itapeva, 518 - conjunto 1507 - Bela Vista",
-    email: params.clinic?.email || "marianacarmona447@gmail.com",
+    companyName: params.clinic?.companyName || CONTRACTOR_INFO.companyName,
+    cnpj: params.clinic?.cnpj || CONTRACTOR_INFO.cnpj,
+    address: params.clinic?.address || CONTRACTOR_INFO.address,
+    email: params.clinic?.email || CONTRACTOR_INFO.email,
   };
 
   const items = normalizeItems(params.items);
-  const subtotal = params.subtotal ?? items.reduce((sum, item) => sum + item.total, 0);
-  const discount = params.discount ?? 0;
-  const total = params.total ?? Math.max(0, subtotal - discount);
-  const contractDate = params.contractDate ? formatDate(params.contractDate) : formatDate(new Date());
+  const itemsSubtotal = Math.round(items.reduce((sum, item) => sum + item.total, 0) * 100) / 100;
+  const total = Math.round(Math.max(0, Number(params.total ?? Math.max(0, itemsSubtotal - Number(params.discount || 0)))) * 100) / 100;
+  const subtotal = Math.round(Math.max(itemsSubtotal, Number(params.subtotal || 0), total) * 100) / 100;
+  const discount = Math.round(Math.max(0, subtotal - total) * 100) / 100;
+  const rawContractDate = params.contractDate || new Date();
+  const contractDate = formatDate(rawContractDate);
+  const contractNumber = params.contractNumber || formatContractNumber(params.contractToken, rawContractDate);
+  const useByDate = formatDate(params.validUntil ?? getContractUseByDate(rawContractDate));
+  const patientAddress = formatPatientAddress(params.patient);
 
   function addPageIfNeeded(requiredHeight = 8) {
     if (y + requiredHeight > pageHeight - marginBottom) {
@@ -224,7 +265,7 @@ export async function generateContractPdf(params: ContractPdfParams) {
   }
 
   function addInfoBox(title: string, lines: string[], x: number, width: number) {
-    const boxHeight = 34;
+    const boxHeight = 56;
     doc.setFillColor(247, 242, 234);
     doc.setDrawColor(228, 216, 202);
     doc.roundedRect(x, y, width, boxHeight, 1.5, 1.5, "FD");
@@ -235,8 +276,9 @@ export async function generateContractPdf(params: ContractPdfParams) {
     setFont("normal", 8.3, [30, 26, 24]);
     let localY = y + 13;
     lines.forEach((line) => {
-      doc.text(doc.splitTextToSize(line, width - 8), x + 4, localY);
-      localY += 4.4;
+      const wrapped = doc.splitTextToSize(line, width - 8);
+      doc.text(wrapped, x + 4, localY);
+      localY += Math.max(1, wrapped.length) * 4.15;
     });
   }
 
@@ -250,7 +292,7 @@ export async function generateContractPdf(params: ContractPdfParams) {
   y += 6;
 
   setFont("normal", 8, [91, 58, 46]);
-  doc.text(`Documento emitido em ${contractDate}`, pageWidth / 2, y, { align: "center" });
+  doc.text(`Documento emitido em ${contractDate} • Contrato nº ${contractNumber}`, pageWidth / 2, y, { align: "center" });
   y += 6;
 
   doc.setDrawColor(216, 196, 174);
@@ -265,16 +307,20 @@ export async function generateContractPdf(params: ContractPdfParams) {
     `RG: ${params.patient?.rg || "Não informado"}`,
     `Nascimento: ${formatDate(params.patient?.birthDate)}`,
     `Telefone: ${params.patient?.phone || "Não informado"}`,
+    `E-mail: ${params.patient?.email || "Não informado"}`,
+    `Endereço: ${patientAddress}`,
   ], marginX, boxWidth);
 
   addInfoBox("Contratada", [
-    `Nome: ${clinic.companyName}`,
+    `Nome/Razão Social: ${clinic.companyName}`,
     `CNPJ: ${clinic.cnpj}`,
+    `Profissional responsável: ${CONTRACTOR_INFO.responsibleProfessional}`,
     `Endereço: ${clinic.address}`,
     `E-mail: ${clinic.email}`,
+    `Contrato nº: ${contractNumber}`,
   ], marginX + boxWidth + boxGap, boxWidth);
 
-  y += 42;
+  y += 64;
 
   addWrappedText(
     "As partes identificadas acima firmam o presente contrato para prestação de serviços estéticos, conforme procedimentos, valores, condições de pagamento, orientações e termos de consentimento descritos neste documento.",
@@ -343,68 +389,83 @@ export async function generateContractPdf(params: ContractPdfParams) {
   doc.text(formatCurrency(total), pageWidth - marginX, y, { align: "right" });
   y += 8;
 
-  addPageIfNeeded(20);
+  addPageIfNeeded(28);
   doc.setFillColor(247, 242, 234);
   doc.setDrawColor(228, 216, 202);
-  doc.roundedRect(marginX, y, contentWidth, 18, 1.5, 1.5, "FD");
+  doc.roundedRect(marginX, y, contentWidth, 25, 1.5, 1.5, "FD");
   setFont("bold", 8.5, [30, 26, 24]);
   doc.text(`Forma de pagamento: ${params.paymentMethodLabel || "Conforme venda registrada"}`, marginX + 4, y + 7);
   setFont("normal", 8.5, [30, 26, 24]);
   doc.text(doc.splitTextToSize(`Detalhes: ${params.paymentDetails || "Pagamento registrado na data de fechamento da venda."}`, contentWidth - 8), marginX + 4, y + 13);
-  y += 24;
+  doc.text(`Prazo para utilização dos serviços contratados: até ${useByDate}`, marginX + 4, y + 20);
+  y += 31;
 
   addSectionTitle("Cláusulas gerais e termos");
 
-  [
-    "1. Objeto e vigência: O presente contrato tem por objeto a prestação de serviços estéticos pela CONTRATADA, incluindo os tratamentos descritos neste documento. A CONTRATANTE declara estar ciente de que as sessões contratadas devem ser utilizadas dentro do prazo de vigência deste contrato, salvo orientação diversa registrada pela profissional.",
-    "2. Agendamentos e faltas: As sessões serão realizadas mediante agendamento prévio. Atrasos, faltas ou cancelamentos em desacordo com a política da clínica poderão implicar perda da sessão, conforme previamente informado à CONTRATANTE.",
-    "3. Resultados: A CONTRATANTE declara ciência de que procedimentos estéticos apresentam resposta individual, podendo variar conforme idade, metabolismo, hábitos, cuidados domiciliares, condição clínica, aderência às orientações e características próprias do organismo.",
-    "4. Desistência: A desistência ou interrupção do tratamento não implica, por si só, devolução integral de valores. Caso haja necessidade de análise de reembolso, serão considerados procedimentos já realizados, produtos reservados/utilizados, custos administrativos e demais despesas relacionadas ao serviço contratado.",
-    "5. Anamnese e informações clínicas: A CONTRATANTE declara ter informado corretamente seus dados pessoais, histórico de saúde, uso de medicações, alergias, procedimentos anteriores, condições clínicas e demais informações relevantes para segurança do atendimento.",
-    "6. Consentimento e proteção de dados: A CONTRATANTE autoriza o tratamento dos seus dados pessoais e clínicos para fins de cadastro, prontuário, execução dos serviços, emissão de documentos, comunicação, organização interna, cumprimento de obrigações legais e acompanhamento pós-procedimento, nos termos da legislação aplicável.",
-    "7. Uso de imagem: Imagens clínicas poderão ser registradas para acompanhamento interno da evolução. O uso de imagem para divulgação externa somente deverá ocorrer mediante autorização específica da CONTRATANTE.",
-  ].forEach((clause) => addWrappedText(clause, { size: 8.8, lineHeight: 4.6, gapAfter: 1.5 }));
+  GENERAL_CONTRACT_CLAUSES.forEach((clause) => {
+    addWrappedText(`${clause.number}. ${clause.title}`, { size: 8.9, style: "bold", lineHeight: 4.6, gapAfter: 0.5 });
+    clause.paragraphs.forEach((paragraph) => {
+      addWrappedText(paragraph, { size: 8.8, lineHeight: 4.6, gapAfter: 1.2 });
+    });
+  });
 
   const procedureTexts = extractProcedureTexts(params.contentHtml);
   if (procedureTexts.length > 0) {
-    addSectionTitle("Especificações dos procedimentos");
+    addSectionTitle("Termos específicos dos procedimentos");
 
     addWrappedText(
       "A CONTRATANTE declara estar ciente das indicações, contraindicações, possíveis efeitos colaterais e orientações pré e pós-procedimento aplicáveis ao(s) serviço(s) contratado(s).",
       { size: 8.8, lineHeight: 4.6, color: [91, 58, 46] }
     );
 
-    procedureTexts.forEach((sectionText, index) => {
-      addSectionTitle(index === 0 ? "Termo específico" : "Termo específico complementar");
-      addWrappedText(sectionText, { size: 8.4, lineHeight: 4.4, gapAfter: 1.5, indent: 2 });
+    procedureTexts.forEach((sectionText) => {
+      const lines = cleanText(sectionText).split("\n").map((line) => line.trim()).filter(Boolean);
+      const [termTitle, ...termBody] = lines;
+      addSectionTitle(termTitle || "Termo específico");
+      addWrappedText(termBody.join("\n\n"), { size: 8.4, lineHeight: 4.4, gapAfter: 1.5, indent: 2 });
     });
   }
 
-  addPageIfNeeded(46);
-  y += 8;
+  addSectionTitle("Ciência e assinatura");
+  addPageIfNeeded(72);
+
   setFont("normal", 9, [30, 26, 24]);
   doc.text(`São Paulo, ${contractDate}`, pageWidth / 2, y, { align: "center" });
-  y += 26;
+  y += 12;
 
+  doc.setFont("times", "italic");
+  doc.setFontSize(16);
+  doc.setTextColor(30, 26, 24);
+  doc.text(CONTRACTOR_INFO.professionalName, pageWidth / 2, y, { align: "center" });
+  y += 3;
   doc.setDrawColor(30, 26, 24);
-  doc.line(marginX, y, marginX + 72, y);
-  doc.line(pageWidth - marginX - 72, y, pageWidth - marginX, y);
+  doc.line(pageWidth / 2 - 38, y, pageWidth / 2 + 38, y);
   y += 5;
-
-  setFont("normal", 8.5, [30, 26, 24]);
-  doc.text(clinic.companyName, marginX + 36, y, { align: "center" });
-  doc.text(params.patient?.name || "Contratante", pageWidth - marginX - 36, y, { align: "center" });
+  setFont("bold", 8.5, [30, 26, 24]);
+  doc.text(CONTRACTOR_INFO.companyName, pageWidth / 2, y, { align: "center" });
   y += 4;
   setFont("normal", 8, [91, 58, 46]);
-  doc.text("Contratada", marginX + 36, y, { align: "center" });
-  doc.text("Contratante", pageWidth - marginX - 36, y, { align: "center" });
+  doc.text(`CNPJ: ${CONTRACTOR_INFO.cnpj}`, pageWidth / 2, y, { align: "center" });
+  y += 4;
+  doc.text(CONTRACTOR_INFO.professionalCredential, pageWidth / 2, y, { align: "center" });
+  y += 10;
+
+  addWrappedText(CONTRACT_ACCEPTANCE_TEXT, { size: 8.7, lineHeight: 4.6, gapAfter: 3 });
+
+  addPageIfNeeded(42);
+  setFont("bold", 9, [90, 31, 43]);
+  doc.text("CONTRATANTE — ASSINATURA DIGITAL", marginX, y);
+  y += 7;
 
   if (params.status === "SIGNED" || params.signatureImage || params.signatureName) {
-    y += 12;
-    addPageIfNeeded(28);
-    setFont("bold", 9, [90, 31, 43]);
-    doc.text("Assinatura digital", marginX, y);
-    y += 6;
+    if (params.signatureImage) {
+      try {
+        doc.addImage(params.signatureImage, "PNG", marginX, y, 52, 20);
+        y += 23;
+      } catch {
+        // Mantém o registro textual se a imagem não puder ser inserida.
+      }
+    }
 
     setFont("normal", 8.5, [30, 26, 24]);
     doc.text(`Assinado por: ${params.signatureName || params.patient?.name || "Paciente"}`, marginX, y);
@@ -413,16 +474,10 @@ export async function generateContractPdf(params: ContractPdfParams) {
       doc.text(`Assinado em: ${formatDateTime(params.signedAt)}`, marginX, y);
       y += 5;
     }
-
-    if (params.signatureImage) {
-      try {
-        addPageIfNeeded(24);
-        doc.addImage(params.signatureImage, "PNG", marginX, y, 46, 18);
-        y += 20;
-      } catch {
-        // Mantém os dados textuais se a imagem de assinatura não puder ser inserida.
-      }
-    }
+  } else {
+    setFont("normal", 8.5, [91, 58, 46]);
+    doc.text("Aguardando assinatura digital da CONTRATANTE.", marginX, y);
+    y += 6;
   }
 
   const filename = params.filename || `${safeFilename(params.title || "contrato")}-${new Date().toISOString().slice(0, 10)}.pdf`;

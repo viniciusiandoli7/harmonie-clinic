@@ -5,7 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
 
 async function exportData() {
-  const [patients, appointments, transactions, installments, inventory, movements, treatments, plans, evolutions, tasks, templates, goals, auditLogs] = await Promise.all([
+  const [patients, appointments, transactions, installments, inventory, movements, treatments, plans, evolutions, tasks, templates, goals, contracts, consentDocuments, imageAuthorizations, auditLogs] = await Promise.all([
     prisma.patient.findMany({ include: { anamnesis: true, photos: true } }),
     prisma.appointment.findMany(),
     prisma.financialTransaction.findMany({ include: { installments: true } }),
@@ -18,9 +18,12 @@ async function exportData() {
     (prisma as any).postProcedureTask.findMany(),
     (prisma as any).whatsAppTemplate.findMany(),
     (prisma as any).businessGoal.findMany(),
+    prisma.patientContract.findMany(),
+    prisma.patientConsentDocument.findMany(),
+    prisma.patientImageAuthorization.findMany(),
     (prisma as any).auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
   ]);
-  return { generatedAt: new Date().toISOString(), system: "Mariana Thomaz Carmona Clinic", patients, appointments, transactions, installments, inventory, movements, treatments, plans, evolutions, tasks, templates, goals, auditLogs };
+  return { generatedAt: new Date().toISOString(), system: "Mariana Thomaz Carmona Clinic", patients, appointments, transactions, installments, inventory, movements, treatments, plans, evolutions, tasks, templates, goals, contracts, consentDocuments, imageAuthorizations, auditLogs };
 }
 
 export async function GET(req: NextRequest) {

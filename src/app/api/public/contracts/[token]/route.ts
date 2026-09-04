@@ -23,6 +23,8 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
       title: contract.title,
       content: contract.content,
       total: contract.total,
+      contractNumber: contract.contractNumber,
+      validUntil: contract.validUntil,
       status: contract.status,
       signatureName: contract.signatureName,
       signedAt: contract.signedAt,

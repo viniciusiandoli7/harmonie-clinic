@@ -107,3 +107,7 @@ npm run db:migrate   # cria/aplica migrations no desenvolvimento
 npm run db:deploy    # aplica migrations existentes em produção
 npm run db:reset     # somente banco de desenvolvimento/teste
 ```
+
+## Revisão contratual (set/2026)
+
+As alterações de contrato, numeração única, validade de 12 meses, assinatura e termos específicos estão documentadas em `ALTERACAO_CONTRATO_REVISAO_2026.md`. Esta versão possui migration nova; em atualização de produção execute `npm run db:deploy` antes do build.

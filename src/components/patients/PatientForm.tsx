@@ -11,7 +11,7 @@ type PatientFormData = {
   cpf: string; rg: string; notes: string; isActive: boolean;
   zipCode: string; address: string; addressNumber: string; addressComplement: string;
   neighborhood: string; city: string; state: string;
-  crmSource: string; referralName: string; crmStatus: string; imageAuthorized: boolean; interestProcedure: string;
+  crmSource: string; referralName: string; crmStatus: string; interestProcedure: string;
   patientProfile: string; commercialNotes: string; conversionStatus: string; proposedValue: string; closedValue: string; lostReason: string; firstEvaluationAt: string; nextSuggestedAt: string;
   
   // Anamnese Completa
@@ -111,7 +111,7 @@ export default function PatientForm({ mode, patient }: Props) {
     zipCode: patient?.zipCode || "", address: patient?.address || "", addressNumber: patient?.addressNumber || "",
     addressComplement: patient?.addressComplement || "", neighborhood: patient?.neighborhood || "",
     city: patient?.city || "", state: patient?.state || "",
-    crmSource: patient?.crmSource || "", referralName: patient?.referralName || "", crmStatus: patient?.crmStatus || "Novo Lead", imageAuthorized: patient?.imageAuthorized || false, interestProcedure: patient?.interestProcedure || "",
+    crmSource: patient?.crmSource || "", referralName: patient?.referralName || "", crmStatus: patient?.crmStatus || "Novo Lead", interestProcedure: patient?.interestProcedure || "",
     patientProfile: patient?.patientProfile || "", commercialNotes: patient?.commercialNotes || "", conversionStatus: patient?.conversionStatus || "", proposedValue: patient?.proposedValue ? String(patient.proposedValue) : "", closedValue: patient?.closedValue ? String(patient.closedValue) : "", lostReason: patient?.lostReason || "", firstEvaluationAt: patient?.firstEvaluationAt ? patient.firstEvaluationAt.slice(0, 10) : "", nextSuggestedAt: patient?.nextSuggestedAt ? patient.nextSuggestedAt.slice(0, 10) : "",
     
     // Anamnese
@@ -287,10 +287,10 @@ export default function PatientForm({ mode, patient }: Props) {
                 <textarea value={formData.commercialNotes} onChange={(e) => handleChange("commercialNotes", e.target.value)} className="w-full border border-gray-300 rounded-md py-2 px-3 text-[14px] outline-none focus:border-[#5A1F2B] bg-white text-gray-800 min-h-20" />
               </div>
               <div className="md:col-span-2 rounded-2xl border border-[rgba(90,31,43,.12)] bg-[#F7F2EA]/70 p-4">
-                <label className="mb-0 flex items-center gap-3 text-sm text-[#5B3A2E] cursor-pointer font-medium normal-case tracking-normal">
-                  <input type="checkbox" checked={formData.imageAuthorized} onChange={(e) => handleChange("imageAuthorized", e.target.checked)} className="h-4 w-4 rounded border-gray-300 text-[#5A1F2B] focus:ring-[#5A1F2B]" />
-                  Paciente autorizou uso de imagem para antes e depois / divulgação autorizada.
-                </label>
+                <p className="text-sm font-medium text-[#5B3A2E]">Uso de imagem para divulgação</p>
+                <p className="mt-1 text-xs leading-relaxed text-[#5B3A2E]/70">
+                  O status não é alterado manualmente. A autorização passa a valer somente após a paciente assinar o termo específico na aba Contratos.
+                </p>
               </div>
             </div>
           </div>

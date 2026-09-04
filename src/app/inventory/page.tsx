@@ -2,38 +2,11 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, CalendarClock, PackagePlus, Search, Trash2 } from "lucide-react";
+import { CLINIC_PROCEDURES } from "@/constants/procedures";
 
 const CATEGORIES = ["Injetável", "Peeling", "Anestésico", "Descartável", "Bioestimulador", "Equipamento", "Outros"];
 
-const PROCEDURE_OPTIONS = [
-  "Peeling Retinol",
-  "Peeling Láctico",
-  "Peeling Mandélico",
-  "Peeling ATA",
-  "Bioestimulador elleva X",
-  "Bioestimulador ácido polilático",
-  "Bioestimulador hidroxiapatita de cálcio",
-  "Preenchedor",
-  "Skinbooster restylane vital",
-  "Skinbooster vitaminas",
-  "Consulta",
-  "Retorno",
-  "Toxina botulínica",
-  "PEIM",
-  "Preenchimento de glúteo",
-  "PDRN",
-  "Microagulhamento com ativos",
-  "Microagulhamento biorregenerador",
-  "Mesoterapia",
-  "Jato de plasma",
-  "Ultrassom microfocado e macrofocado",
-  "Laser CO2",
-  "Laser",
-  "Fios de PDO",
-  "Intradermoterapia local",
-  "Intradermoterapia IM",
-  "Preparação de pele",
-];
+const PROCEDURE_OPTIONS = CLINIC_PROCEDURES;
 const STATUSES = [
   { value: "DISPONIVEL", label: "Disponível" },
   { value: "RESERVADO", label: "Reservado" },

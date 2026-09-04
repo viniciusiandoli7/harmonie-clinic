@@ -14,11 +14,10 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
   try {
     const body = await req.json();
-    const signatureName = String(body.signatureName || "").trim();
     const signatureImage = typeof body.signatureImage === "string" ? body.signatureImage.trim() : "";
 
-    if (!signatureName && !signatureImage) {
-      return NextResponse.json({ error: "Assinatura obrigatória." }, { status: 400 });
+    if (!signatureImage) {
+      return NextResponse.json({ error: "Assinatura digital obrigatória." }, { status: 400 });
     }
 
     if (signatureImage && !signatureImage.startsWith("data:image/png;base64,")) {
@@ -32,7 +31,7 @@ export async function POST(req: NextRequest, ctx: Ctx) {
 
     const existing = await prisma.patientContract.findUnique({
       where: { token },
-      select: { id: true, status: true },
+      select: { id: true, status: true, patient: { select: { name: true } } },
     });
 
     if (!existing) {
@@ -43,12 +42,16 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Este contrato foi cancelado e não pode ser assinado." }, { status: 409 });
     }
 
+    if (existing.status === "SIGNED") {
+      return NextResponse.json({ error: "Este contrato já foi assinado e não pode ser alterado." }, { status: 409 });
+    }
+
     const contract = await prisma.patientContract.update({
       where: { token },
       data: {
         status: "SIGNED",
-        ...(signatureName ? { signatureName } : {}),
-        ...(signatureImage ? { signatureImage } : {}),
+        signatureName: existing.patient?.name || "Contratante",
+        signatureImage,
         signatureIp: requestIp(req),
         signedAt: new Date(),
       },
@@ -60,6 +63,8 @@ export async function POST(req: NextRequest, ctx: Ctx) {
       title: contract.title,
       content: contract.content,
       total: contract.total,
+      contractNumber: contract.contractNumber,
+      validUntil: contract.validUntil,
       status: contract.status,
       signatureName: contract.signatureName,
       signedAt: contract.signedAt,

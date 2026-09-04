@@ -10,25 +10,51 @@ function requestIp(req: NextRequest) {
 export async function PATCH(req: NextRequest, ctx: Ctx) {
   try {
     const { token } = await ctx.params;
-    const { signatureImage, signatureName } = await req.json();
+    const body = await req.json();
+    const signatureImage = typeof body.signatureImage === "string" ? body.signatureImage.trim() : "";
 
-    if (!signatureImage) {
-      return NextResponse.json({ error: "Assinatura obrigatória." }, { status: 400 });
+    if (!signatureImage || !signatureImage.startsWith("data:image/png;base64,")) {
+      return NextResponse.json({ error: "Assinatura digital obrigatória." }, { status: 400 });
     }
 
+    if (signatureImage.length > 2_500_000) {
+      return NextResponse.json({ error: "Assinatura muito grande." }, { status: 413 });
+    }
+
+    const existing = await prisma.patientContract.findUnique({
+      where: { token },
+      select: { id: true, status: true, patient: { select: { name: true } } },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Contrato não encontrado." }, { status: 404 });
+    }
+    if (existing.status === "CANCELED") {
+      return NextResponse.json({ error: "Este contrato foi cancelado e não pode ser assinado." }, { status: 409 });
+    }
+    if (existing.status === "SIGNED") {
+      return NextResponse.json({ error: "Este contrato já foi assinado e não pode ser alterado." }, { status: 409 });
+    }
+
+    const signedAt = new Date();
     await prisma.patientContract.update({
       where: { token },
       data: {
         signatureImage,
-        signatureName: typeof signatureName === "string" && signatureName.trim() ? signatureName.trim() : undefined,
+        signatureName: existing.patient?.name || "Contratante",
         signatureIp: requestIp(req),
-        signedAt: new Date(),
+        signedAt,
         status: "SIGNED",
       },
     });
 
-    return NextResponse.json({ success: true });
-  } catch {
+    return NextResponse.json({
+      success: true,
+      signatureName: existing.patient?.name || "Contratante",
+      signedAt,
+    });
+  } catch (error) {
+    console.error("Erro ao assinar contrato:", error);
     return NextResponse.json({ error: "Erro ao assinar contrato." }, { status: 500 });
   }
 }

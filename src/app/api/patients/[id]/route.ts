@@ -15,21 +15,36 @@ export async function GET(_: Request, context: Ctx) {
 
   try {
     const { id } = paramsSchema.parse(await context.params);
-    const [patient, activeImageAuthorizations] = await Promise.all([
-      prisma.patient.findUnique({
-        where: { id },
-        include: { anamnesis: true },
-      }),
-      prisma.patientImageAuthorization.count({
-        where: { patientId: id, status: "SIGNED" },
-      }),
-    ]);
+
+    // O prontuário principal nunca deve depender de módulos opcionais/novos.
+    // Primeiro carregamos somente a paciente e a anamnese; a autorização de
+    // imagem é enriquecimento secundário e possui fallback para o campo legado.
+    const patient = await prisma.patient.findUnique({
+      where: { id },
+      include: { anamnesis: true },
+    });
 
     if (!patient) return NextResponse.json({ error: "Paciente não encontrado" }, { status: 404 });
-    return NextResponse.json({ ...patient, imageAuthorized: activeImageAuthorizations > 0 });
+
+    let imageAuthorized = patient.imageAuthorized;
+    try {
+      const activeImageAuthorizations = await prisma.patientImageAuthorization.count({
+        where: { patientId: id, status: "SIGNED" },
+      });
+      imageAuthorized = activeImageAuthorizations > 0;
+    } catch (imageAuthorizationError) {
+      // Compatibilidade com ambientes em que a migration de autorização de
+      // imagem ainda não foi aplicada. A ficha continua abrindo normalmente.
+      console.warn(
+        "Autorização de imagem indisponível ao carregar paciente; usando status legado.",
+        imageAuthorizationError,
+      );
+    }
+
+    return NextResponse.json({ ...patient, imageAuthorized });
   } catch (error) {
     console.error("GET /api/patients/[id] error:", error);
-    return NextResponse.json({ error: patientErrorMessage(error) || "Erro ao buscar paciente" }, { status: patientErrorStatus(error) || 500 });
+    return NextResponse.json({ error: "Não foi possível carregar a paciente. Atualize a página e tente novamente." }, { status: 500 });
   }
 }
 

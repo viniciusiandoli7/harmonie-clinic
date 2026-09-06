@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import { safeExecute, safeQuery } from "@/lib/safeSql";
+import { contractMetadataColumnsAvailable } from "@/lib/contractStorage";
 
 export type RawSaleItem = {
   description: string;
@@ -23,6 +24,16 @@ type PrismaLike = {
 
 async function strictExecute(client: PrismaLike, query: string, ...values: any[]) {
   return client.$executeRawUnsafe(query, ...values);
+}
+
+async function cleanupFailedSaleCore(client: PrismaLike, saleId: string, financialTransactionId: string) {
+  // Limpeza compensatória para impedir venda/financeiro órfãos quando uma
+  // etapa crítica do fechamento falha antes da criação do contrato.
+  await safeExecute(client, `DELETE FROM "FinancialInstallment" WHERE "saleId" = $1 OR "transactionId" = $2`, saleId, financialTransactionId);
+  await safeExecute(client, `DELETE FROM "FinancialTransaction" WHERE "id" = $1 OR "saleId" = $2`, financialTransactionId, saleId);
+  await safeExecute(client, `DELETE FROM "SalePayment" WHERE "saleId" = $1`, saleId);
+  await safeExecute(client, `DELETE FROM "SaleItem" WHERE "saleId" = $1`, saleId);
+  await safeExecute(client, `DELETE FROM "Sale" WHERE "id" = $1`, saleId);
 }
 
 async function getOrCreateProfessional(client: PrismaLike, commissionPct: number) {
@@ -239,19 +250,43 @@ export async function closeSaleRaw(client: PrismaLike, input: {
   }
 
   const contractId = randomUUID();
-  await strictExecute(
-    client,
-    `INSERT INTO "PatientContract" ("id", "patientId", "title", "content", "total", "token", "contractNumber", "validUntil", "itemsJson", "status", "signatureName", "signatureImage", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, 'PENDING', NULL, NULL, NOW(), NOW())`,
-    contractId,
-    input.patientId,
-    `Contrato - ${new Date().toLocaleDateString("pt-BR")}`,
-    input.contractHtml,
-    input.finalTotal,
-    input.contractToken,
-    input.contractNumber,
-    input.validUntil,
-    JSON.stringify(input.normalizedItems)
-  );
+  const hasContractMetadataColumns = await contractMetadataColumnsAvailable(client);
+
+  try {
+    if (hasContractMetadataColumns) {
+      await strictExecute(
+        client,
+        `INSERT INTO "PatientContract" ("id", "patientId", "title", "content", "total", "token", "contractNumber", "validUntil", "itemsJson", "status", "signatureName", "signatureImage", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9::jsonb, 'PENDING', NULL, NULL, NOW(), NOW())`,
+        contractId,
+        input.patientId,
+        `Contrato - ${new Date().toLocaleDateString("pt-BR")}`,
+        input.contractHtml,
+        input.finalTotal,
+        input.contractToken,
+        input.contractNumber,
+        input.validUntil,
+        JSON.stringify(input.normalizedItems)
+      );
+    } else {
+      // Compatibilidade com produção ainda sem a migration de contractNumber/validUntil.
+      // O número e a validade continuam incorporados ao HTML e são reconstruídos
+      // deterministicamente nas APIs de leitura.
+      await strictExecute(
+        client,
+        `INSERT INTO "PatientContract" ("id", "patientId", "title", "content", "total", "token", "itemsJson", "status", "signatureName", "signatureImage", "createdAt", "updatedAt") VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, 'PENDING', NULL, NULL, NOW(), NOW())`,
+        contractId,
+        input.patientId,
+        `Contrato - ${new Date().toLocaleDateString("pt-BR")}`,
+        input.contractHtml,
+        input.finalTotal,
+        input.contractToken,
+        JSON.stringify(input.normalizedItems)
+      );
+    }
+  } catch (contractError) {
+    await cleanupFailedSaleCore(client, saleId, financialTransactionId);
+    throw contractError;
+  }
 
   for (const item of input.normalizedItems) {
     await safeExecute(

@@ -158,7 +158,12 @@ export async function GET(_: NextRequest, context: Context) {
     prisma.appointment.findMany({ where: { patientId: id }, orderBy: { date: "desc" }, take: 50 }),
     prisma.financialTransaction.findMany({ where: { patientId: id }, orderBy: { date: "desc" }, take: 50 }),
     prisma.clinicalEvolution.findMany({ where: { patientId: id }, orderBy: { createdAt: "desc" }, take: 50 }),
-    prisma.patientContract.findMany({ where: { patientId: id }, orderBy: { createdAt: "desc" }, take: 50 }),
+    prisma.patientContract.findMany({
+      where: { patientId: id },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+      select: { id: true, createdAt: true, title: true, status: true, total: true },
+    }),
     prisma.sale.findMany({ where: { patientId: id }, include: { service: true, saleItems: true }, orderBy: { createdAt: "desc" }, take: 50 }),
     (prisma as any).patientPhoto.findMany({ where: { patientId: id }, orderBy: { takenAt: "desc" }, take: 50 }),
     (prisma as any).financialInstallment.findMany({ where: { patientId: id }, orderBy: { dueDate: "desc" }, take: 50 }),

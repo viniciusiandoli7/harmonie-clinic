@@ -3,6 +3,7 @@ import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { buildContractHtml } from "@/lib/contracts";
 import { CONTRACTOR_INFO, formatContractNumber, getContractUseByDate } from "@/lib/contractLegalCore";
+import { hydrateContractMetadata, persistContractMetadataIfSupported } from "@/lib/contractStorage";
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 
@@ -28,7 +29,7 @@ async function listContractsRaw() {
     ORDER BY c."createdAt" DESC
   `);
 
-  return Array.isArray(rows) ? rows : [];
+  return Array.isArray(rows) ? rows.map((row: any) => hydrateContractMetadata(row)) : [];
 }
 
 export async function GET() {
@@ -38,12 +39,26 @@ export async function GET() {
   try {
     const contracts = await prisma.patientContract.findMany({
       orderBy: { createdAt: "desc" },
-      include: {
+      select: {
+        id: true,
+        token: true,
+        patientId: true,
+        title: true,
+        content: true,
+        total: true,
+        status: true,
+        itemsJson: true,
+        signatureName: true,
+        signatureImage: true,
+        signatureIp: true,
+        signedAt: true,
+        createdAt: true,
+        updatedAt: true,
         patient: { select: { id: true, name: true, phone: true } },
       },
     });
 
-    return NextResponse.json(contracts);
+    return NextResponse.json(contracts.map((contract) => hydrateContractMetadata(contract)));
   } catch (error) {
     console.warn("Listagem de contratos via Prisma falhou; usando consulta segura:", error);
     try {
@@ -138,20 +153,39 @@ export async function POST(req: NextRequest) {
       validUntil,
     });
 
+    // Cria usando apenas as colunas históricas. Isso mantém o fechamento
+    // compatível mesmo antes da migration de metadados contratuais chegar ao
+    // banco de produção. Quando as colunas existem, persistimos em seguida.
     const contract = await prisma.patientContract.create({
       data: {
         patientId,
         title,
         content,
         total,
-        token: token,
-        contractNumber,
-        validUntil,
+        token,
         itemsJson: items,
+      },
+      select: {
+        id: true,
+        token: true,
+        patientId: true,
+        title: true,
+        content: true,
+        total: true,
+        status: true,
+        itemsJson: true,
+        signatureName: true,
+        signatureImage: true,
+        signatureIp: true,
+        signedAt: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
-    return NextResponse.json(contract, { status: 201 });
+    await persistContractMetadataIfSupported(prisma as any, contract.id, contractNumber, validUntil);
+
+    return NextResponse.json({ ...contract, contractNumber, validUntil }, { status: 201 });
   } catch (error) {
     console.error("Erro ao gerar contrato:", error);
     return NextResponse.json(

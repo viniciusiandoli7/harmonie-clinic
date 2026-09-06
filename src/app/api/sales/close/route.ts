@@ -287,7 +287,11 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Erro ao fechar venda:", error);
-    const message = error instanceof Error ? error.message : "Erro interno ao finalizar a venda.";
-    return NextResponse.json({ error: `Não foi possível finalizar a venda. Detalhe: ${message}` }, { status: 500 });
+    const rawMessage = error instanceof Error ? error.message : "";
+    const schemaMismatch = /42703|P2022|column.+does not exist|contractNumber/i.test(rawMessage);
+    const errorMessage = schemaMismatch
+      ? "A estrutura do banco ainda não está sincronizada. Aplique as migrations da versão atual e tente novamente."
+      : "Não foi possível finalizar a venda. Atualize a página e tente novamente.";
+    return NextResponse.json({ error: errorMessage }, { status: 500 });
   }
 }

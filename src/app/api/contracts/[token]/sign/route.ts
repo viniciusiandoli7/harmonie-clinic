@@ -46,6 +46,7 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         signedAt,
         status: "SIGNED",
       },
+      select: { id: true },
     });
 
     return NextResponse.json({

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { createAuditLog } from "@/lib/audit";
+import { hydrateContractMetadata } from "@/lib/contractStorage";
 
 async function exportData() {
   const [patients, appointments, transactions, installments, inventory, movements, treatments, plans, evolutions, tasks, templates, goals, contracts, consentDocuments, imageAuthorizations, auditLogs] = await Promise.all([
@@ -18,12 +19,13 @@ async function exportData() {
     (prisma as any).postProcedureTask.findMany(),
     (prisma as any).whatsAppTemplate.findMany(),
     (prisma as any).businessGoal.findMany(),
-    prisma.patientContract.findMany(),
+    (prisma as any).$queryRawUnsafe(`SELECT * FROM "PatientContract" ORDER BY "createdAt" DESC`),
     prisma.patientConsentDocument.findMany(),
     prisma.patientImageAuthorization.findMany(),
     (prisma as any).auditLog.findMany({ orderBy: { createdAt: "desc" }, take: 500 }),
   ]);
-  return { generatedAt: new Date().toISOString(), system: "Mariana Thomaz Carmona Clinic", patients, appointments, transactions, installments, inventory, movements, treatments, plans, evolutions, tasks, templates, goals, contracts, consentDocuments, imageAuthorizations, auditLogs };
+  const normalizedContracts = Array.isArray(contracts) ? contracts.map((contract: any) => hydrateContractMetadata(contract)) : [];
+  return { generatedAt: new Date().toISOString(), system: "Mariana Thomaz Carmona Clinic", patients, appointments, transactions, installments, inventory, movements, treatments, plans, evolutions, tasks, templates, goals, contracts: normalizedContracts, consentDocuments, imageAuthorizations, auditLogs };
 }
 
 export async function GET(req: NextRequest) {

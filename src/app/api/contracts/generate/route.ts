@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { buildContractHtml } from "@/lib/contracts";
 import { CONTRACTOR_INFO, formatContractNumber, getContractUseByDate } from "@/lib/contractLegalCore";
+import { persistContractMetadataIfSupported } from "@/lib/contractStorage";
 
 export async function POST(req: Request) {
   const session = await getServerSession(authOptions);
@@ -82,12 +83,28 @@ export async function POST(req: Request) {
         itemsJson: items,
         status: "PENDING",
         token,
-        contractNumber,
-        validUntil,
+      },
+      select: {
+        id: true,
+        token: true,
+        patientId: true,
+        title: true,
+        content: true,
+        total: true,
+        status: true,
+        itemsJson: true,
+        signatureName: true,
+        signatureImage: true,
+        signatureIp: true,
+        signedAt: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 
-    return NextResponse.json(contract, { status: 201 });
+    await persistContractMetadataIfSupported(prisma as any, contract.id, contractNumber, validUntil);
+
+    return NextResponse.json({ ...contract, contractNumber, validUntil }, { status: 201 });
   } catch (error) {
     console.error("Erro ao gerar contrato:", error);
     return NextResponse.json({ error: "Erro interno ao gerar contrato" }, { status: 500 });

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { hydrateContractMetadata } from "@/lib/contractStorage";
 
 type Ctx = {
   params: Promise<{ token: string }>;
@@ -55,20 +56,32 @@ export async function POST(req: NextRequest, ctx: Ctx) {
         signatureIp: requestIp(req),
         signedAt: new Date(),
       },
-      include: { patient: { select: { name: true } } },
+      select: {
+        id: true,
+        token: true,
+        title: true,
+        content: true,
+        total: true,
+        status: true,
+        signatureName: true,
+        signedAt: true,
+        createdAt: true,
+        patient: { select: { name: true } },
+      },
     });
 
+    const withMetadata = hydrateContractMetadata(contract);
     return NextResponse.json({
-      id: contract.id,
-      title: contract.title,
-      content: contract.content,
-      total: contract.total,
-      contractNumber: contract.contractNumber,
-      validUntil: contract.validUntil,
-      status: contract.status,
-      signatureName: contract.signatureName,
-      signedAt: contract.signedAt,
-      patient: contract.patient,
+      id: withMetadata.id,
+      title: withMetadata.title,
+      content: withMetadata.content,
+      total: withMetadata.total,
+      contractNumber: withMetadata.contractNumber,
+      validUntil: withMetadata.validUntil,
+      status: withMetadata.status,
+      signatureName: withMetadata.signatureName,
+      signedAt: withMetadata.signedAt,
+      patient: withMetadata.patient,
     });
   } catch (error) {
     console.error("Erro ao assinar contrato público:", error);

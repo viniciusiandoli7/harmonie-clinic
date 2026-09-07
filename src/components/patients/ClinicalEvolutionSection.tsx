@@ -1,21 +1,28 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
+import SignatureCanvas from "react-signature-canvas";
 import {
   Activity,
   CalendarDays,
   Camera,
   CheckCircle2,
+  Download,
+  ExternalLink,
   FileText,
   Image as ImageIcon,
+  PenLine,
   Plus,
+  RotateCcw,
   ShieldCheck,
   Trash2,
   X,
 } from "lucide-react";
+import { downloadEvolutionPdf } from "@/lib/evolutionPdf";
 
 type Patient = { id: string; name: string; phone?: string | null };
+type EntryType = "SESSION" | "FOLLOW_UP" | "RETURN";
 
 type EvolutionSession = {
   id: string;
@@ -25,6 +32,11 @@ type EvolutionSession = {
   bodyMeasurements?: string | null;
   clinicalNotes?: string | null;
   imagesJson?: unknown;
+  entryType?: EntryType | string | null;
+  countsTowardSession?: boolean | null;
+  patientSignatureName?: string | null;
+  signedAt?: string | null;
+  signatureImage?: string | null;
 };
 
 type EvolutionPlan = {
@@ -94,6 +106,18 @@ function formatDate(value?: string | null) {
   });
 }
 
+function formatDateTime(value?: string | null) {
+  if (!value) return "—";
+  return new Date(value).toLocaleString("pt-BR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "America/Sao_Paulo",
+  });
+}
+
 function parseImages(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value.filter((item): item is string => typeof item === "string" && /^https:\/\//i.test(item));
@@ -109,6 +133,34 @@ function parseImages(value: unknown): string[] {
     }
   }
   return [];
+}
+
+function normalizeEntryType(value?: string | null): EntryType {
+  if (value === "FOLLOW_UP" || value === "RETURN") return value;
+  return "SESSION";
+}
+
+function entryLabel(value?: string | null) {
+  const type = normalizeEntryType(value);
+  if (type === "FOLLOW_UP") return "Acompanhamento / fotos";
+  if (type === "RETURN") return "Retorno presencial";
+  return "Sessão realizada";
+}
+
+function entryBadgeClass(value?: string | null) {
+  const type = normalizeEntryType(value);
+  if (type === "FOLLOW_UP") return "bg-[#F1F5F9] text-[#52657F]";
+  if (type === "RETURN") return "bg-[#F6F0E5] text-[#9B732E]";
+  return "bg-[#F7F2EA] text-[#5A1F2B]";
+}
+
+function safeFilePart(value: string) {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-zA-Z0-9]+/g, "-")
+    .replace(/^-|-$/g, "")
+    .toLowerCase();
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
@@ -175,9 +227,15 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
 
   const [sessionDate, setSessionDate] = useState(localDateInputValue());
   const [description, setDescription] = useState("");
+  const [entryType, setEntryType] = useState<EntryType>("SESSION");
   const [uploadedImages, setUploadedImages] = useState<string[]>([]);
   const [uploadingImages, setUploadingImages] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [exportingPlanId, setExportingPlanId] = useState<string | null>(null);
+
+  const [signingSession, setSigningSession] = useState<EvolutionSession | null>(null);
+  const [signatureSaving, setSignatureSaving] = useState(false);
+  const signatureRef = useRef<SignatureCanvas>(null);
 
   async function loadData() {
     setLoading(true);
@@ -205,16 +263,17 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
     loadData();
   }, [patient.id]);
 
-  function resetForm() {
+  function resetForm(plan?: EvolutionPlan) {
     setSessionDate(localDateInputValue());
     setDescription("");
     setUploadedImages([]);
+    setEntryType(plan && plan.completedSessions < plan.totalSessions ? "SESSION" : "FOLLOW_UP");
   }
 
-  function togglePlan(planId: string) {
+  function togglePlan(plan: EvolutionPlan) {
     setExpandedPlanId((current) => {
-      const next = current === planId ? null : planId;
-      if (next) resetForm();
+      const next = current === plan.id ? null : plan.id;
+      if (next) resetForm(plan);
       return next;
     });
   }
@@ -231,8 +290,6 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
     const selectedFiles = Array.from(files).slice(0, availableSlots);
     setUploadingImages(true);
     try {
-      // Upload sequencial evita estourar memória/rede no iPad quando várias fotos
-      // de alta resolução são selecionadas ao mesmo tempo.
       const newUrls: string[] = [];
       for (const file of selectedFiles) {
         newUrls.push(await uploadClinicalImage(file));
@@ -249,31 +306,33 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
   async function saveEvolution(plan: EvolutionPlan) {
     const cleanDescription = description.trim();
     if (!sessionDate) {
-      alert("Informe a data do atendimento.");
+      alert("Informe a data do atendimento/acompanhamento.");
       return;
     }
     if (!cleanDescription) {
-      alert("Descreva o que foi realizado no atendimento.");
+      alert("Descreva o registro desta evolução.");
       return;
     }
     if (uploadingImages) {
       alert("Aguarde o envio das fotos terminar antes de salvar.");
       return;
     }
+    if (entryType === "SESSION" && plan.completedSessions >= plan.totalSessions) {
+      alert("Todas as sessões contratadas já foram registradas. Use Acompanhamento / fotos ou Retorno presencial.");
+      return;
+    }
 
     setSaving(true);
     try {
-      const nextSessionNumber = Math.max(plan.completedSessions, plan.sessions?.length || 0) + 1;
       const res = await fetch(`/api/evolution-plans/${plan.id}/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          sessionNumber: nextSessionNumber,
-          // Meio-dia UTC evita a data aparecer como o dia anterior no Brasil.
           sessionDate: `${sessionDate}T12:00:00.000Z`,
           performedProcedure: plan.treatmentName,
           clinicalNotes: cleanDescription,
           images: uploadedImages,
+          entryType,
         }),
       });
 
@@ -282,7 +341,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
         throw new Error(data?.error || "Não foi possível salvar a evolução.");
       }
 
-      resetForm();
+      resetForm(plan);
       await loadData();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Não foi possível salvar a evolução.";
@@ -314,33 +373,63 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
     await loadData();
   }
 
-  function handleExportPDF(plan: EvolutionPlan) {
-    const element = document.getElementById(`evolution-plan-${plan.id}`);
-    if (!element) return;
+  async function handleExportPDF(plan: EvolutionPlan) {
+    setExportingPlanId(plan.id);
+    try {
+      await downloadEvolutionPdf({
+        patientName: patient.name,
+        treatmentName: plan.treatmentName,
+        totalSessions: plan.totalSessions,
+        completedSessions: plan.completedSessions,
+        sessions: (plan.sessions || []).map((session) => ({
+          ...session,
+          images: parseImages(session.imagesJson),
+        })),
+      });
+    } catch (error) {
+      console.error("Erro ao gerar PDF da evolução:", error);
+      alert("Não foi possível gerar o PDF. Tente novamente.");
+    } finally {
+      setExportingPlanId(null);
+    }
+  }
 
-    const printWindow = window.open("", "", "width=900,height=800");
-    printWindow?.document.write(`
-      <html>
-        <head>
-          <title>Evolução clínica</title>
-          <style>
-            body { font-family: Arial, sans-serif; padding: 40px; color: #1E1A18; }
-            .no-print, button, input, textarea, label[for] { display: none !important; }
-            img { max-width: 180px; max-height: 180px; object-fit: cover; margin: 6px; }
-          </style>
-        </head>
-        <body>
-          <h1 style="font-size:12px;text-transform:uppercase;color:#5A1F2B;">Harmonie Clinic</h1>
-          <h2 style="font-size:22px;">Evolução clínica — ${patient.name}</h2>
-          ${element.innerHTML}
-        </body>
-      </html>
-    `);
-    printWindow?.document.close();
-    setTimeout(() => {
-      printWindow?.print();
-      printWindow?.close();
-    }, 700);
+  function openAcknowledgement(session: EvolutionSession) {
+    setSigningSession(session);
+    window.setTimeout(() => signatureRef.current?.clear(), 50);
+  }
+
+  async function saveAcknowledgement() {
+    if (!signingSession) return;
+    if (!signatureRef.current || signatureRef.current.isEmpty()) {
+      alert("Peça para a paciente dar o visto/assinar no quadro antes de confirmar.");
+      return;
+    }
+
+    setSignatureSaving(true);
+    try {
+      const signatureImage = signatureRef.current.getTrimmedCanvas().toDataURL("image/png");
+      const res = await fetch(`/api/evolution-sessions/${signingSession.id}/sign`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ signatureImage }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Não foi possível registrar a ciência da paciente.");
+
+      setSigningSession(null);
+      await loadData();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Não foi possível registrar a ciência da paciente.";
+      alert(message);
+    } finally {
+      setSignatureSaving(false);
+    }
+  }
+
+  function downloadImageHref(imageUrl: string, plan: EvolutionPlan, session: EvolutionSession, index: number) {
+    const name = `${safeFilePart(patient.name)}-${safeFilePart(plan.treatmentName)}-${formatDate(session.sessionDate).replaceAll("/", "-")}-foto-${index + 1}`;
+    return `/api/clinical-images/download?url=${encodeURIComponent(imageUrl)}&name=${encodeURIComponent(name)}`;
   }
 
   return (
@@ -353,8 +442,8 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
           <div>
             <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-[#5A1F2B]/70">Prontuário clínico</p>
             <h3 className="mt-1 font-serif text-2xl uppercase tracking-widest text-[#111]">Evolução & Fotos</h3>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-[#5B3A2E]/60">
-              Um registro simples por atendimento: data, descrição do que foi realizado e fotos clínicas no mesmo lugar.
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#5B3A2E]/60">
+              Registre a sessão, os acompanhamentos fotográficos e os retornos dentro do mesmo tratamento. Acompanhamentos e retornos não consomem novas sessões do pacote.
             </p>
           </div>
         </div>
@@ -376,230 +465,316 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
       )}
 
       <div className="space-y-4">
-        {plans.map((plan) => (
-          <section
-            key={plan.id}
-            id={`evolution-plan-${plan.id}`}
-            className="overflow-hidden rounded-sm border border-[#ECE7DD] bg-white shadow-sm"
-          >
-            <div className="flex flex-col gap-4 border-b border-gray-50 bg-[#FCFAF6]/60 px-6 py-5 md:flex-row md:items-center md:justify-between">
-              <div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <h4 className="font-serif text-xl uppercase text-[#111]">{plan.treatmentName}</h4>
-                  {!plan.packageName && (
-                    <span className="rounded bg-gray-100 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-gray-500">
-                      Avulso
-                    </span>
-                  )}
+        {plans.map((plan) => {
+          const followUpCount = (plan.sessions || []).filter((session) => session.countsTowardSession === false).length;
+          return (
+            <section
+              key={plan.id}
+              id={`evolution-plan-${plan.id}`}
+              className="overflow-hidden rounded-sm border border-[#ECE7DD] bg-white shadow-sm"
+            >
+              <div className="flex flex-col gap-4 border-b border-gray-50 bg-[#FCFAF6]/60 px-6 py-5 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h4 className="font-serif text-xl uppercase text-[#111]">{plan.treatmentName}</h4>
+                    {!plan.packageName && (
+                      <span className="rounded bg-gray-100 px-2 py-0.5 text-[8px] font-bold uppercase tracking-wider text-gray-500">
+                        Avulso
+                      </span>
+                    )}
+                  </div>
+                  <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">
+                    Sessões: {plan.completedSessions}/{plan.totalSessions}
+                    {followUpCount > 0 ? ` • ${followUpCount} acompanhamento${followUpCount > 1 ? "s" : ""}` : ""}
+                    {plan.packageName ? ` • ${plan.packageName}` : ""}
+                  </p>
                 </div>
-                <p className="mt-1 text-[9px] font-bold uppercase tracking-wide text-gray-400">
-                  Sessões: {plan.completedSessions}/{plan.totalSessions}
-                  {plan.packageName ? ` • ${plan.packageName}` : ""}
-                </p>
+
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => handleExportPDF(plan)}
+                    disabled={exportingPlanId === plan.id}
+                    className="flex h-9 items-center gap-2 border border-[#C8A35F] px-4 text-[10px] font-bold uppercase text-[#C8A35F] transition-colors hover:bg-[#FAF8F3] disabled:opacity-50"
+                  >
+                    {exportingPlanId === plan.id ? <Activity size={14} className="animate-spin" /> : <Download size={14} />}
+                    {exportingPlanId === plan.id ? "Gerando…" : "Baixar PDF"}
+                  </button>
+                  <button
+                    onClick={() => togglePlan(plan)}
+                    className={`h-9 px-5 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all ${
+                      expandedPlanId === plan.id
+                        ? "bg-gray-100 text-gray-600"
+                        : "bg-[#111] text-white hover:bg-[#5A1F2B]"
+                    }`}
+                  >
+                    {expandedPlanId === plan.id ? "Fechar" : "Nova evolução"}
+                  </button>
+                  <button
+                    onClick={() => removePlan(plan.id)}
+                    aria-label="Excluir prontuário"
+                    className="h-9 border border-red-50 px-2 text-red-200 transition-colors hover:text-red-500"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
 
-              <div className="no-print flex flex-wrap gap-2">
-                <button
-                  onClick={() => handleExportPDF(plan)}
-                  className="flex h-9 items-center gap-2 border border-[#C8A35F] px-4 text-[10px] font-bold uppercase text-[#C8A35F] transition-colors hover:bg-[#FAF8F3]"
-                >
-                  <FileText size={14} /> PDF
-                </button>
-                <button
-                  onClick={() => togglePlan(plan.id)}
-                  className={`h-9 px-5 text-[10px] font-bold uppercase tracking-wider shadow-sm transition-all ${
-                    expandedPlanId === plan.id
-                      ? "bg-gray-100 text-gray-600"
-                      : "bg-[#111] text-white hover:bg-[#5A1F2B]"
-                  }`}
-                >
-                  {expandedPlanId === plan.id ? "Fechar" : "Nova evolução"}
-                </button>
-                <button
-                  onClick={() => removePlan(plan.id)}
-                  aria-label="Excluir prontuário"
-                  className="h-9 border border-red-50 px-2 text-red-200 transition-colors hover:text-red-500"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
+              {expandedPlanId === plan.id && (
+                <div className="animate-in fade-in duration-300">
+                  <div className="border-b border-[#ECE7DD] bg-[#FAF8F3] p-6">
+                    <div className="mb-6">
+                      <FieldLabel>Tipo do registro</FieldLabel>
+                      <div className="grid gap-2 sm:grid-cols-3">
+                        {([
+                          ["SESSION", "Sessão realizada", "Conta no pacote"],
+                          ["FOLLOW_UP", "Acompanhamento / fotos", "Não consome sessão"],
+                          ["RETURN", "Retorno presencial", "Não consome sessão"],
+                        ] as const).map(([value, title, helper]) => {
+                          const disabled = value === "SESSION" && plan.completedSessions >= plan.totalSessions;
+                          return (
+                            <button
+                              key={value}
+                              type="button"
+                              disabled={disabled}
+                              onClick={() => setEntryType(value)}
+                              className={`rounded-sm border px-4 py-3 text-left transition-all ${
+                                entryType === value
+                                  ? "border-[#5A1F2B] bg-white shadow-sm"
+                                  : "border-[#E6DED2] bg-[#FCFAF6]"
+                              } ${disabled ? "cursor-not-allowed opacity-40" : "hover:border-[#C8A35F]"}`}
+                            >
+                              <span className="block text-[10px] font-bold uppercase tracking-[0.12em] text-[#2C2724]">{title}</span>
+                              <span className="mt-1 block text-[10px] text-gray-400">{helper}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
 
-            {expandedPlanId === plan.id && (
-              <div className="animate-in fade-in duration-300">
-                <div className="no-print border-b border-[#ECE7DD] bg-[#FAF8F3] p-6">
-                  <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
-                    <div>
-                      <FieldLabel>Data do atendimento</FieldLabel>
-                      <div className="relative">
-                        <CalendarDays size={16} className="pointer-events-none absolute left-3 top-3.5 text-[#5A1F2B]/50" />
-                        <input
-                          type="date"
-                          value={sessionDate}
-                          onChange={(event) => setSessionDate(event.target.value)}
-                          className="h-11 w-full border border-[#ECE7DD] bg-white pl-10 pr-3 text-sm outline-none transition-colors focus:border-[#C8A35F]"
+                    <div className="grid gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
+                      <div>
+                        <FieldLabel>Data do registro</FieldLabel>
+                        <div className="relative">
+                          <CalendarDays size={16} className="pointer-events-none absolute left-3 top-3.5 text-[#5A1F2B]/50" />
+                          <input
+                            type="date"
+                            value={sessionDate}
+                            onChange={(event) => setSessionDate(event.target.value)}
+                            className="h-11 w-full border border-[#ECE7DD] bg-white pl-10 pr-3 text-sm outline-none transition-colors focus:border-[#C8A35F]"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <FieldLabel>Descrição da evolução</FieldLabel>
+                        <textarea
+                          value={description}
+                          onChange={(event) => setDescription(event.target.value)}
+                          placeholder={
+                            entryType === "FOLLOW_UP"
+                              ? "Ex.: D+2 de CO₂ — paciente enviou fotos, edema em regressão, sem sinais de intercorrência…"
+                              : entryType === "RETURN"
+                                ? "Ex.: retorno de 15 dias — pele íntegra, evolução satisfatória, orientações reforçadas…"
+                                : "Ex.: realizada sessão de CO₂ full face, sem intercorrências imediatas…"
+                          }
+                          className="min-h-28 w-full resize-y border border-[#ECE7DD] bg-white p-3 text-sm leading-6 outline-none transition-colors focus:border-[#C8A35F]"
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <FieldLabel>Descrição do que foi realizado</FieldLabel>
-                      <textarea
-                        value={description}
-                        onChange={(event) => setDescription(event.target.value)}
-                        placeholder="Ex.: realizada aplicação de toxina em terço superior, paciente sem intercorrências…"
-                        className="min-h-28 w-full resize-y border border-[#ECE7DD] bg-white p-3 text-sm leading-6 outline-none transition-colors focus:border-[#C8A35F]"
-                      />
+                    <div className="mt-6">
+                      <FieldLabel>Fotos deste registro</FieldLabel>
+                      <label className={`flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-sm border-2 border-dashed px-5 py-5 text-center transition-all ${
+                        uploadingImages
+                          ? "cursor-wait border-gray-200 bg-gray-50"
+                          : "border-[#C8A35F]/35 bg-white hover:border-[#C8A35F] hover:bg-[#FCFAF6]"
+                      }`}>
+                        {uploadingImages ? (
+                          <Activity size={22} className="animate-spin text-gray-400" />
+                        ) : (
+                          <Camera size={22} className="text-[#C8A35F]" />
+                        )}
+                        <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#5A1F2B]">
+                          {uploadingImages ? "Enviando fotos…" : "Adicionar fotos"}
+                        </span>
+                        <span className="text-[11px] text-gray-400">Pode selecionar várias imagens de uma vez.</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          disabled={uploadingImages}
+                          onChange={(event) => {
+                            handleImagesUpload(event.target.files);
+                            event.currentTarget.value = "";
+                          }}
+                        />
+                      </label>
+
+                      {uploadedImages.length > 0 && (
+                        <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
+                          {uploadedImages.map((imageUrl, index) => (
+                            <div key={`${imageUrl}-${index}`} className="group relative aspect-square overflow-hidden rounded-sm border border-[#ECE7DD] bg-white shadow-sm">
+                              <img src={imageUrl} alt={`Foto ${index + 1}`} className="h-full w-full object-cover" />
+                              <button
+                                type="button"
+                                onClick={() => setUploadedImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}
+                                aria-label="Remover foto"
+                                className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white"
+                              >
+                                <X size={13} />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-6 flex flex-col gap-3 border-t border-[#ECE7DD] pt-5 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-[11px] leading-5 text-gray-400">
+                        {entryType === "SESSION"
+                          ? `Este registro contará como uma sessão realizada (${Math.min(plan.completedSessions + 1, plan.totalSessions)}/${plan.totalSessions}).`
+                          : `Este registro será salvo como ${entryLabel(entryType).toLowerCase()} e manterá o contador em ${plan.completedSessions}/${plan.totalSessions}.`}
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => saveEvolution(plan)}
+                        disabled={saving || uploadingImages}
+                        className="flex h-12 items-center justify-center gap-3 bg-[#111] px-8 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-lg transition-all hover:bg-[#5A1F2B] disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {saving ? <Activity size={17} className="animate-spin" /> : <Plus size={17} />}
+                        {saving ? "Salvando…" : "Salvar evolução"}
+                      </button>
                     </div>
                   </div>
 
-                  <div className="mt-6">
-                    <FieldLabel>Fotos do atendimento</FieldLabel>
-                    <label className={`flex min-h-24 cursor-pointer flex-col items-center justify-center gap-2 rounded-sm border-2 border-dashed px-5 py-5 text-center transition-all ${
-                      uploadingImages
-                        ? "cursor-wait border-gray-200 bg-gray-50"
-                        : "border-[#C8A35F]/35 bg-white hover:border-[#C8A35F] hover:bg-[#FCFAF6]"
-                    }`}>
-                      {uploadingImages ? (
-                        <Activity size={22} className="animate-spin text-gray-400" />
-                      ) : (
-                        <Camera size={22} className="text-[#C8A35F]" />
-                      )}
-                      <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#5A1F2B]">
-                        {uploadingImages ? "Enviando fotos…" : "Adicionar fotos"}
-                      </span>
-                      <span className="text-[11px] text-gray-400">Você pode selecionar várias imagens de uma vez.</span>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        className="hidden"
-                        disabled={uploadingImages}
-                        onChange={(event) => {
-                          handleImagesUpload(event.target.files);
-                          event.currentTarget.value = "";
-                        }}
-                      />
-                    </label>
-
-                    {uploadedImages.length > 0 && (
-                      <div className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-6">
-                        {uploadedImages.map((imageUrl, index) => (
-                          <div key={`${imageUrl}-${index}`} className="group relative aspect-square overflow-hidden rounded-sm border border-[#ECE7DD] bg-white shadow-sm">
-                            <img src={imageUrl} alt={`Foto ${index + 1}`} className="h-full w-full object-cover" />
-                            <button
-                              type="button"
-                              onClick={() => setUploadedImages((current) => current.filter((_, itemIndex) => itemIndex !== index))}
-                              aria-label="Remover foto"
-                              className="absolute right-1.5 top-1.5 flex h-7 w-7 items-center justify-center rounded-full bg-black/60 text-white opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100"
-                            >
-                              <X size={13} />
-                            </button>
-                          </div>
-                        ))}
+                  <div className="space-y-4 p-6">
+                    {(plan.sessions || []).length === 0 ? (
+                      <div className="rounded-sm border border-dashed border-[#5A1F2B]/15 bg-[#FCFAF6] p-8 text-center text-sm text-gray-400">
+                        Nenhuma evolução registrada para este procedimento ainda.
                       </div>
+                    ) : (
+                      (plan.sessions || []).map((session) => {
+                        const sessionImages = parseImages(session.imagesJson);
+                        const mainDescription = session.clinicalNotes || session.bodyMeasurements || session.performedProcedure || "Registro clínico";
+                        const hasLegacyExtra = Boolean(
+                          session.bodyMeasurements &&
+                            session.clinicalNotes &&
+                            !session.clinicalNotes.includes(session.bodyMeasurements)
+                        );
+
+                        return (
+                          <article key={session.id} className="group relative rounded-sm border border-[#ECE7DD] bg-white p-5">
+                            {!session.signedAt && !session.signatureImage && (
+                              <button
+                                onClick={() => removeSession(session.id)}
+                                aria-label="Excluir evolução"
+                                className="absolute right-4 top-4 text-gray-200 opacity-100 transition-all hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            )}
+
+                            <div className="pr-8">
+                              <div className="flex flex-wrap items-center gap-2.5">
+                                <span className="rounded bg-[#F7F2EA] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#5A1F2B]">
+                                  Evolução {session.sessionNumber}
+                                </span>
+                                <span className={`rounded px-2 py-1 text-[8px] font-bold uppercase tracking-wider ${entryBadgeClass(session.entryType)}`}>
+                                  {entryLabel(session.entryType)}
+                                </span>
+                                <span className="text-[11px] font-medium text-gray-400">{formatDate(session.sessionDate)}</span>
+                              </div>
+
+                              <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#2C2724]">{mainDescription}</p>
+                              {hasLegacyExtra && (
+                                <p className="mt-3 whitespace-pre-line rounded-sm bg-[#FCFAF6] p-3 text-[12px] leading-6 text-gray-500">
+                                  {session.bodyMeasurements}
+                                </p>
+                              )}
+                            </div>
+
+                            {sessionImages.length > 0 && (
+                              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+                                {sessionImages.map((imageUrl, index) => (
+                                  <div
+                                    key={`${session.id}-${index}`}
+                                    className="group/image relative aspect-[4/3] overflow-hidden rounded-sm border border-[#ECE7DD] bg-[#F7F2EA]"
+                                  >
+                                    <img
+                                      src={imageUrl}
+                                      alt={`Foto da evolução ${session.sessionNumber}`}
+                                      loading="lazy"
+                                      decoding="async"
+                                      className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-[1.03]"
+                                    />
+                                    <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-black/65 to-transparent p-2 pt-8">
+                                      <a
+                                        href={imageUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        aria-label="Abrir foto em tamanho original"
+                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-[#2C2724] shadow-sm"
+                                      >
+                                        <ExternalLink size={14} />
+                                      </a>
+                                      <a
+                                        href={downloadImageHref(imageUrl, plan, session, index)}
+                                        aria-label="Baixar foto"
+                                        className="flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-[#5A1F2B] shadow-sm"
+                                      >
+                                        <Download size={14} />
+                                      </a>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            <div className="mt-5 flex flex-col gap-3 border-t border-[#F2EEE7] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                              <div className="flex flex-wrap items-center gap-3 text-[9px] font-bold uppercase tracking-wider">
+                                {session.signedAt ? (
+                                  <span className="flex items-center gap-1.5 text-emerald-600">
+                                    <CheckCircle2 size={13} /> Paciente ciente • {formatDateTime(session.signedAt)}
+                                  </span>
+                                ) : (
+                                  <button
+                                    type="button"
+                                    onClick={() => openAcknowledgement(session)}
+                                    className="flex items-center gap-1.5 rounded-sm border border-[#5A1F2B]/20 px-3 py-2 text-[#5A1F2B] transition-colors hover:bg-[#F7F2EA]"
+                                  >
+                                    <PenLine size={13} /> Paciente dar ciência / visto
+                                  </button>
+                                )}
+
+                                {contractSignature ? (
+                                  <span className="flex items-center gap-1.5 text-emerald-600/75">
+                                    <ShieldCheck size={12} /> Contrato assinado
+                                  </span>
+                                ) : (
+                                  <span className="flex items-center gap-1.5 text-amber-500/80">
+                                    <ShieldCheck size={12} /> Contrato sem assinatura
+                                  </span>
+                                )}
+                              </div>
+
+                              {session.signedAt && session.signatureImage && (
+                                <div className="flex items-center gap-2 rounded-sm border border-emerald-100 bg-emerald-50/50 px-3 py-1.5">
+                                  <img src={session.signatureImage} alt="Visto da paciente" className="h-7 w-20 object-contain" />
+                                  <span className="text-[8px] font-bold uppercase tracking-wider text-emerald-700">Visto registrado</span>
+                                </div>
+                              )}
+                            </div>
+                          </article>
+                        );
+                      })
                     )}
                   </div>
-
-                  <div className="mt-6 flex flex-col gap-3 border-t border-[#ECE7DD] pt-5 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-[11px] leading-5 text-gray-400">
-                      Este registro será salvo como a evolução nº {Math.max(plan.completedSessions, plan.sessions?.length || 0) + 1} deste procedimento.
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => saveEvolution(plan)}
-                      disabled={saving || uploadingImages}
-                      className="flex h-12 items-center justify-center gap-3 bg-[#111] px-8 text-[10px] font-bold uppercase tracking-[0.18em] text-white shadow-lg transition-all hover:bg-[#5A1F2B] disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {saving ? <Activity size={17} className="animate-spin" /> : <Plus size={17} />}
-                      {saving ? "Salvando…" : "Salvar evolução"}
-                    </button>
-                  </div>
                 </div>
-
-                <div className="space-y-4 p-6">
-                  {(plan.sessions || []).length === 0 ? (
-                    <div className="rounded-sm border border-dashed border-[#5A1F2B]/15 bg-[#FCFAF6] p-8 text-center text-sm text-gray-400">
-                      Nenhuma evolução registrada para este procedimento ainda.
-                    </div>
-                  ) : (
-                    (plan.sessions || []).map((session) => {
-                      const sessionImages = parseImages(session.imagesJson);
-                      const mainDescription = session.clinicalNotes || session.bodyMeasurements || session.performedProcedure || "Registro clínico";
-                      const hasLegacyExtra = Boolean(
-                        session.bodyMeasurements &&
-                          session.clinicalNotes &&
-                          !session.clinicalNotes.includes(session.bodyMeasurements)
-                      );
-
-                      return (
-                        <article key={session.id} className="group relative rounded-sm border border-[#ECE7DD] bg-white p-5">
-                          <button
-                            onClick={() => removeSession(session.id)}
-                            aria-label="Excluir evolução"
-                            className="no-print absolute right-4 top-4 text-gray-200 opacity-100 transition-all hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
-                          >
-                            <Trash2 size={15} />
-                          </button>
-
-                          <div className="pr-8">
-                            <div className="flex flex-wrap items-center gap-3">
-                              <span className="rounded bg-[#F7F2EA] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#5A1F2B]">
-                                Evolução {session.sessionNumber}
-                              </span>
-                              <span className="text-[11px] font-medium text-gray-400">{formatDate(session.sessionDate)}</span>
-                            </div>
-
-                            <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#2C2724]">{mainDescription}</p>
-                            {hasLegacyExtra && (
-                              <p className="mt-3 whitespace-pre-line rounded-sm bg-[#FCFAF6] p-3 text-[12px] leading-6 text-gray-500">
-                                {session.bodyMeasurements}
-                              </p>
-                            )}
-                          </div>
-
-                          {sessionImages.length > 0 && (
-                            <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
-                              {sessionImages.map((imageUrl, index) => (
-                                <a
-                                  key={`${session.id}-${index}`}
-                                  href={imageUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className="group/image relative aspect-[4/3] overflow-hidden rounded-sm border border-[#ECE7DD] bg-[#F7F2EA]"
-                                >
-                                  <img
-                                    src={imageUrl}
-                                    alt={`Foto da evolução ${session.sessionNumber}`}
-                                    loading="lazy"
-                                    decoding="async"
-                                    className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-[1.03]"
-                                  />
-                                </a>
-                              ))}
-                            </div>
-                          )}
-
-                          <div className="mt-5 flex items-center gap-2 border-t border-[#F2EEE7] pt-4 text-[9px] font-bold uppercase tracking-wider">
-                            {contractSignature ? (
-                              <span className="flex items-center gap-1.5 text-emerald-600">
-                                <CheckCircle2 size={12} /> Contrato da paciente assinado
-                              </span>
-                            ) : (
-                              <span className="flex items-center gap-1.5 text-amber-500">
-                                <ShieldCheck size={12} /> Contrato ainda sem assinatura
-                              </span>
-                            )}
-                          </div>
-                        </article>
-                      );
-                    })
-                  )}
-                </div>
-              </div>
-            )}
-          </section>
-        ))}
+              )}
+            </section>
+          );
+        })}
       </div>
 
       {legacyStructuredEvolutions.length > 0 && (
@@ -679,6 +854,79 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
             ))}
           </div>
         </section>
+      )}
+
+      {signingSession && (
+        <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-xl overflow-hidden rounded-2xl bg-[#F7F2EA] shadow-2xl">
+            <div className="flex items-start justify-between border-b border-[#E7DED0] bg-white px-5 py-4">
+              <div>
+                <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-[#5A1F2B]/60">Ciência da evolução</p>
+                <h3 className="mt-1 font-serif text-xl text-[#1E1A18]">Visto da paciente</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSigningSession(null)}
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-[#ECE7DD] bg-white text-gray-500"
+                aria-label="Fechar"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-5 sm:p-6">
+              <div className="rounded-xl border border-[#E7DED0] bg-white p-4 text-sm leading-6 text-[#4A433F]">
+                Eu, <strong>{patient.name}</strong>, declaro que visualizei este registro de evolução, incluindo a data, a descrição e as imagens clínicas vinculadas, e confirmo minha ciência sobre o acompanhamento registrado.
+              </div>
+
+              <div className="mt-5 flex items-center justify-between">
+                <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#5A1F2B]/60">Assine ou dê seu visto abaixo</span>
+                <button
+                  type="button"
+                  onClick={() => signatureRef.current?.clear()}
+                  className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-gray-500"
+                >
+                  <RotateCcw size={12} /> Limpar
+                </button>
+              </div>
+
+              <div className="mt-2 h-56 overflow-hidden rounded-xl border-2 border-dashed border-[#5A1F2B]/30 bg-white touch-none">
+                <SignatureCanvas
+                  ref={signatureRef}
+                  penColor="#1E1A18"
+                  canvasProps={{
+                    className: "h-full w-full",
+                    width: 900,
+                    height: 300,
+                  }}
+                />
+              </div>
+
+              <p className="mt-3 text-[10px] leading-5 text-gray-500">
+                Este visto registra ciência deste lançamento específico do prontuário. Ele não substitui o contrato ou os termos de consentimento do procedimento.
+              </p>
+
+              <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSigningSession(null)}
+                  className="h-11 border border-[#D8D0C5] bg-white px-5 text-[10px] font-bold uppercase tracking-wider text-gray-600"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={saveAcknowledgement}
+                  disabled={signatureSaving}
+                  className="flex h-11 items-center justify-center gap-2 bg-[#111] px-6 text-[10px] font-bold uppercase tracking-wider text-white disabled:opacity-50"
+                >
+                  {signatureSaving ? <Activity size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
+                  {signatureSaving ? "Registrando…" : "Confirmar ciência"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

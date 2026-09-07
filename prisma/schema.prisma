@@ -234,6 +234,8 @@ model ClinicalEvolutionSession {
   
   clinicalNotes        String?
   imagesJson           Json?                 // Fotos de antes e depois
+  entryType            String                @default("SESSION") // SESSION | FOLLOW_UP | RETURN
+  countsTowardSession  Boolean               @default(true)
   patientSignatureName String?
   signedAt             DateTime?
   

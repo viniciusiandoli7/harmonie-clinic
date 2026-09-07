@@ -541,6 +541,8 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
       "bodyMeasurements" TEXT,
       "clinicalNotes" TEXT,
       "imagesJson" JSONB,
+      "entryType" TEXT NOT NULL DEFAULT 'SESSION',
+      "countsTowardSession" BOOLEAN NOT NULL DEFAULT TRUE,
       "patientSignatureName" TEXT,
       "signedAt" TIMESTAMP(3),
       "signatureImage" TEXT,
@@ -578,7 +580,10 @@ export async function ensurePatientFeatureTables(client: PrismaLike) {
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "PostProcedureTask_patientId_idx" ON "PostProcedureTask"("patientId")`);
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "EvaluationConversion_patientId_idx" ON "EvaluationConversion"("patientId")`);
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "ClinicalEvolutionPlan_patientId_idx" ON "ClinicalEvolutionPlan"("patientId")`);
+  await safeExecute(client, `ALTER TABLE "ClinicalEvolutionSession" ADD COLUMN IF NOT EXISTS "entryType" TEXT NOT NULL DEFAULT 'SESSION'`);
+  await safeExecute(client, `ALTER TABLE "ClinicalEvolutionSession" ADD COLUMN IF NOT EXISTS "countsTowardSession" BOOLEAN NOT NULL DEFAULT TRUE`);
   await safeExecute(client, `CREATE INDEX IF NOT EXISTS "ClinicalEvolutionSession_planId_idx" ON "ClinicalEvolutionSession"("planId")`);
+  await safeExecute(client, `CREATE INDEX IF NOT EXISTS "ClinicalEvolutionSession_planId_sessionDate_idx" ON "ClinicalEvolutionSession"("planId", "sessionDate")`);
 }
 
 

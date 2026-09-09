@@ -362,16 +362,6 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
     await loadData();
   }
 
-  async function removePlan(planId: string) {
-    if (!window.confirm("Excluir este prontuário e todos os registros vinculados a ele?")) return;
-    const res = await fetch(`/api/evolution-plans/${planId}`, { method: "DELETE" });
-    if (!res.ok) {
-      alert("Não foi possível excluir o prontuário.");
-      return;
-    }
-    if (expandedPlanId === planId) setExpandedPlanId(null);
-    await loadData();
-  }
 
   async function handleExportPDF(plan: EvolutionPlan) {
     setExportingPlanId(plan.id);
@@ -508,13 +498,6 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
                     }`}
                   >
                     {expandedPlanId === plan.id ? "Fechar" : "Nova evolução"}
-                  </button>
-                  <button
-                    onClick={() => removePlan(plan.id)}
-                    aria-label="Excluir prontuário"
-                    className="h-9 border border-red-50 px-2 text-red-200 transition-colors hover:text-red-500"
-                  >
-                    <Trash2 size={16} />
                   </button>
                 </div>
               </div>

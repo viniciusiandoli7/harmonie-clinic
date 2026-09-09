@@ -16,17 +16,33 @@ function formatDate(value?: string | null) {
 export default function PatientTreatmentPlanSection({ patientId }: Props) {
   const [plans, setPlans] = useState<any[]>([]);
   const [notes, setNotes] = useState<any[]>([]);
+  const [clinicalPlans, setClinicalPlans] = useState<any[]>([]);
   const [noteText, setNoteText] = useState("");
   const [saving, setSaving] = useState(false);
+  const [loadError, setLoadError] = useState("");
 
   async function load() {
-    const [plansRes, notesRes] = await Promise.all([
-      fetch(`/api/patients/${patientId}/treatment-plans`),
-      fetch(`/api/patients/${patientId}/treatment-plan-notes`),
+    setLoadError("");
+    const [plansRes, notesRes, clinicalRes] = await Promise.all([
+      fetch(`/api/patients/${patientId}/treatment-plans`, { cache: "no-store" }),
+      fetch(`/api/patients/${patientId}/treatment-plan-notes`, { cache: "no-store" }),
+      fetch(`/api/patients/${patientId}/evolution`, { cache: "no-store" }),
     ]);
 
-    if (plansRes.ok) setPlans(await plansRes.json());
-    if (notesRes.ok) setNotes(await notesRes.json());
+    const plansData = await plansRes.json().catch(() => null);
+    const notesData = await notesRes.json().catch(() => null);
+    const clinicalData = await clinicalRes.json().catch(() => null);
+
+    setPlans(plansRes.ok && Array.isArray(plansData) ? plansData : []);
+    setNotes(notesRes.ok && Array.isArray(notesData) ? notesData : []);
+    setClinicalPlans(clinicalRes.ok && Array.isArray(clinicalData) ? clinicalData : []);
+
+    if (!plansRes.ok || !notesRes.ok || !clinicalRes.ok) {
+      setLoadError(
+        plansData?.error || notesData?.error || clinicalData?.error ||
+        "Parte do histórico não pôde ser carregada. Nenhum dado foi alterado."
+      );
+    }
   }
 
   useEffect(() => {
@@ -85,10 +101,16 @@ export default function PatientTreatmentPlanSection({ patientId }: Props) {
           </div>
         </div>
 
+        {loadError && (
+          <div className="mt-6 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-[12px] leading-5 text-amber-800">
+            {loadError} Se estes dados apareciam antes, não cadastre um novo plano por cima até conferir o histórico abaixo.
+          </div>
+        )}
+
         <div className="mt-8 space-y-4">
           {plans.length === 0 ? (
             <p className="rounded-3xl border border-dashed border-[#5A1F2B]/20 bg-[#F7F2EA]/60 p-8 text-center text-sm text-[#5B3A2E]/60">
-              Nenhum plano estruturado criado ainda.
+              Nenhum plano estratégico foi localizado nesta tabela. O histórico clínico e os tratamentos comprados continuam sendo conferidos logo abaixo.
             </p>
           ) : (
             plans.map((plan) => (
@@ -127,6 +149,28 @@ export default function PatientTreatmentPlanSection({ patientId }: Props) {
             ))
           )}
         </div>
+
+        {clinicalPlans.length > 0 && (
+          <div className="mt-8 border-t border-[#EEE] pt-7">
+            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-[#5A1F2B]/70">Tratamentos e pacotes preservados</p>
+            <p className="mt-2 text-[12px] leading-6 text-[#5B3A2E]/60">
+              Estes registros vêm do prontuário/evolução clínica e são mostrados aqui como camada de recuperação, sem alterar o histórico original.
+            </p>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              {clinicalPlans.map((plan) => (
+                <article key={plan.id} className="rounded-2xl border border-[rgba(90,31,43,.10)] bg-[#F7F2EA]/60 p-4">
+                  <p className="text-sm font-bold text-[#1E1A18]">{plan.treatmentName || "Tratamento"}</p>
+                  <p className="mt-1 text-[11px] text-[#5B3A2E]/60">
+                    Sessões: {Number(plan.completedSessions || 0)}/{Number(plan.totalSessions || 1)}
+                    {plan.packageName ? ` • ${plan.packageName}` : ""}
+                  </p>
+                  {plan.goals && <p className="mt-3 whitespace-pre-line text-[12px] leading-6 text-[#5B3A2E]/70">{plan.goals}</p>}
+                  {plan.notes && <p className="mt-2 whitespace-pre-line text-[12px] leading-6 text-[#5B3A2E]/60">{plan.notes}</p>}
+                </article>
+              ))}
+            </div>
+          </div>
+        )}
       </section>
 
       <form onSubmit={saveNote} className="bg-white border border-[rgba(90,31,43,.10)] p-10 rounded-sm shadow-sm">

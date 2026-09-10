@@ -18,7 +18,6 @@ const ClinicalEvolutionSection = dynamic(() => import("@/components/patients/Cli
 const PatientTreatmentPlanSection = dynamic(() => import("@/components/patients/PatientTreatmentPlanSection"));
 const PatientSafetySection = dynamic(() => import("@/components/patients/PatientSafetySection"));
 const PatientPostCareSection = dynamic(() => import("@/components/patients/PatientPostCareSection"));
-const PatientPhotoArchiveSection = dynamic(() => import("@/components/patients/PatientPhotoArchiveSection"));
 
 
 function answerText(value: any) {
@@ -425,7 +424,6 @@ export default function PatientDetailPage() {
             { id: "WHATSAPP", label: "Pós & WhatsApp", icon: <MessageCircle size={14}/> },
             { id: "CONTRATOS", label: "Contratos", icon: <PenTool size={14}/> },
             { id: "FINANCEIRO", label: "Financeiro", icon: <DollarSign size={14}/> },
-            { id: "GALERIA", label: "Fotos", icon: <Camera size={14}/> },
           ].map(tab => (
             <button
               key={tab.id}
@@ -564,11 +562,6 @@ export default function PatientDetailPage() {
                 ))}
               </div>
             </div>
-          )}
-
-          {/* ARQUIVO DE FOTOS — mantém a antiga galeria e também reúne fotos das evoluções. */}
-          {activeTab === "GALERIA" && patient?.id && (
-            <PatientPhotoArchiveSection patientId={patient.id} />
           )}
 
           {/* ABA PRONTUÁRIO COM ASSINATURA AUTOMÁTICA */}

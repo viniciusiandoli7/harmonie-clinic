@@ -47,6 +47,11 @@ function entryLabel(entryType?: string | null) {
 
 async function imageToDataUrl(url: string): Promise<{ dataUrl: string; format: "PNG" | "JPEG" | "WEBP" } | null> {
   try {
+    if (/^data:image\//i.test(url)) {
+      const format = /^data:image\/png/i.test(url) ? "PNG" : /^data:image\/webp/i.test(url) ? "WEBP" : "JPEG";
+      return { dataUrl: url, format };
+    }
+
     const response = await fetch(url, { mode: "cors", cache: "no-store" });
     if (!response.ok) return null;
     const blob = await response.blob();

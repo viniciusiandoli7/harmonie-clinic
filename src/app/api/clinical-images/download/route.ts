@@ -10,15 +10,7 @@ function safeFileName(value: string) {
 function isAllowedClinicalImage(rawUrl: string) {
   try {
     const parsed = new URL(rawUrl);
-    if (parsed.protocol !== "https:" || parsed.hostname !== "res.cloudinary.com") return false;
-
-    const configuredCloud =
-      process.env.CLOUDINARY_CLOUD_NAME ||
-      process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME ||
-      "domf1tnzd";
-
-    if (!configuredCloud) return true;
-    return parsed.pathname.startsWith(`/${configuredCloud}/image/upload/`);
+    return parsed.protocol === "https:" && parsed.hostname === "res.cloudinary.com" && parsed.pathname.includes("/image/upload/");
   } catch {
     return false;
   }

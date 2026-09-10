@@ -8,7 +8,9 @@ type Ctx = {
   params: Promise<{ id: string }>;
 };
 
-const VALID_ENTRY_TYPES = new Set(["SESSION", "FOLLOW_UP", "RETURN"]);
+type EntryType = "SESSION" | "FOLLOW_UP" | "RETURN";
+const VALID_ENTRY_TYPES = new Set<EntryType>(["SESSION", "FOLLOW_UP", "RETURN"]);
+const ENTRY_TYPE_MARKER = "__HARMONIE_ENTRY_TYPE__:";
 
 function validateImageUrls(value: unknown) {
   if (value === undefined || value === null) return [];
@@ -26,9 +28,14 @@ function nullableText(value: unknown) {
   return text || null;
 }
 
-function normalizeEntryType(value: unknown) {
-  const entryType = String(value || "SESSION").trim().toUpperCase();
-  return VALID_ENTRY_TYPES.has(entryType) ? entryType : "SESSION";
+function normalizeEntryType(value: unknown): EntryType {
+  const normalized = String(value || "SESSION").trim().toUpperCase() as EntryType;
+  return VALID_ENTRY_TYPES.has(normalized) ? normalized : "SESSION";
+}
+
+function encodeEntryMetadata(entryType: EntryType, bodyMeasurements: string | null) {
+  const suffix = bodyMeasurements ? `\n${bodyMeasurements}` : "";
+  return `${ENTRY_TYPE_MARKER}${entryType}${suffix}`;
 }
 
 export async function POST(req: Request, ctx: Ctx) {
@@ -39,47 +46,41 @@ export async function POST(req: Request, ctx: Ctx) {
     const { id } = await ctx.params;
     const body = await req.json().catch(() => ({}));
 
-    const planBefore = await prisma.clinicalEvolutionPlan.findUnique({
+    const plan = await prisma.clinicalEvolutionPlan.findUnique({
       where: { id },
-      include: { sessions: { select: { sessionNumber: true, countsTowardSession: true } } },
+      include: { sessions: { select: { sessionNumber: true } } },
     });
 
-    if (!planBefore) {
-      return NextResponse.json({ error: "Tratamento não encontrado." }, { status: 404 });
+    if (!plan) return NextResponse.json({ error: "Tratamento não encontrado." }, { status: 404 });
+
+    const entryType = normalizeEntryType(body.entryType);
+    const countsTowardSession = entryType === "SESSION";
+
+    if (countsTowardSession && plan.completedSessions >= plan.totalSessions) {
+      return NextResponse.json(
+        {
+          error:
+            "Todas as sessões contratadas já foram registradas. Para fotos de acompanhamento ou retorno, escolha uma opção que não consome sessão.",
+        },
+        { status: 400 },
+      );
     }
 
     const bodyMeasurements = nullableText(body.bodyMeasurements);
     const clinicalNotes = nullableText(body.clinicalNotes);
-    const finalNotes = bodyMeasurements
-      ? `MEDIDAS: ${bodyMeasurements}${clinicalNotes ? `\n\nOBSERVAÇÕES: ${clinicalNotes}` : ""}`
-      : clinicalNotes;
-
-    const entryType = normalizeEntryType(body.entryType);
-    const countsTowardSession = entryType === "SESSION";
-    const nextEvolutionNumber = Math.max(0, ...planBefore.sessions.map((item) => item.sessionNumber || 0)) + 1;
-
-    if (countsTowardSession) {
-      const completedCount = planBefore.sessions.filter((item) => item.countsTowardSession !== false).length;
-      if (completedCount >= planBefore.totalSessions) {
-        return NextResponse.json(
-          {
-            error: "Todas as sessões contratadas já foram registradas. Para fotos de acompanhamento ou retorno, escolha um registro que não consome sessão.",
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const nextEvolutionNumber = Math.max(0, ...plan.sessions.map((item) => Number(item.sessionNumber || 0))) + 1;
 
     const sessionRecord = await prisma.clinicalEvolutionSession.create({
       data: {
         planId: id,
         sessionNumber: nextEvolutionNumber,
         sessionDate: body.sessionDate ? new Date(body.sessionDate) : new Date(),
-        performedProcedure: nullableText(body.performedProcedure) || planBefore.treatmentName,
-        bodyMeasurements,
-        clinicalNotes: finalNotes,
-        entryType,
-        countsTowardSession,
+        performedProcedure: nullableText(body.performedProcedure) || plan.treatmentName,
+        // O tipo do registro é armazenado em um marcador retrocompatível dentro de
+        // bodyMeasurements. Assim NÃO criamos novas colunas e não colocamos os
+        // prontuários antigos em risco por divergência de migration/schema.
+        bodyMeasurements: encodeEntryMetadata(entryType, bodyMeasurements),
+        clinicalNotes,
         patientSignatureName: nullableText(body.patientSignatureName),
         signatureImage: body.signatureImage || null,
         signedAt: body.signatureImage ? new Date() : null,
@@ -87,18 +88,18 @@ export async function POST(req: Request, ctx: Ctx) {
       },
     });
 
-    const countedSessions = await prisma.clinicalEvolutionSession.count({
-      where: { planId: id, countsTowardSession: true },
-    });
+    const nextCompletedSessions = countsTowardSession
+      ? Math.min(plan.totalSessions, plan.completedSessions + 1)
+      : plan.completedSessions;
 
     await prisma.clinicalEvolutionPlan.update({
       where: { id },
       data: {
-        completedSessions: countedSessions,
+        completedSessions: nextCompletedSessions,
         status:
-          planBefore.status === "CANCELED"
+          plan.status === "CANCELED"
             ? "CANCELED"
-            : countedSessions >= planBefore.totalSessions
+            : nextCompletedSessions >= plan.totalSessions
               ? "FINISHED"
               : "ACTIVE",
       },
@@ -106,8 +107,8 @@ export async function POST(req: Request, ctx: Ctx) {
 
     if (body.recommendedReturn) {
       await schedulePatientReturn({
-        patientId: planBefore.patientId,
-        procedureName: nullableText(body.performedProcedure) || planBefore.treatmentName,
+        patientId: plan.patientId,
+        procedureName: nullableText(body.performedProcedure) || plan.treatmentName,
         returnDate: body.recommendedReturn,
         returnTime: body.returnTime,
         notes: "Retorno definido ao registrar evolução do prontuário.",
@@ -117,7 +118,7 @@ export async function POST(req: Request, ctx: Ctx) {
 
     return NextResponse.json(sessionRecord, { status: 201 });
   } catch (error) {
-    console.error("Erro ao criar sessão de evolução:", error);
+    console.error("Erro ao criar evolução clínica:", error);
     return NextResponse.json({ error: "Erro ao salvar a evolução." }, { status: 500 });
   }
 }

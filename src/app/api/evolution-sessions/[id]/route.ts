@@ -45,12 +45,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         ...(body.clinicalNotes !== undefined && { 
           clinicalNotes: String(body.clinicalNotes || "").trim() || null 
         }),
-        ...(body.entryType !== undefined && {
-          entryType: ["SESSION", "FOLLOW_UP", "RETURN"].includes(String(body.entryType).toUpperCase())
-            ? String(body.entryType).toUpperCase()
-            : "FOLLOW_UP",
-          countsTowardSession: String(body.entryType).toUpperCase() === "SESSION",
-        }),
         ...(body.patientSignatureName !== undefined && { 
           patientSignatureName: String(body.patientSignatureName || "").trim() || null 
         }),
@@ -62,27 +56,6 @@ export async function PATCH(req: NextRequest, ctx: Ctx) {
         }),
       }
     });
-
-    if (body.entryType !== undefined) {
-      const plan = await prisma.clinicalEvolutionPlan.findUnique({ where: { id: updatedSession.planId } });
-      if (plan) {
-        const completedSessionsCount = await prisma.clinicalEvolutionSession.count({
-          where: { planId: plan.id, countsTowardSession: true },
-        });
-        await prisma.clinicalEvolutionPlan.update({
-          where: { id: plan.id },
-          data: {
-            completedSessions: completedSessionsCount,
-            status:
-              plan.status === "CANCELED"
-                ? "CANCELED"
-                : completedSessionsCount >= plan.totalSessions
-                  ? "FINISHED"
-                  : "ACTIVE",
-          },
-        });
-      }
-    }
 
     return NextResponse.json(updatedSession);
   } catch (error) {
@@ -115,13 +88,6 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
       return NextResponse.json({ error: "Sessão não encontrada." }, { status: 404 });
     }
 
-    if (evolutionSession.signedAt || evolutionSession.signatureImage) {
-      return NextResponse.json(
-        { error: "Esta evolução possui ciência da paciente e foi preservada no prontuário. Registros assinados não podem ser excluídos." },
-        { status: 409 }
-      );
-    }
-
     /**
      * Refinamento: Usamos uma Transaction para garantir integridade.
      * Deletamos a sessão e atualizamos o plano em uma única operação.
@@ -143,23 +109,19 @@ export async function DELETE(req: NextRequest, ctx: Ctx) {
       // C. Busca o plano para ver quantas sessões RESTARAM
       const plan = await tx.clinicalEvolutionPlan.findUnique({
         where: { id: evolutionSession.planId },
+        include: { sessions: true }
       });
 
       if (plan) {
-        const completedSessionsCount = await tx.clinicalEvolutionSession.count({
-          where: { planId: plan.id, countsTowardSession: true },
-        });
-
+        // O contador real é o número de sessões que restaram no banco para esse plano
+        const completedSessionsCount = plan.sessions.length;
+        
         await tx.clinicalEvolutionPlan.update({
           where: { id: plan.id },
           data: {
             completedSessions: completedSessionsCount,
-            status:
-              plan.status === "CANCELED"
-                ? "CANCELED"
-                : completedSessionsCount >= plan.totalSessions
-                  ? "FINISHED"
-                  : "ACTIVE",
+            // Se o plano estava FINALIZADO mas deletamos uma sessão, ele volta para ATIVO
+            status: completedSessionsCount < plan.totalSessions ? "ACTIVE" : plan.status
           }
         });
       }

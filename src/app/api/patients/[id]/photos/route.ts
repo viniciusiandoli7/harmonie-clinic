@@ -23,28 +23,8 @@ export async function GET(_: NextRequest, context: Context) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const { id } = await context.params;
-  try {
-    const photos = await (prisma as any).patientPhoto.findMany({
-      where: { patientId: id },
-      orderBy: { takenAt: "desc" },
-    });
-    return NextResponse.json(photos);
-  } catch (error) {
-    console.error("Falha Prisma ao buscar fotos; tentando leitura compatível:", error);
-    try {
-      const photos = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT * FROM "PatientPhoto" WHERE "patientId" = $1 ORDER BY "takenAt" DESC`,
-        id,
-      );
-      return NextResponse.json(photos);
-    } catch (fallbackError) {
-      console.error("Falha também na leitura compatível das fotos:", fallbackError);
-      return NextResponse.json(
-        { error: "Não foi possível ler as fotos existentes. Nenhuma imagem foi apagada por esta operação." },
-        { status: 500 },
-      );
-    }
-  }
+  const photos = await (prisma as any).patientPhoto.findMany({ where: { patientId: id }, orderBy: { takenAt: "desc" } });
+  return NextResponse.json(photos);
 }
 
 export async function POST(req: NextRequest, context: Context) {

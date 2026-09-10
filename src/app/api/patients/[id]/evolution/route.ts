@@ -17,54 +17,20 @@ export async function GET(_req: NextRequest, ctx: Ctx) {
   try {
     const { id } = await ctx.params;
 
-    try {
-      const plans = await prisma.clinicalEvolutionPlan.findMany({
-        where: { patientId: id },
-        include: {
-          sessions: {
-            orderBy: { sessionNumber: "desc" },
-          },
+    const plans = await prisma.clinicalEvolutionPlan.findMany({
+      where: { patientId: id },
+      include: {
+        sessions: {
+          orderBy: { sessionNumber: "desc" },
         },
-        orderBy: { createdAt: "desc" },
-      });
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-      return NextResponse.json(plans);
-    } catch (error) {
-      // Compatibilidade de recuperação: se o código novo estiver apontando para
-      // um banco que ainda não recebeu as colunas de acompanhamento, o Prisma
-      // pode falhar ao selecionar ClinicalEvolutionSession. Lemos o histórico
-      // existente via SQL sem alterar absolutamente nenhum registro.
-      console.error("Falha Prisma ao buscar evolução; tentando leitura compatível:", error);
-      const plans = await prisma.$queryRawUnsafe<any[]>(
-        `SELECT * FROM "ClinicalEvolutionPlan" WHERE "patientId" = $1 ORDER BY "createdAt" DESC`,
-        id,
-      );
-      const planIds = plans.map((plan: any) => plan.id).filter(Boolean);
-      let sessions: any[] = [];
-      if (planIds.length > 0) {
-        sessions = await prisma.$queryRawUnsafe<any[]>(
-          `SELECT * FROM "ClinicalEvolutionSession" WHERE "planId" = ANY($1::text[]) ORDER BY "sessionNumber" DESC, "sessionDate" DESC`,
-          planIds,
-        );
-      }
-
-      return NextResponse.json(
-        plans.map((plan: any) => ({
-          ...plan,
-          sessions: sessions
-            .filter((item: any) => item.planId === plan.id)
-            .map((item: any) => ({
-              ...item,
-              entryType: item.entryType || "SESSION",
-              countsTowardSession: item.countsTowardSession !== false,
-            })),
-        })),
-      );
-    }
-  } catch (error) {
-    console.error("Erro ao carregar evolução clínica, inclusive no fallback:", error);
+    return NextResponse.json(plans);
+  } catch {
     return NextResponse.json(
-      { error: "Erro ao carregar evolução clínica. Os registros existentes não foram alterados." },
+      { error: "Erro ao carregar evolução clínica." },
       { status: 500 }
     );
   }

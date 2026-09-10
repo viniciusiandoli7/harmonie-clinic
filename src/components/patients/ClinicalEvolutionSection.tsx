@@ -16,7 +16,6 @@ import {
   Plus,
   RotateCcw,
   ShieldCheck,
-  Trash2,
   X,
 } from "lucide-react";
 import { downloadEvolutionPdf } from "@/lib/evolutionPdf";
@@ -118,21 +117,46 @@ function formatDateTime(value?: string | null) {
   });
 }
 
+function isReadableImageSource(value: unknown): value is string {
+  if (typeof value !== "string") return false;
+  const source = value.trim();
+  return /^https:\/\//i.test(source) || /^data:image\/(?:png|jpe?g|webp);base64,/i.test(source);
+}
+
+function isLegacyDataImage(value: string) {
+  return /^data:image\/(?:png|jpe?g|webp);base64,/i.test(value);
+}
+
 function parseImages(value: unknown): string[] {
-  if (Array.isArray(value)) {
-    return value.filter((item): item is string => typeof item === "string" && /^https:\/\//i.test(item));
-  }
+  if (Array.isArray(value)) return value.filter(isReadableImageSource);
   if (typeof value === "string") {
+    if (isReadableImageSource(value)) return [value];
     try {
       const parsed = JSON.parse(value);
-      return Array.isArray(parsed)
-        ? parsed.filter((item): item is string => typeof item === "string" && /^https:\/\//i.test(item))
-        : [];
+      return Array.isArray(parsed) ? parsed.filter(isReadableImageSource) : [];
     } catch {
       return [];
     }
   }
   return [];
+}
+
+function storedEntryMeta(bodyMeasurements?: string | null) {
+  const raw = String(bodyMeasurements || "");
+  const match = raw.match(/^__HARMONIE_ENTRY_TYPE__:(SESSION|FOLLOW_UP|RETURN)(?:\r?\n([\s\S]*))?$/);
+  if (!match) return { entryType: "SESSION" as EntryType, bodyMeasurements: bodyMeasurements || null };
+  return {
+    entryType: match[1] as EntryType,
+    bodyMeasurements: (match[2] || "").trim() || null,
+  };
+}
+
+function sessionEntryType(session: EvolutionSession): EntryType {
+  // Compatibilidade: versões intermediárias chegaram a devolver entryType pelo Prisma.
+  // A versão atual não depende dessas colunas para abrir prontuários antigos.
+  const explicit = String(session.entryType || "").toUpperCase();
+  if (explicit === "FOLLOW_UP" || explicit === "RETURN" || explicit === "SESSION") return explicit as EntryType;
+  return storedEntryMeta(session.bodyMeasurements).entryType;
 }
 
 function normalizeEntryType(value?: string | null): EntryType {
@@ -351,18 +375,6 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
     }
   }
 
-  async function removeSession(sessionId: string) {
-    if (!window.confirm("Excluir este registro de evolução?")) return;
-    const res = await fetch(`/api/evolution-sessions/${sessionId}`, { method: "DELETE" });
-    if (!res.ok) {
-      const data = await res.json().catch(() => null);
-      alert(data?.error || "Não foi possível excluir o registro.");
-      return;
-    }
-    await loadData();
-  }
-
-
   async function handleExportPDF(plan: EvolutionPlan) {
     setExportingPlanId(plan.id);
     try {
@@ -371,10 +383,15 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
         treatmentName: plan.treatmentName,
         totalSessions: plan.totalSessions,
         completedSessions: plan.completedSessions,
-        sessions: (plan.sessions || []).map((session) => ({
-          ...session,
-          images: parseImages(session.imagesJson),
-        })),
+        sessions: (plan.sessions || []).map((session) => {
+          const meta = storedEntryMeta(session.bodyMeasurements);
+          return {
+            ...session,
+            entryType: sessionEntryType(session),
+            bodyMeasurements: meta.bodyMeasurements,
+            images: parseImages(session.imagesJson),
+          };
+        }),
       });
     } catch (error) {
       console.error("Erro ao gerar PDF da evolução:", error);
@@ -419,7 +436,14 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
 
   function downloadImageHref(imageUrl: string, plan: EvolutionPlan, session: EvolutionSession, index: number) {
     const name = `${safeFilePart(patient.name)}-${safeFilePart(plan.treatmentName)}-${formatDate(session.sessionDate).replaceAll("/", "-")}-foto-${index + 1}`;
+    if (isLegacyDataImage(imageUrl)) return imageUrl;
     return `/api/clinical-images/download?url=${encodeURIComponent(imageUrl)}&name=${encodeURIComponent(name)}`;
+  }
+
+  function legacyPhotoDownloadHref(photo: LegacyPhoto, index: number) {
+    const name = `${safeFilePart(patient.name)}-${safeFilePart(photo.procedureName || photo.title || "foto-clinica")}-${formatDate(photo.takenAt).replaceAll("/", "-")}-foto-${index + 1}`;
+    if (isLegacyDataImage(photo.imageUrl)) return photo.imageUrl;
+    return `/api/clinical-images/download?url=${encodeURIComponent(photo.imageUrl)}&name=${encodeURIComponent(name)}`;
   }
 
   return (
@@ -456,7 +480,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
 
       <div className="space-y-4">
         {plans.map((plan) => {
-          const followUpCount = (plan.sessions || []).filter((session) => session.countsTowardSession === false).length;
+          const followUpCount = (plan.sessions || []).filter((session) => sessionEntryType(session) !== "SESSION").length;
           return (
             <section
               key={plan.id}
@@ -639,32 +663,26 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
                     ) : (
                       (plan.sessions || []).map((session) => {
                         const sessionImages = parseImages(session.imagesJson);
-                        const mainDescription = session.clinicalNotes || session.bodyMeasurements || session.performedProcedure || "Registro clínico";
+                        const storedMeta = storedEntryMeta(session.bodyMeasurements);
+                        const currentEntryType = sessionEntryType(session);
+                        const cleanBodyMeasurements = storedMeta.bodyMeasurements;
+                        const mainDescription = session.clinicalNotes || cleanBodyMeasurements || session.performedProcedure || "Registro clínico";
                         const hasLegacyExtra = Boolean(
-                          session.bodyMeasurements &&
+                          cleanBodyMeasurements &&
                             session.clinicalNotes &&
-                            !session.clinicalNotes.includes(session.bodyMeasurements)
+                            !session.clinicalNotes.includes(cleanBodyMeasurements)
                         );
 
                         return (
                           <article key={session.id} className="group relative rounded-sm border border-[#ECE7DD] bg-white p-5">
-                            {!session.signedAt && !session.signatureImage && (
-                              <button
-                                onClick={() => removeSession(session.id)}
-                                aria-label="Excluir evolução"
-                                className="absolute right-4 top-4 text-gray-200 opacity-100 transition-all hover:text-red-500 md:opacity-0 md:group-hover:opacity-100"
-                              >
-                                <Trash2 size={15} />
-                              </button>
-                            )}
 
                             <div className="pr-8">
                               <div className="flex flex-wrap items-center gap-2.5">
                                 <span className="rounded bg-[#F7F2EA] px-2 py-1 text-[9px] font-black uppercase tracking-wider text-[#5A1F2B]">
                                   Evolução {session.sessionNumber}
                                 </span>
-                                <span className={`rounded px-2 py-1 text-[8px] font-bold uppercase tracking-wider ${entryBadgeClass(session.entryType)}`}>
-                                  {entryLabel(session.entryType)}
+                                <span className={`rounded px-2 py-1 text-[8px] font-bold uppercase tracking-wider ${entryBadgeClass(currentEntryType)}`}>
+                                  {entryLabel(currentEntryType)}
                                 </span>
                                 <span className="text-[11px] font-medium text-gray-400">{formatDate(session.sessionDate)}</span>
                               </div>
@@ -672,7 +690,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
                               <p className="mt-4 whitespace-pre-line text-sm leading-7 text-[#2C2724]">{mainDescription}</p>
                               {hasLegacyExtra && (
                                 <p className="mt-3 whitespace-pre-line rounded-sm bg-[#FCFAF6] p-3 text-[12px] leading-6 text-gray-500">
-                                  {session.bodyMeasurements}
+                                  {cleanBodyMeasurements}
                                 </p>
                               )}
                             </div>
@@ -703,6 +721,7 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
                                       </a>
                                       <a
                                         href={downloadImageHref(imageUrl, plan, session, index)}
+                                        download={isLegacyDataImage(imageUrl) ? `${safeFilePart(patient.name)}-${safeFilePart(plan.treatmentName)}-${index + 1}.jpg` : undefined}
                                         aria-label="Baixar foto"
                                         className="flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-[#5A1F2B] shadow-sm"
                                       >
@@ -812,28 +831,44 @@ export default function ClinicalEvolutionSection({ patient, contractSignature }:
           </div>
 
           <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-4">
-            {legacyPhotos.map((photo) => (
-              <a
+            {legacyPhotos.filter((photo) => isReadableImageSource(photo.imageUrl)).map((photo, index) => (
+              <article
                 key={photo.id}
-                href={photo.imageUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="group overflow-hidden rounded-sm border border-[#ECE7DD] bg-[#FCFAF6]"
+                className="overflow-hidden rounded-sm border border-[#ECE7DD] bg-[#FCFAF6]"
               >
-                <div className="aspect-[4/3] overflow-hidden bg-[#F7F2EA]">
+                <div className="group/image relative aspect-[4/3] overflow-hidden bg-[#F7F2EA]">
                   <img
                     src={photo.imageUrl}
                     alt={photo.title || photo.procedureName || "Foto clínica"}
                     loading="lazy"
                     decoding="async"
-                    className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+                    className="h-full w-full object-cover transition-transform duration-300 group-hover/image:scale-[1.03]"
                   />
+                  <div className="absolute inset-x-0 bottom-0 flex justify-end gap-1 bg-gradient-to-t from-black/65 to-transparent p-2 pt-8">
+                    <a
+                      href={photo.imageUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      aria-label="Abrir foto em tamanho original"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-[#2C2724] shadow-sm"
+                    >
+                      <ExternalLink size={14} />
+                    </a>
+                    <a
+                      href={legacyPhotoDownloadHref(photo, index)}
+                      download={isLegacyDataImage(photo.imageUrl) ? `${safeFilePart(patient.name)}-foto-antiga-${index + 1}.jpg` : undefined}
+                      aria-label="Baixar foto"
+                      className="flex h-8 w-8 items-center justify-center rounded-full bg-white/95 text-[#5A1F2B] shadow-sm"
+                    >
+                      <Download size={14} />
+                    </a>
+                  </div>
                 </div>
                 <div className="p-3">
                   <p className="text-[9px] font-bold uppercase tracking-wider text-[#5A1F2B]">{formatDate(photo.takenAt)}</p>
                   <p className="mt-1 truncate text-[11px] text-[#2C2724]">{photo.title || photo.procedureName || "Registro clínico"}</p>
                 </div>
-              </a>
+              </article>
             ))}
           </div>
         </section>

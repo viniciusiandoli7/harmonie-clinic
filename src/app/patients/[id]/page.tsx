@@ -73,6 +73,7 @@ export default function PatientDetailPage() {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [sales, setSales] = useState<any[]>([]);
   const [contracts, setContracts] = useState<any[]>([]);
+  const [deletingContractId, setDeletingContractId] = useState<string | null>(null);
   const [imageAuthorizations, setImageAuthorizations] = useState<any[]>([]);
   const [imageAuthorizationBusy, setImageAuthorizationBusy] = useState(false);
   const [timeline, setTimeline] = useState<any[]>([]);
@@ -177,6 +178,32 @@ export default function PatientDetailPage() {
       }
     } catch (error) {
       console.error("Erro ao deletar", error);
+    }
+  };
+
+  const handleDeleteContract = async (contract: any) => {
+    if (contract?.status === "SIGNED") {
+      alert("Este contrato já foi assinado e será preservado no histórico. Se houver alguma correção, gere um novo contrato para a paciente.");
+      return;
+    }
+
+    const confirmDelete = window.confirm(
+      "Excluir este contrato gerado por engano?\n\nSomente o contrato será apagado. A venda, o financeiro, o tratamento, as evoluções e as fotos da paciente permanecerão intactos."
+    );
+    if (!confirmDelete) return;
+
+    setDeletingContractId(contract.id);
+    try {
+      const res = await fetch(`/api/patient-contracts/${contract.id}`, { method: "DELETE" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Não foi possível excluir o contrato.");
+
+      setContracts((current) => current.filter((item) => item.id !== contract.id));
+      alert("Contrato excluído com sucesso. Os demais dados da paciente foram preservados.");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Não foi possível excluir o contrato.");
+    } finally {
+      setDeletingContractId(null);
     }
   };
 
@@ -697,6 +724,16 @@ export default function PatientDetailPage() {
                         </div>
                         <button onClick={() => downloadContractPdf(c)} className="text-[9px] border border-[#C8A35F] bg-[#FAF8F3] text-[#5A1F2B] px-4 py-2 rounded font-bold uppercase tracking-widest hover:bg-[#F7F2EA] transition-colors flex items-center gap-2 shadow-sm"><FileText size={12}/> PDF</button>
                         {c.status !== "SIGNED" && <button onClick={() => sendWhatsAppContract(c)} className="text-[9px] border border-emerald-200 bg-emerald-50 text-emerald-700 px-4 py-2 rounded font-bold uppercase tracking-widest hover:bg-emerald-100 transition-colors flex items-center gap-2 shadow-sm"><FileText size={12}/> Enviar WhatsApp</button>}
+                        {c.status !== "SIGNED" && (
+                          <button
+                            onClick={() => handleDeleteContract(c)}
+                            disabled={deletingContractId === c.id}
+                            title="Excluir somente este contrato"
+                            className="text-[9px] border border-red-200 bg-red-50 text-red-700 px-3 py-2 rounded font-bold uppercase tracking-widest hover:bg-red-100 transition-colors flex items-center gap-2 shadow-sm disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Trash2 size={12}/> {deletingContractId === c.id ? "Excluindo..." : "Excluir"}
+                          </button>
+                        )}
                         {c.status === "SIGNED" && c.signatureImage && <img src={c.signatureImage} alt="Visto" className="h-8 object-contain" />}
                       </div>
                     </div>

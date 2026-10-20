@@ -197,11 +197,22 @@ export async function updateAppointment(id: string, data: UpdateAppointmentInput
   // 🛡️ Identifica qual será a sala após a atualização
   const nextRoom: Room = (data.room ?? current.room ?? "A") as Room;
 
-  if (nextStatus !== "CANCELED") {
+  // Só precisamos revalidar disponibilidade quando algo que ocupa a agenda
+  // realmente mudou. Alterar apenas status (ex.: Faltou), pagamento ou
+  // observações não pode falhar por um bloqueio/conflito criado depois.
+  const scheduleChanged =
+    data.date !== undefined ||
+    data.durationMinutes !== undefined ||
+    data.room !== undefined ||
+    data.patientId !== undefined;
+
+  const reactivatingCanceledAppointment =
+    current.status === "CANCELED" && nextStatus !== "CANCELED";
+
+  if (nextStatus !== "CANCELED" && (scheduleChanged || reactivatingCanceledAppointment)) {
     const nextEnd = addMinutes(nextDate, nextDuration);
     await assertNotBlocked(nextDate, nextEnd);
-    
-    // 🛡️ Passa a sala para a verificação de conflito na edição
+
     await assertNoConflictRange(nextDate, nextDuration, nextRoom, id);
   }
 

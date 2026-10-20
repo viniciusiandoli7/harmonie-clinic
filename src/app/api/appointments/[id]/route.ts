@@ -114,8 +114,24 @@ export async function PATCH(req: Request, { params }: Ctx) {
       return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
     }
 
+    const databaseMessage = String(error?.message ?? "");
+    const isAppointmentEnumMismatch =
+      /invalid input value for enum/i.test(databaseMessage) &&
+      /(AppointmentStatus|PaymentStatus)/i.test(databaseMessage);
+
+    if (isAppointmentEnumMismatch) {
+      console.error("BANCO DESATUALIZADO AO ATUALIZAR AGENDA:", { id, error });
+      return NextResponse.json(
+        {
+          error:
+            "Os status da agenda no banco estão desatualizados. Aplique as migrations do sistema (npm run db:deploy) e tente novamente.",
+        },
+        { status: 503 }
+      );
+    }
+
     console.error("ERRO PATCH /api/appointments/[id]:", { id, error });
-    return NextResponse.json({ error: "Erro ao atualizar" }, { status: 500 });
+    return NextResponse.json({ error: "Erro ao atualizar consulta. Tente novamente." }, { status: 500 });
   }
 }
 

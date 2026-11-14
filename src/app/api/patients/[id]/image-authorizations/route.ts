@@ -5,6 +5,7 @@ import { authOptions } from "@/app/api/auth/[...nextauth]/route";
 import { prisma } from "@/lib/prisma";
 import { IMAGE_AUTHORIZATION_TITLE } from "@/lib/imageAuthorizationLegal";
 import { createAuditLog } from "@/lib/audit";
+import { isImageAuthorizationSchemaError, repairImageAuthorizationSchema } from "@/lib/imageAuthorizationSchema";
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -13,16 +14,24 @@ export async function GET(_: Request, ctx: Ctx) {
   if (!session) return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
 
   const { id } = await ctx.params;
-  try {
-    const documents = await prisma.patientImageAuthorization.findMany({
-      where: { patientId: id },
-      orderBy: { createdAt: "desc" },
-    });
+  const loadDocuments = () => prisma.patientImageAuthorization.findMany({
+    where: { patientId: id },
+    orderBy: { createdAt: "desc" },
+  });
 
-    return NextResponse.json(documents);
+  try {
+    return NextResponse.json(await loadDocuments());
   } catch (error) {
-    // Não derruba a aba de contratos/prontuário se a migration deste módulo
-    // ainda não tiver sido aplicada no ambiente.
+    if (isImageAuthorizationSchemaError(error)) {
+      try {
+        await repairImageAuthorizationSchema();
+        return NextResponse.json(await loadDocuments());
+      } catch (repairError) {
+        console.error("GET image-authorizations repair error:", repairError);
+      }
+    }
+
+    // Não derruba a aba de contratos/prontuário por um erro isolado deste módulo.
     console.error("GET image-authorizations error:", error);
     return NextResponse.json([]);
   }
@@ -36,12 +45,12 @@ export async function POST(_: Request, ctx: Ctx) {
   const patient = await prisma.patient.findUnique({ where: { id }, select: { id: true } });
   if (!patient) return NextResponse.json({ error: "Paciente não encontrado." }, { status: 404 });
 
-  try {
+  const createOrReuseAuthorization = async () => {
     const existingPending = await prisma.patientImageAuthorization.findFirst({
       where: { patientId: id, status: "PENDING" },
       orderBy: { createdAt: "desc" },
     });
-    if (existingPending) return NextResponse.json(existingPending);
+    if (existingPending) return { document: existingPending, created: false };
 
     const document = await prisma.patientImageAuthorization.create({
       data: {
@@ -50,19 +59,36 @@ export async function POST(_: Request, ctx: Ctx) {
         title: IMAGE_AUTHORIZATION_TITLE,
       },
     });
-    await createAuditLog({
-      action: "CREATE_IMAGE_AUTHORIZATION",
-      entity: "PatientImageAuthorization",
-      entityId: document.id,
-      description: "Autorização de uso de imagem e voz gerada.",
-      contextJson: { patientId: id, status: document.status },
-    });
+    return { document, created: true };
+  };
 
-    return NextResponse.json(document, { status: 201 });
+  try {
+    let result;
+    try {
+      result = await createOrReuseAuthorization();
+    } catch (error) {
+      if (!isImageAuthorizationSchemaError(error)) throw error;
+
+      console.warn("Estrutura de autorização de imagem ausente/incompleta. Aplicando reparo restrito ao módulo.");
+      await repairImageAuthorizationSchema();
+      result = await createOrReuseAuthorization();
+    }
+
+    if (result.created) {
+      await createAuditLog({
+        action: "CREATE_IMAGE_AUTHORIZATION",
+        entity: "PatientImageAuthorization",
+        entityId: result.document.id,
+        description: "Autorização de uso de imagem e voz gerada.",
+        contextJson: { patientId: id, status: result.document.status },
+      });
+    }
+
+    return NextResponse.json(result.document, { status: result.created ? 201 : 200 });
   } catch (error) {
     console.error("POST image-authorizations error:", error);
     return NextResponse.json(
-      { error: "A autorização de imagem ainda não está disponível neste banco. Execute as migrations e tente novamente." },
+      { error: "Não foi possível gerar a autorização de imagem agora. Tente novamente ou verifique a conexão com o banco." },
       { status: 503 },
     );
   }

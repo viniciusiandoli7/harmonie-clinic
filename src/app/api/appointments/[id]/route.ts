@@ -11,6 +11,7 @@ import {
 } from "@/services/appointmentService";
 import { updateAppointmentSchema } from "@/validators/appointmentValidator";
 import { BlockedTimeConflictError } from "@/services/blockedTimeService";
+import { isAppointmentStatusSchemaError, repairAppointmentStatusSchema } from "@/lib/appointmentStatusSchema";
 
 const paramsSchema = z.object({
   id: z.string().uuid("ID inválido (esperado UUID)"),
@@ -78,7 +79,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
     const body = await req.json();
     const parsed = updateAppointmentSchema.parse(body);
 
-    const updated = await updateAppointment(id, {
+    const updateData = {
       ...(parsed.patientId !== undefined ? { patientId: parsed.patientId } : {}),
       ...(parsed.date !== undefined ? { date: parsed.date } : {}),
       ...(parsed.status !== undefined ? { status: parsed.status } : {}),
@@ -94,9 +95,19 @@ export async function PATCH(req: Request, { params }: Ctx) {
         ? { paymentStatus: parsed.paymentStatus }
         : {}),
       ...(parsed.room !== undefined ? { room: parsed.room } : {}),
-    });
+    };
 
-    return NextResponse.json(updated);
+    try {
+      const updated = await updateAppointment(id, updateData);
+      return NextResponse.json(updated);
+    } catch (error) {
+      if (!isAppointmentStatusSchemaError(error)) throw error;
+
+      console.warn("Enums da agenda ausentes/incompletos. Aplicando reparo restrito aos status e repetindo a atualização.");
+      await repairAppointmentStatusSchema();
+      const updated = await updateAppointment(id, updateData);
+      return NextResponse.json(updated);
+    }
   } catch (error: any) {
     if (error?.name === "ZodError") {
       return NextResponse.json({ error: error.errors }, { status: 400 });
@@ -114,17 +125,12 @@ export async function PATCH(req: Request, { params }: Ctx) {
       return NextResponse.json({ error: "Dados inválidos" }, { status: 400 });
     }
 
-    const databaseMessage = String(error?.message ?? "");
-    const isAppointmentEnumMismatch =
-      /invalid input value for enum/i.test(databaseMessage) &&
-      /(AppointmentStatus|PaymentStatus)/i.test(databaseMessage);
-
-    if (isAppointmentEnumMismatch) {
-      console.error("BANCO DESATUALIZADO AO ATUALIZAR AGENDA:", { id, error });
+    if (isAppointmentStatusSchemaError(error)) {
+      console.error("Não foi possível reparar automaticamente os enums da agenda:", { id, error });
       return NextResponse.json(
         {
           error:
-            "Os status da agenda no banco estão desatualizados. Aplique as migrations do sistema (npm run db:deploy) e tente novamente.",
+            "Não foi possível atualizar os status da agenda agora. Execute npm run db:deploy no banco de produção e tente novamente.",
         },
         { status: 503 }
       );

@@ -11,6 +11,7 @@ import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { reserveInventoryForAppointmentRaw } from "@/lib/inventorySql";
 import { BlockedTimeConflictError } from "@/services/blockedTimeService";
+import { isAppointmentStatusSchemaError, repairAppointmentStatusSchema } from "@/lib/appointmentStatusSchema";
 
 
 function normalizeProcedureName(value?: string | null) {
@@ -130,7 +131,7 @@ export async function POST(req: Request) {
       })
       .parse(body);
 
-    const appointment = await createAppointment({
+    const createData = {
       patientId: parsed.patientId,
       date: parsed.date, // O validator deve garantir que é uma data válida ISO-8601
       status: parsed.status,
@@ -139,8 +140,19 @@ export async function POST(req: Request) {
       procedureName: parsed.procedureName ?? null,
       price: parsed.price ?? null,
       paymentStatus: parsed.paymentStatus,
-      room: parsed.room ?? "A",
-    });
+      room: parsed.room ?? "A" as const,
+    };
+
+    let appointment;
+    try {
+      appointment = await createAppointment(createData);
+    } catch (error) {
+      if (!isAppointmentStatusSchemaError(error)) throw error;
+
+      console.warn("Enums da agenda ausentes/incompletos. Aplicando reparo restrito aos status e repetindo a criação.");
+      await repairAppointmentStatusSchema();
+      appointment = await createAppointment(createData);
+    }
 
     await linkInventoryToAppointment({
       patientId: parsed.patientId,

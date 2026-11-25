@@ -57,10 +57,9 @@ function periodLength(startDate: string, endDate: string) {
 }
 
 export default function ExecutiveDashboardPage() {
-  const [finance, setFinance] = useState<any>(null);
   const [patients, setPatients] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
-  const [transactions, setTransactions] = useState<any[]>([]);
+  const [periodSummary, setPeriodSummary] = useState<any>(null);
   const [backups, setBackups] = useState<any[]>([]);
   const [editingGoal, setEditingGoal] = useState(false);
   const [loadingBackup, setLoadingBackup] = useState(false);
@@ -78,20 +77,18 @@ export default function ExecutiveDashboardPage() {
   });
 
   async function load() {
-    const [financeRes, patientsRes, appointmentsRes, backupsRes, goalRes, transactionsRes] = await Promise.all([
-      fetch("/api/finance/stats", { cache: "no-store" }),
+    const [patientsRes, appointmentsRes, backupsRes, goalRes, progressRes] = await Promise.all([
       fetch("/api/patients?includeInactive=true", { cache: "no-store" }),
       fetch("/api/appointments?order=desc&limit=1000", { cache: "no-store" }),
       fetch("/api/backups", { cache: "no-store" }),
       fetch("/api/goals", { cache: "no-store" }),
-      fetch("/api/financial-transactions", { cache: "no-store" }),
+      fetch("/api/goals/progress", { cache: "no-store" }),
     ]);
 
-    if (financeRes.ok) setFinance(await financeRes.json());
     if (patientsRes.ok) setPatients(await patientsRes.json());
     if (appointmentsRes.ok) setAppointments(await appointmentsRes.json());
     if (backupsRes.ok) setBackups(await backupsRes.json());
-    if (transactionsRes.ok) setTransactions(await transactionsRes.json());
+    if (progressRes.ok) setPeriodSummary(await progressRes.json());
 
     if (goalRes.ok) {
       const data = await goalRes.json();
@@ -117,15 +114,12 @@ export default function ExecutiveDashboardPage() {
     const startDate = goalForm.startDate || monthStart();
     const endDate = goalForm.endDate || monthEnd();
 
-    const periodTransactions = transactions.filter((t) => inPeriod(t.date, startDate, endDate) && ["PAID", "PARTIAL", "COMPLETED"].includes(t.status));
-    const incomeTransactions = periodTransactions.filter((t) => t.type === "INCOME");
-    const expenseTransactions = periodTransactions.filter((t) => t.type === "EXPENSE");
-
-    const revenue = incomeTransactions.reduce((acc, t) => acc + Number(t.grossAmount ?? t.amount ?? 0), 0);
-    const netIncome = incomeTransactions.reduce((acc, t) => acc + Number(t.netAmount ?? t.amount ?? 0), 0);
-    const expense = expenseTransactions.reduce((acc, t) => acc + Number(t.amount ?? 0), 0);
-    const profit = netIncome - expense;
-    const ticket = incomeTransactions.length ? revenue / incomeTransactions.length : 0;
+    // A meta usa uma fonte única e confiável: vendas fechadas (Sale.finalPrice) no período.
+    // Financeiro/caixa continua separado para não misturar parcelas, saldo ou lançamentos duplicados.
+    const revenue = Number(periodSummary?.revenue || 0);
+    const expense = Number(periodSummary?.expense || 0);
+    const profit = Number(periodSummary?.profit || 0);
+    const ticket = Number(periodSummary?.averageTicket || 0);
 
     const periodPatients = patients.filter((p) => inPeriod(p.createdAt, startDate, endDate));
     const periodAppointments = appointments.filter((a) => inPeriod(a.date, startDate, endDate));
@@ -144,9 +138,8 @@ export default function ExecutiveDashboardPage() {
       profit,
       expense,
       periodAppointments,
-      incomeTransactions,
     };
-  }, [appointments, patients, transactions, goalForm.startDate, goalForm.endDate]);
+  }, [appointments, patients, periodSummary, goalForm.startDate, goalForm.endDate]);
 
   const goalProgress = useMemo(() => {
     const revenueGoal = Number(goalForm.revenueGoal || 0);
@@ -246,7 +239,7 @@ export default function ExecutiveDashboardPage() {
             <p className="micro-label text-brand-primary/70">Meta ativa</p>
             <h2 className="mt-2 text-3xl">De {new Date(`${goalForm.startDate}T00:00:00`).toLocaleDateString("pt-BR")} até {new Date(`${goalForm.endDate}T00:00:00`).toLocaleDateString("pt-BR")}</h2>
             <p className="mt-2 max-w-3xl text-[13px] leading-6 text-brand-text/62">
-              Faltam <strong>{goalProgress.daysLeft} dia(s)</strong> para o fim do período. Para bater a meta de faturamento, ainda faltam <strong>{fmtCurrency(goalProgress.revenueRemaining)}</strong>, equivalente a <strong>{fmtCurrency(goalProgress.dailyRevenueNeeded)}</strong> por dia.
+              Faltam <strong>{goalProgress.daysLeft} dia(s)</strong> para o fim do período. Para bater a meta de faturamento, ainda faltam <strong>{fmtCurrency(goalProgress.revenueRemaining)}</strong>, equivalente a <strong>{fmtCurrency(goalProgress.dailyRevenueNeeded)}</strong> por dia. A meta considera o <strong>valor final das vendas fechadas</strong> entre essas datas.
             </p>
           </div>
           <div className="min-w-[220px] rounded-3xl bg-brand-primary/10 p-5 text-right">
@@ -296,7 +289,7 @@ export default function ExecutiveDashboardPage() {
         <Metric label="Leads" value={indicators.leads} detail={`Faltam ${fmtNumber(goalProgress.patientsRemaining)} para a meta`} progress={goalProgress.patientPercent} icon={<Users size={18} />} />
         <Metric label="Conversão" value={`${indicators.conversion}%`} detail={`Meta ${goalProgress.conversionGoal}%`} progress={goalProgress.conversionPercent} icon={<TrendingUp size={18} />} />
         <Metric label="Ticket médio" value={fmtCurrency(indicators.ticket)} detail={`Ticket alvo ${fmtCurrency(goalProgress.ticketGoal)}`} progress={goalProgress.ticketPercent} icon={<BarChart3 size={18} />} />
-        <Metric label="Lucro" value={fmtCurrency(indicators.profit)} detail="Lucro dentro do período da meta" icon={<BarChart3 size={18} />} />
+        <Metric label="Lucro" value={fmtCurrency(indicators.profit)} detail="Lucro financeiro no período da meta" icon={<BarChart3 size={18} />} />
         <Metric label="Retornos" value={indicators.returns} detail="Pacientes com agenda no período" icon={<Users size={18} />} />
         <Metric label="Indicações" value={indicators.referrals} detail="Origem indicação no período" icon={<Users size={18} />} />
         <Metric label="Procedimentos" value={indicators.procedures} detail={`Avaliações/agendas: ${indicators.periodAppointments.length}`} progress={goalProgress.evaluationPercent} icon={<ShieldCheck size={18} />} />

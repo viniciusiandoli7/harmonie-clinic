@@ -23,11 +23,11 @@ export default function MonthlyReportPage() {
   const html = useMemo(() => {
     if (!report) return "";
     return `
-      <html><head><title>Relatório mensal Mariana Thomaz Carmona</title>
+      <html><head><title>Relatório do período Mariana Thomaz Carmona</title>
       <style>
       body{font-family:Arial,sans-serif;background:#F7F2EA;color:#1E1A18;padding:32px}h1,h2{font-family:Georgia,serif;color:#5A1F2B}section{background:#FBF8F2;border:1px solid rgba(90,31,43,.15);border-radius:18px;padding:20px;margin:14px 0}table{width:100%;border-collapse:collapse}th,td{border-bottom:1px solid rgba(90,31,43,.12);padding:10px;text-align:left;font-size:12px}th{text-transform:uppercase;color:#5A1F2B;font-size:10px}.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.kpi{background:#F7F2EA;border-radius:14px;padding:14px}.label{font-size:9px;text-transform:uppercase;color:#5B3A2E;letter-spacing:.16em}.value{font-size:22px;color:#1E1A18;margin-top:8px}
       </style></head><body>
-      <h1>Relatório Mensal — Mariana Thomaz Carmona</h1><p>Período: ${report.month}</p>
+      <h1>Relatório do Período — Mariana Thomaz Carmona</h1><p>Período: ${new Date(report.period.start).toLocaleDateString("pt-BR")} a ${new Date(report.period.end).toLocaleDateString("pt-BR")}</p>
       <section><h2>Resumo financeiro</h2><div class="grid">
         <div class="kpi"><div class="label">Faturamento</div><div class="value">${fmtCurrency(report.financial.income)}</div></div>
         <div class="kpi"><div class="label">Lucro líquido</div><div class="value">${fmtCurrency(report.financial.netProfit)}</div></div>
@@ -55,12 +55,12 @@ export default function MonthlyReportPage() {
     <div className="min-h-screen px-2 py-3 font-sans text-brand-text sm:px-4 lg:px-6">
       <header className="flex flex-col gap-6 border-b border-[rgba(90,31,43,.12)] pb-8 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="micro-label text-brand-primary/70">Gestão mensal</p>
-          <h1 className="page-title mt-2">Relatório do mês</h1>
-          <p className="mt-3 max-w-2xl text-[14px] leading-6 text-brand-text/64">Resumo para decisão: faturamento, lucro, agenda, conversão, origem das pacientes, procedimentos e estoque.</p>
+          <p className="micro-label text-brand-primary/70">Gestão por período</p>
+          <h1 className="page-title mt-2">Relatório do período</h1>
+          <p className="mt-3 max-w-2xl text-[14px] leading-6 text-brand-text/64">Usa o mesmo período configurado no Executivo para conectar faturamento, meta, agenda e conversão. O mês selecionado identifica o ciclo que começa naquele mês.</p>
         </div>
         <div className="flex gap-3">
-          <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-full border border-[rgba(90,31,43,.12)] px-4" />
+          <input aria-label="Ciclo da meta" type="month" value={month} onChange={(e) => setMonth(e.target.value)} className="h-12 rounded-full border border-[rgba(90,31,43,.12)] px-4" />
           <button onClick={load} className="btn-secondary h-12"><RefreshCcw size={15} /> Gerar</button>
           <button onClick={exportPdf} disabled={!report} className="btn-primary h-12"><Download size={15} /> PDF</button>
         </div>
@@ -68,6 +68,11 @@ export default function MonthlyReportPage() {
 
       {loading ? <div className="mt-10 font-serif text-2xl text-brand-primary">Gerando relatório...</div> : report ? (
         <main className="mt-8 space-y-6">
+          <section className="premium-card p-5">
+            <p className="micro-label text-brand-primary/70">Período conectado ao Executivo</p>
+            <h2 className="mt-2 text-2xl">{new Date(report.period.start).toLocaleDateString("pt-BR")} até {new Date(report.period.end).toLocaleDateString("pt-BR")}</h2>
+            <p className="mt-2 text-[13px] leading-6 text-brand-text/62">Faturamento e meta usam o valor final das vendas fechadas nesse intervalo. Entradas de caixa e saldo financeiro não são somados novamente à meta.</p>
+          </section>
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
             <Kpi label="Faturamento" value={fmtCurrency(report.financial.income)} />
             <Kpi label="Lucro líquido" value={fmtCurrency(report.financial.netProfit)} />

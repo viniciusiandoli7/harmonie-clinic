@@ -64,8 +64,8 @@ export async function getActiveBusinessGoalRaw(client: PrismaLike, date: Date = 
       FROM "BusinessGoal"
       WHERE "startDate" IS NOT NULL
         AND "endDate" IS NOT NULL
-        AND "startDate" <= $1
-        AND "endDate" >= $1
+        AND "startDate"::date <= $1::date
+        AND "endDate"::date >= $1::date
       ORDER BY "endDate" ASC, "updatedAt" DESC
       LIMIT 1
     `,

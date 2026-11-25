@@ -360,6 +360,7 @@ function buildFinanceNotes(data: {
 export default function FinancePage() {
   const [stats, setStats] = useState<any>(null);
   const [goal, setGoal] = useState<any>(null);
+  const [goalProgress, setGoalProgress] = useState<any>(null);
   const [patients, setPatients] = useState<any[]>([]);
   const [directMovements, setDirectMovements] = useState<FinancialTransaction[]>([]);
   const [search, setSearch] = useState("");
@@ -383,10 +384,11 @@ export default function FinancePage() {
   async function loadFinance() {
     try {
       setLoading(true);
-      const [statsRes, patientsRes, goalRes, transactionsRes] = await Promise.all([
+      const [statsRes, patientsRes, goalRes, progressRes, transactionsRes] = await Promise.all([
         fetch("/api/finance/stats", { cache: "no-store" }),
         fetch("/api/patients?includeInactive=true&compact=true", { cache: "no-store" }),
         fetch("/api/goals", { cache: "no-store" }),
+        fetch("/api/goals/progress", { cache: "no-store" }),
         fetch("/api/financial-transactions", { cache: "no-store" }),
       ]);
       if (statsRes.ok) setStats(await statsRes.json());
@@ -395,6 +397,7 @@ export default function FinancePage() {
         setPatients(Array.isArray(patientsData) ? patientsData : (patientsData.data || []));
       }
       if (goalRes.ok) setGoal(await goalRes.json());
+      if (progressRes.ok) setGoalProgress(await progressRes.json());
       if (transactionsRes.ok) {
         const transactionsData = await transactionsRes.json();
         setDirectMovements(Array.isArray(transactionsData) ? transactionsData : []);
@@ -578,35 +581,18 @@ export default function FinancePage() {
     loadFinance();
   }
 
-  const allMovementsForGoal: FinancialTransaction[] = useMemo(() => {
-    const sourceMovements: FinancialTransaction[] = [
-      ...(Array.isArray(stats?.recentMovements) ? stats.recentMovements : []),
-      ...(Array.isArray(directMovements) ? directMovements : []),
-    ];
-    const map = new Map<string, FinancialTransaction>();
-    for (const movement of sourceMovements) {
-      if (movement?.id && !map.has(movement.id)) map.set(movement.id, movement);
-    }
-    return Array.from(map.values());
-  }, [stats, directMovements]);
-
-  const activeRevenueGoal = Number(goal?.revenueGoal || stats?.monthlyGoal || 0);
-  const activeGoalStartInput = dateOnlyInput(goal?.startDate || stats?.month?.start) || monthStartInputDate();
-  const activeGoalEndInput = dateOnlyInput(goal?.endDate || stats?.month?.end) || todayInputDate();
+  const activeRevenueGoal = Number(goalProgress?.revenueGoal ?? goal?.revenueGoal ?? stats?.monthlyGoal ?? 0);
+  const activeGoalStartInput = dateOnlyInput(goalProgress?.period?.start || goal?.startDate || stats?.month?.start) || monthStartInputDate();
+  const activeGoalEndInput = dateOnlyInput(goalProgress?.period?.end || goal?.endDate || stats?.month?.end) || todayInputDate();
   const activeGoalStart = formatDateOnlyLabel(activeGoalStartInput);
   const activeGoalEnd = formatDateOnlyLabel(activeGoalEndInput);
-  const activeGoalRevenue = allMovementsForGoal
-    .filter((transaction) => {
-      const status = transaction.status === "COMPLETED" ? "PAID" : transaction.status;
-      const date = new Date(transaction.date);
-      const start = new Date(`${activeGoalStartInput}T00:00:00`);
-      const end = new Date(`${activeGoalEndInput}T23:59:59`);
-      return transaction.type === "INCOME" && ["PAID", "PARTIAL"].includes(status) && date >= start && date <= end;
-    })
-    .reduce((sum, transaction: any) => sum + Number(transaction.grossAmount ?? transaction.amount ?? 0), 0);
-  const activeGoalPercent = activeRevenueGoal ? Math.min(100, Math.round((activeGoalRevenue / activeRevenueGoal) * 100)) : 0;
-  const activeGoalRemaining = Math.max(0, activeRevenueGoal - activeGoalRevenue);
+  const activeGoalRevenue = Number(goalProgress?.revenue || 0);
+  const activeGoalPercent = Number(goalProgress?.revenuePercentage || 0);
+  const activeGoalRemaining = Number(goalProgress?.revenueRemaining ?? Math.max(0, activeRevenueGoal - activeGoalRevenue));
   const activeGoalDaysLeft = Math.max(0, Math.ceil((new Date(`${activeGoalEndInput}T00:00:00`).getTime() - new Date().setHours(0,0,0,0)) / 86400000));
+  const activeGoalExpense = Number(goalProgress?.expense || 0);
+  const activeGoalProfit = Number(goalProgress?.profit || 0);
+
 
   if (loading) {
     return <div className="min-h-screen p-10 font-serif text-2xl italic text-brand-primary">Sincronizando inteligência financeira...</div>;
@@ -648,10 +634,10 @@ export default function FinancePage() {
       </div>
 
       <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <FinanceCard label="Gastos do mês" value={stats?.expense} />
+        <FinanceCard label="Faturamento do período" value={activeGoalRevenue} />
         <FinanceCard label="Meta ativa" value={activeRevenueGoal} />
         <FinanceCard label="Meta atingida" value={`${activeGoalPercent}%`} isText />
-        <FinanceCard label="Lucro líquido" value={stats?.netProfit} accent={stats?.netProfit >= 0 ? "success" : "danger"} />
+        <FinanceCard label="Lucro líquido do período" value={activeGoalProfit} accent={activeGoalProfit >= 0 ? "success" : "danger"} />
         <FinanceCard label="Saldo disponível" value={stats?.totalBalance} accent="primary" />
       </div>
 
@@ -661,7 +647,7 @@ export default function FinancePage() {
             <p className="micro-label text-brand-primary/70">Insight da meta ativa</p>
             <h2 className="mt-2 text-2xl">De {activeGoalStart} até {activeGoalEnd}</h2>
             <p className="mt-2 text-[13px] leading-6 text-brand-text/62">
-              Falta <strong>{fmtCurrency(activeGoalRemaining)}</strong> para bater a meta. {activeGoalDaysLeft > 0 ? `Restam ${activeGoalDaysLeft} dia(s) no período.` : "O período configurado já chegou ao fim."}
+              Realizado: <strong>{fmtCurrency(activeGoalRevenue)}</strong>. Falta <strong>{fmtCurrency(activeGoalRemaining)}</strong> para bater a meta. Gastos pagos no período: <strong>{fmtCurrency(activeGoalExpense)}</strong>. {activeGoalDaysLeft > 0 ? `Restam ${activeGoalDaysLeft} dia(s) no período.` : "O período configurado já chegou ao fim."} A meta considera o valor final das vendas fechadas neste intervalo.
             </p>
           </div>
           <div className="min-w-[220px]">
@@ -677,7 +663,7 @@ export default function FinancePage() {
         <div className="premium-card p-6">
           <div className="flex items-center justify-between gap-4">
             <div>
-              <p className="micro-label">Fechamento do mês</p>
+              <p className="micro-label">Fechamento do mês-calendário</p>
               <h2 className="mt-2 text-3xl">Resumo automático</h2>
             </div>
             <div className="h-16 w-16 rounded-full border border-[rgba(90,31,43,.12)] bg-brand-background p-1">
@@ -687,7 +673,7 @@ export default function FinancePage() {
             </div>
           </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-4">
-            <MiniMetric label="Receitas" value={fmtCurrency(stats?.income)} />
+            <MiniMetric label="Entradas financeiras" value={fmtCurrency(stats?.income)} />
             <MiniMetric label="Despesas" value={fmtCurrency(stats?.expense)} />
             <MiniMetric label="Ticket médio" value={fmtCurrency(stats?.averageTicket)} />
             <MiniMetric label="Mais vendido" value={stats?.topProcedure || "—"} />
